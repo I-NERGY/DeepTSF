@@ -41,5 +41,3 @@ debugpy*.log
 pydevd*.log
 nodeLanguageServer/**
 nodeLanguageServer.*/**
-
-figures/
