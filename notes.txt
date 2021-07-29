@@ -6,3 +6,7 @@
 3. Also add other time series as features
 
 4. Transfer experiments in gluon (gluonts_incomplete.ipynb) and mlflow.
+
+5. ASK MATRYCS (Δημητρόπουλος) for multi steps forecasts
+
+6. ASK dimitropoulos specifically for VEOLIA data. They have already used them.
