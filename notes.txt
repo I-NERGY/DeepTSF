@@ -8,5 +8,14 @@
 4. Transfer experiments in gluon (gluonts_incomplete.ipynb) and mlflow.
 
 5. ASK MATRYCS (Δημητρόπουλος) for multi steps forecasts
+Notes: 
+   Κόκκινη σωλήνα -> Απο εκεί που παράγεται η ενέργεια προς το φορτίο.
+   Διακεκκομένη είναι η επιστροφή.
+   CONTADORES πάει προς το demand (κτήριο)
+   Όσο πιο μεγάλη είναι η διαφορά των 2 θερμοκρασιών τόσο μεγαλύτερη η κατανάλωση.
+
+   Τι θέλουμε να κάνουμε?
+   Ποιες μεταβλητές μας ενδιαφέρουν?
+   Στείλτε τα αντίστοιχα data να προχωρήσουμε.
 
 6. ASK dimitropoulos specifically for VEOLIA data. They have already used them.
