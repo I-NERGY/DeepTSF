@@ -41,3 +41,7 @@ debugpy*.log
 pydevd*.log
 nodeLanguageServer/**
 nodeLanguageServer.*/**
+
+# ignore dots except gitignore
+.*
+!/.gitignore
