@@ -15,6 +15,7 @@ from sklearn.metrics import mean_absolute_percentage_error as mape
 from sklearn.metrics import mean_squared_error as mse
 import numpy as np
 import matplotlib.pyplot as plt
+import darts
 
 pp = pprint.PrettyPrinter(indent=4)
 
@@ -173,125 +174,50 @@ def advanced_n_day_ahead_forecast(model, days_ahead, steps, train, test, scaler)
     
     return predictions, metrics
 
-# def simple_n_day_ahead_forecast(model, days_ahead, steps, train, test, scaler, exog_train=None, exog_test=None, scaler_exog=None):
 
-#     print(f"Simple {days_ahead} day ahead forecast:\n")
+def darts_block_forecast(model, block_n_steps, series, future_covariates, past_covariates):
 
-#     if scaler:
+    # if future_covariates is not None and past_covariates is not None:
+    pred = model.predict(n=block_n_steps,
+                         future_covariates=future_covariates,
+                         past_covariates=past_covariates,
+                         series=series)
 
-#         scaler = scaler.fit(train.values.reshape(-1, 1))
-#         # same scaler should be applied to train and test set
-#         train_scaled = pd.Series(scaler.transform(
-#             train.values.reshape(-1, 1)).reshape(-1), index=train.index)
-#         test_scaled = pd.Series(scaler.transform(
-#             test.values.reshape(-1, 1)).reshape(-1), index=test.index)
+    # elif future_covariates is not None:
+    #     pred = model.predict(n=block_n_steps,
+    #                          future_covariates=future_covariates,
+    #                          series=series)
 
-#         if exog_train != None and exog_test != None and scaler_exog != None:
+    # elif past_covariates is not None:
+    #     pred = model.predict(n=block_n_steps,
+    #                          past_covariates=past_covariates,
+    #                          series=series)
 
-#             scaler_exog = scaler_exog.fit(exog_train.values)
-#             # same scaler should be applied to train and test set
-#             exog_train_scaled = pd.Series(scaler_exog.transform(
-#                 exog_train.values), index=train.index)
-#             exog_test_scaled = pd.Series(scaler_exog.transform(
-#                 exog_test.values), index=test.index)
-
-#         forecast_scaled = model.forecast(
-#             steps * days_ahead, exog_test) if exog_test else model.forecast(steps * days_ahead)
-#         predictions = scaler.inverse_transform(
-#             forecast_scaled.reshape(-1, 1)).reshape(-1)
-
-#     else:
-
-#         predictions = model.forecast(
-#             steps * days_ahead, exog=exog_test) if exog_test else model.forecast(steps * days_ahead)
-
-#     # adjust test set based on days_ahead given
-#     test = test[:len(predictions)]
-#     predictions = pd.Series(predictions, index=test.index)
-
-#     ground_truth_line = pd.DataFrame(
-#         index=pd.concat([train[-7*24:], test]).index)
-#     ground_truth_line['Train'] = train[-7*24:]
-#     ground_truth_line['Test'] = test
-#     ground_truth_line
-
-#     naive_pred = [train.tolist()[-1]] + test.tolist()[:-1]
-#     metrics = {
-#         "MAPE naive": mape(test, naive_pred),
-#         "MAPE": mape(test, predictions),
-#         "MSE": mse(test, predictions),
-#         "RMSE": np.sqrt(mse(test, predictions))
-#     }
-#     pp.pprint(metrics)
-
-#     plt.figure()
-#     plot = ground_truth_line.plot(figsize=(
-#         15, 3), label='Data', legend=True, title=f"{days_ahead} day ahead forecast")
-#     predictions.plot(label='Forecast', legend=True)
-#     plot.grid()
-#     plt.show()
-
-#     return predictions, metrics
+    # else:
+    #     pred = model.predict(n=block_n_steps,
+    #                          series=series)
+    return pred
 
 
-# def advanced_n_day_ahead_forecast(model, days_ahead, steps, train, test, scaler):
+def darts_block_n_step_ahead_forecast(model, train, val, block_n_steps=24, n_blocks=31, future_covariates=None, past_covariates=None):
 
-#     print(f"Simple {days_ahead} day ahead forecast:\n")
+    series = train.append(val)
+    history = train
 
-#     if scaler:
+    # calculate predictions in blocks, updating the history after each block
+    for i in range(n_blocks):
+        pred_i = darts_single_forecast(
+            model, block_n_steps, history, future_covariates, past_covariates)
+        pred = pred_i if i == 0 else pred.append(pred_i)
+        history = history.append(val[block_n_steps*(i):block_n_steps*(i+1)])
 
-#         scaler = scaler.fit(train.values.reshape(-1, 1))
-#         # same scaler should be applied to train and test set
-#         train_scaled = pd.Series(scaler.transform(
-#             train.values.reshape(-1, 1)).reshape(-1), index=train.index)
-#         test_scaled = pd.Series(scaler.transform(
-#             test.values.reshape(-1, 1)).reshape(-1), index=test.index)
+    # evaluate
+    plt.figure(figsize=(20, 10))
+    series.drop_before(pd.Timestamp(pred.time_index[0] - datetime.timedelta(
+        days=5))).drop_after(pred.time_index[-1]).plot(label='actual')
+    pred.plot(label='forecast')
+    plt.legend()
+    mape_error = mape(val, pred)
+    print('MAPE = {:.2f}%'.format(mape_error))
 
-#         model.forecast(steps * days_ahead)
-#         predictions = scaler.inverse_transform(
-#             forecast_scaled.reshape(-1, 1)).reshape(-1)
-
-#     else:
-
-#         model.forecast(steps * days_ahead)
-
-#     predictions = pd.Series(dtype='float64')
-
-#     for n_day in range(days_ahead):
-#         cur_timestep = n_day * steps
-#         next_timestep = cur_timestep + steps
-#         day_preds = model.forecast(steps)
-#         predictions = pd.concat([predictions, day_preds])
-#         y_news = test.iloc[cur_timestep: next_timestep]
-#         y_news = y_news.asfreq('H')
-#         model = model.append(y_news)
-
-#     # adjust test set based on days_ahead given
-#     test = test[:len(predictions)]
-
-#     predictions.name = test.name
-#     predictions = predictions.rename_axis('datetime')
-
-#     ground_truth_line = pd.DataFrame(
-#         index=pd.concat([train[-7*24:], test]).index)
-#     ground_truth_line['Train'] = train[-7*24:]
-#     ground_truth_line['Test'] = test
-#     ground_truth_line
-
-#     naive_pred = [train.tolist()[-1]] + test.tolist()[:-1]
-#     metrics = {
-#         "MAPE naive": mape(test, naive_pred),
-#         "MAPE": mape(test, predictions),
-#         "MSE": mse(test, predictions),
-#         "RMSE": np.sqrt(mse(test, predictions))
-#     }
-#     pp.pprint(metrics)
-
-#     plt.figure()
-#     plot = ground_truth_line.plot(figsize=(
-#         15, 3), label='Data', legend=True, title=f"{days_ahead} day ahead forecast")
-#     predictions.plot(label='Forecast', legend=True)
-#     plot.grid()
-#     plt.show()
-
-#     return predictions, metrics
+    return mape_error
