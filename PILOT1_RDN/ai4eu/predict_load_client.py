@@ -1,10 +1,11 @@
 import grpc
 import yaml
 import logging
-import load_prediction_pb2
-import load_prediction_pb2_grpc
+# import load_prediction_pb2
+# import load_prediction_pb2_grpc
 import numpy as np
 import pandas as pd
+import os
 
 # SAMPLE_DATA = {
 #     "days_to_append": 6,
@@ -14,9 +15,15 @@ import pandas as pd
 #     "news": np.random.normal(3.0, 1.5, 6 * 24),
 # }
 
+model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'checkpoints', 'LSTM_120')
+print(model_path)
+
+news_example = pd.read_csv(os.path.join(model_path, "news_example_series.csv"), parse_dates=True, index_col=0)
+
 SAMPLE_DATA = {
     "forecast_horizon": 24,
-    "news": transformer_ts = pickle.load(open('example_news.pkl', "rb")) # must be longer than input chunk
+    "news": news_example.values.reshape(-1).tolist(), # must be longer than input chunk
+    "dates": news_example.index.strftime('%Y%m%d %H:%M:%S').values.tolist() # must be longer than input chunk
 }
 
 # # comment following line when providing real data ("news")
@@ -60,7 +67,7 @@ def run():
             )
             # df.index.name = "Datetime"
             df['Time'] = pd.to_datetime(df['datetime']).dt.time
-            df = df.drop('datetime', 1)
+            # df = df.drop('datetime', 1)
             print(df)
 
 
