@@ -5,6 +5,7 @@ import numpy as np
 from darts.models import RNNModel
 from darts import TimeSeries
 from evaluate_forecasts import darts_block_n_step_ahead_forecast
+from preprocessing import get_time_covariates
 
 # def predict_load(input_dict, model_path='/models/tal_sarima.pkl'):
 #     sarima = statsmodels.tsa.statespace.sarimax.SARIMAXResults.load('models/tal_sarima.pkl')
@@ -28,15 +29,21 @@ def predict_load(input_dict, model_name='LSTM_120', freq=None):
 
     # build history darts Series
     history = pd.Series(data=news, index=pd.to_datetime(dates, infer_datetime_format=True))
+    if freq is None:
+        history.index.freq = pd.infer_freq(history.index)
     history = TimeSeries.from_series(history, freq=freq)
     
     # scale history
     scaler = pickle.load(open(os.path.join(models, 'scaler.pkl'), "rb"))
     history = scaler.fit_transform(history)
 
-    # need here preprocessign step to create covariates for the given dates!!!!
-#######################
-##################
+    # need here preprocessing step to create covariates for the given dates!!!!
+    scaler_cov = pickle.load(open(os.path.join(models, 'scaler_cov.pkl'), "rb"))
+    series = pd.Series(data=history.data_ar #################### need here a series that has some new dummy values (np.zeroes) and the dates corresponding 
+    ################################################################ to the forecasting horizon (pd.date_range) so as to create the future covariates
+    future_covariates = scaler_cov.fit_transform(get_time_covariates(series))
+
+
     pred = darts_block_n_step_ahead_forecast(model=lstm,
                                       history=history,
                                       test=None,
@@ -50,9 +57,6 @@ def predict_load(input_dict, model_name='LSTM_120', freq=None):
     pred = scaler.inverse_transform(pred)
     print(pred)
     return pred # as pandas series (to avoid importing darts also in the predict_load_server.py)
-
-def produce_time_covariates():
-
 
 # example usage
 if __name__ == '__main__':
