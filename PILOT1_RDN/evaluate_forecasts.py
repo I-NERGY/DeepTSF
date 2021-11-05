@@ -249,7 +249,9 @@ def darts_block_n_step_ahead_forecast(model,
     ----------
 
     """
-
+    # this exception has no point -> just to remember how it works.
+    # you can always feed your time series history to the model
+    # or at least a history longer or equal to input chunk length
     series = history.append(test)
 
     # calculate predictions in blocks, updating the history after each block
@@ -262,12 +264,15 @@ def darts_block_n_step_ahead_forecast(model,
         pred = pred_i if i == 0 else pred.append(pred_i)
         history = history.append(test[block_n_steps*(i):block_n_steps*(i+1)])
     
-    print(pred)
-
     # evaluate
     plt.figure(figsize=(15, 8))
-    series.drop_before(pd.Timestamp(pred.time_index[0] - datetime.timedelta(
-        days=7))).drop_after(pred.time_index[-1]).plot(label='actual')
+    # series.drop_before(pd.Timestamp(pred.time_index[0] - datetime.timedelta(
+    #     days=7))).drop_after(pred.time_index[-1]).plot(label='actual')
+    if len(series) - len(test) - 7*24 > 0:
+        series.drop_before(len(series) - len(test) - 7 * 24).drop_after(pred.time_index[-1]).plot(label='actual')
+    else:
+        series.drop_after(pred.time_index[-1]).plot(label='actual')
+
     pred.plot(label='forecast')
     plt.legend()
     mape_error = mape_darts(test, pred)
@@ -320,8 +325,7 @@ def backtester(model,
 
     # flatten lists of forecasts due to last_points_only=False
     if isinstance(backtest_series_transformed, list):
-        backtest_series_transformed = reduce(
-            append, backtest_series_transformed)
+        backtest_series_transformed = reduce(append, backtest_series_transformed)
     
     # inverse scaling
     if transformer_ts is not None:
