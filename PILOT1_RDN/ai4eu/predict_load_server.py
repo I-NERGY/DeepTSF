@@ -5,6 +5,7 @@ import grpc
 import load_prediction_pb2
 import load_prediction_pb2_grpc
 import predict_total_load as pr
+import pandas as pd
 
 
 class PredictLoadServicer(load_prediction_pb2_grpc.PredictLoadServicer):
@@ -15,13 +16,9 @@ class PredictLoadServicer(load_prediction_pb2_grpc.PredictLoadServicer):
         model_input = {}
 
         try:
-            # model_input["days_to_append"] = request.days_to_append
-            # model_input["days_ahead"] = request.days_ahead
-            # model_input["daily_steps"] = request.daily_steps
-            # model_input["news"] = request.news
             model_input["forecast_horizon"] = request.forecast_horizon
             model_input["news"] = request.news
-            model_input["dates"] = request.dates
+            model_input["datetime"] = request.datetime
         except Exception as e:
             logging.error('error occured while accessing request', e)
             context.set_details('please verify that input is valid')
@@ -29,7 +26,9 @@ class PredictLoadServicer(load_prediction_pb2_grpc.PredictLoadServicer):
             return load_prediction_pb2.Prediction()
 
         logging.info(f'model input is: {model_input}')
+
         response = pr.predict_load(model_input)
+
         logging.info(f'response from model is {response}')
         return load_prediction_pb2.Prediction(load=response.values, datetime=response.index.values)
 

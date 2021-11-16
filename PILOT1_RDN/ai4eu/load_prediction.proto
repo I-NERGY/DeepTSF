@@ -8,9 +8,9 @@ syntax = "proto3";
 // }
 
 message Input {
-  required int32 forecast_horizon = 1;
+  int32 forecast_horizon = 1;
   repeated double news = 2; 
-  repeated string dates = 3;
+  repeated string datetime = 3;
 }
 
 message Prediction {

@@ -1,0 +1,6 @@
+server:
+  host: '[::]'
+  port: 8061
+client:
+  host: localhost
+  port: 8061

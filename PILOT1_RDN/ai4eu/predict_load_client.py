@@ -1,21 +1,20 @@
 import grpc
 import yaml
 import logging
-# import load_prediction_pb2
-# import load_prediction_pb2_grpc
+import load_prediction_pb2
+import load_prediction_pb2_grpc
 import numpy as np
 import pandas as pd
 import os
+from dotenv import load_dotenv
 
-# SAMPLE_DATA = {
-#     "days_to_append": 6,
-#     "days_ahead": 1,
-#     "daily_steps": 24,
-#     # size parameter = days_to_append * daily_steps
-#     "news": np.random.normal(3.0, 1.5, 6 * 24),
-# }
+load_dotenv()
 
-model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'checkpoints', 'LSTM_120')
+# env variables
+MODEL_NAME = os.environ.get('MLFLOW_TRACKING_URI')
+
+MODEL_NAME = 'LSTM_120'
+model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'models', MODEL_NAME)
 print(model_path)
 
 news_example = pd.read_csv(os.path.join(model_path, "news_example_series.csv"), parse_dates=True, index_col=0)
@@ -23,7 +22,7 @@ news_example = pd.read_csv(os.path.join(model_path, "news_example_series.csv"), 
 SAMPLE_DATA = {
     "forecast_horizon": 24,
     "news": news_example.values.reshape(-1).tolist(), # must be longer than input chunk
-    "dates": news_example.index.strftime('%Y%m%d %H:%M:%S').values.tolist() # must be longer than input chunk
+    "datetime": news_example.index.strftime('%Y%m%d %H:%M:%S').values.tolist() # must be longer than input chunk
 }
 
 # # comment following line when providing real data ("news")
@@ -45,6 +44,7 @@ def get_load_prediction(stub):
         load_prediction_pb2.Input(
             forecast_horizon=SAMPLE_DATA['forecast_horizon'],
             news=SAMPLE_DATA["news"],
+            datetime=SAMPLE_DATA["datetime"]
         )
     )
 
@@ -61,12 +61,12 @@ def run():
             print(f"error occured: {e}")
         else:
             df = pd.DataFrame(
-                {"datetime": pd.to_datetime(
+                {"Datetime": pd.to_datetime(
                     (list(response.datetime))), "Forecasted Load": list(response.load)},
                 # index=pd.to_datetime((list(response.datetime))),
             )
             # df.index.name = "Datetime"
-            df['Time'] = pd.to_datetime(df['datetime']).dt.time
+            # df['Time'] = pd.to_datetime(df['datetime']).dt.time
             # df = df.drop('datetime', 1)
             print(df)
 
