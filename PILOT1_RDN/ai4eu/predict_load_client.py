@@ -11,8 +11,6 @@ import os
 logging.basicConfig(level=logging.DEBUG)
 with open("config.yml", "r") as ymlfile:
     config = yaml.safe_load(ymlfile)
-model_name = config['models']['name']
-models_dir = config['models']['dir'].replace('/', os.path.sep)
 data_file_name = config['client']['sample_data']
 
 data_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), *data_file_name.split("/"))
