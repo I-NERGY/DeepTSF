@@ -4,3 +4,6 @@ server:
 client:
   host: localhost
   port: 8061
+models:
+  dir: .darts/checkpoints
+  name: LSTM_120

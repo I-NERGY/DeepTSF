@@ -7,17 +7,18 @@ import load_prediction_pb2_grpc
 import predict_total_load as pr
 import pandas as pd
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
-
-# env variables
-MODEL_NAME = os.environ.get('MODEL_NAME')
-print(os.environ.get('MODELS_DIR').split('/'))
-MODELS_DIR = os.path.join(*os.environ.get('MODELS_DIR').split('/'))
+# get config variables
+logging.basicConfig(level=logging.DEBUG)
+with open("config.yml", "r") as ymlfile:
+    config = yaml.safe_load(ymlfile)
+model_name = config['models']['name']
+models_dir = config['models']['dir'].replace('/', os.path.sep)
 
 model_path = os.path.join(os.path.dirname(
-    os.path.realpath(__file__)), MODELS_DIR, MODEL_NAME)
+    os.path.realpath(__file__)), models_dir, model_name)
+print(
+    f"\nLooking for model in: \n{model_path}. \nIf this is not the case modify config.yml file accordingly.")
 
 class PredictLoadServicer(load_prediction_pb2_grpc.PredictLoadServicer):
     def GetLoadPrediction(self, request, context):
@@ -38,7 +39,7 @@ class PredictLoadServicer(load_prediction_pb2_grpc.PredictLoadServicer):
 
         logging.info(f'model input is: {model_input}')
 
-        response = pr.predict_load(input_dict=model_input, model_name=MODEL_NAME, models_path=MODELS_DIR)
+        response = pr.predict_load(input_dict=model_input, model_name=model_name, models_path=models_dir)
 
         logging.info(f'response from model is {response}')
         return load_prediction_pb2.Prediction(load=response.values, datetime=response.index.values)
@@ -57,7 +58,7 @@ def serve():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG)
-    with open("config.yml", "r") as ymlfile:
-        config = yaml.safe_load(ymlfile)
+    # logging.basicConfig(level=logging.DEBUG)
+    # with open("config.yml", "r") as ymlfile:
+    #     config = yaml.safe_load(ymlfile)
     serve()
