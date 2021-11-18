@@ -10,6 +10,7 @@ import os
 import torch
 import re
 import pickle
+from darts.models import RNNModel
 
 # def predict_load(input_dict, model_path='/models/tal_sarima.pkl'):
 #     sarima = statsmodels.tsa.statespace.sarimax.SARIMAXResults.load('models/tal_sarima.pkl')
@@ -20,19 +21,16 @@ import pickle
 #     return predictions
 
 
-def predict_load(input_dict, model_name='LSTM_120', freq=None):
+def predict_load(input_dict, model_name, models_path, freq=None):
 
     # load model
-    # lstm = RNNModel.load_from_checkpoint(work_dir=os.path.dirname(os.path.realpath(__file__)),
-    #     model_name=model_name, best=True)
-    models_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'models')
-    model_folder_files = os.listdir(os.path.join(models_path, model_name))
-    model_filename = [fname for fname in model_folder_files if re.search('pth.tar$', fname)][0]
+    model_folder_file_list = os.listdir(os.path.join(models_path, model_name))
+    model_filename = [fname for fname in model_folder_file_list if re.search('pth.tar$', fname)][0]
 
-    device = torch.device(
-        'cuda') if torch.cuda.is_available() else torch.device('cpu')
-    lstm = torch.load(os.path.join(models_path, model_name,
-                      model_filename), map_location=device)
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    lstm = torch.load(os.path.join(models_path, model_name, model_filename), map_location=device)
+    lstm.device = device
+    # lstm = RNNModel.load_from_checkpoint(model_name=model_name, best=True)
 
     # get inputs
     news = input_dict['news']

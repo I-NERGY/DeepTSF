@@ -1,7 +1,7 @@
 # base image
 FROM python:3.9-slim
 
-RUN pip install --upgrade pip
+RUN pip3 install --upgrade pip
 # switch to non-root user
 RUN adduser app
 USER app
@@ -10,7 +10,7 @@ WORKDIR /home/app
 # copy requirements.txt containing the packages for installation
 COPY --chown=app:app requirements.txt requirements.txt
 # install packages
-RUN pip install -r requirements.txt
+RUN pip3 install -r requirements.txt
 # Copy all files inside current directory and according to dockerignore
 COPY --chown=app:app . .
 # compile the prote to generate classes

@@ -11,11 +11,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # env variables
-MODEL_NAME = os.environ.get('MLFLOW_TRACKING_URI')
+MODEL_NAME = os.environ.get('MODEL_NAME')
+print(os.environ.get('MODELS_DIR').split('/'))
+MODELS_DIR = os.path.join(*os.environ.get('MODELS_DIR').split('/'))
 
-MODEL_NAME = 'LSTM_120'
-model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'models', MODEL_NAME)
-print(model_path)
+model_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), MODELS_DIR, MODEL_NAME)
+# print(model_path)
 
 news_example = pd.read_csv(os.path.join(model_path, "news_example_series.csv"), parse_dates=True, index_col=0)
 

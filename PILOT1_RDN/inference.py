@@ -1,6 +1,8 @@
 import logging
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from darts.metrics import mape as mape_darts
+
 
 def darts_single_block_forecast(model, block_n_steps, series, future_covariates, past_covariates):
 

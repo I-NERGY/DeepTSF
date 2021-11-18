@@ -1,6 +1,8 @@
 import logging
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+from darts.metrics import mape as mape_darts
+
 
 def darts_single_block_forecast(model, block_n_steps, series, future_covariates, past_covariates):
 
@@ -101,4 +103,3 @@ def darts_block_n_step_ahead_forecast(model,
                     f"block_n_steps_{block_n_steps}_n_blocks_{n_blocks}_mape_{mape_error:.2f}.png"))
 
     return mape_error, pred
-
