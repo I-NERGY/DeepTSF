@@ -13,18 +13,18 @@ with open("config.yml", "r") as ymlfile:
     config = yaml.safe_load(ymlfile)
 model_name = config['models']['name']
 models_dir = config['models']['dir'].replace('/', os.path.sep)
+data_file_name = config['client']['sample_data']
 
-data_path = os.path.join(os.path.dirname(
-    os.path.realpath(__file__)), models_dir, model_name)
-print(f"Looking for example data in: \n {data_path}. \nIf this is not the case modify config.yml file accordingly. ")
-news_example = pd.read_csv(os.path.join(data_path, "news_example_series.csv"), parse_dates=True, index_col=0)
+data_file = os.path.join(os.path.dirname(os.path.realpath(__file__)), *data_file_name.split("/"))
+print(f"Looking for example data in: \n {data_file}. \nIf this is not the case modify config.yml file accordingly. ")
+sample_history = pd.read_csv(data_file, parse_dates=True, index_col=0)
 
 SAMPLE_DATA = {
     "forecast_horizon": 24,
     # must be longer than input chunk
-    "news": news_example.values.reshape(-1).tolist(),
+    "news": sample_history.values.reshape(-1).tolist(),
     # must be longer than input chunk
-    "datetime": news_example.index.strftime('%Y%m%d %H:%M:%S').values.tolist()
+    "datetime": sample_history.index.strftime('%Y%m%d %H:%M:%S').values.tolist()
 }
 
 def get_load_prediction(stub):

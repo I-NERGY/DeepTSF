@@ -4,6 +4,7 @@ server:
 client:
   host: localhost
   port: 8061
+  sample_data: history_sample.csv
 models:
   dir: .darts/checkpoints
   name: LSTM_120
