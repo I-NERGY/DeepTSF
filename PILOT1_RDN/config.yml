@@ -1,0 +1,45 @@
+# This is not yet in MLflow format. Please revisit RiskML to make it compatible. Needs CLI execution and .py files instead of notebooks
+name: PILOT1_RDN
+conda_env: conda.yml
+entry_points:
+
+  mlflow_settings:
+      mlflow_tracking_uri: http://147.102.6.64:5000
+    # mlflow_s3_endpoint_url: http://147.102.6.64:9000
+    # minio_settings:
+    #     aws_access_key_id: accessminio
+    #     aws_secret_access_key: secretminio
+  preprocessing:
+    data_root: ../../RDN/Load Data (2018-2019)/artifacts
+    timestep: 60 # minutes
+
+  training:
+    cut_date_val: 20190901
+    cut_date_test: 20191201
+    dot_darts_path: ./.darts
+    darts_model: darts.models.RNNModel
+    hyperparameters:
+      model: LSTM
+      n_rnn_layers: 1
+      hidden_dim: 128
+      n_epochs: 200
+      input_chunk_length: 120
+      training_length: 120 # should be >= input_chunk
+      random_state: 42
+      nr_epochs_val_period: 1
+      dropout: 0
+      learning_rate: 0.0005
+      batch_size: 32
+      # likelihood: darts.utils.likelihood_models.GaussianLikelihood
+
+  evaluation:
+    dot_darts_path: .darts
+    model_name: LSTM_120 #leave it blank if training step is run as well
+    transformer_filename: scaler.pkl # it is supposed to be in the same folder with the model
+    backtest_start_date: 20191201
+
+
+
+    # command: |
+    #   python3 hyperparameter_tuning/gridsearch.py --pca {pca} --merge {merge} --task {task} --imputer {imputer} --n-folds {n_folds} --n-jobs-cv {n_jobs_cv} --metric {metric} --averaging {averaging} --random-state {random_state}  
+

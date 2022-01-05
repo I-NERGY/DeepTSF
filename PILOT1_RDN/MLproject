@@ -1,0 +1,44 @@
+name: rdn_workflow
+
+conda_env: conda.yaml
+
+entry_points:
+  load_raw_data:
+    parameters:
+      local_path: {type: path, default: "../../RDN/Load_Data"}
+      fname: {type: str, default: "load_2018_2021.csv"}
+      url: {type: str, default: "None"}
+    command: |
+      python load_raw_data.py --local-path {local_path} --url {url} --fname {fname}
+
+  etl:
+    parameters:
+      series_csv: {type: path, default: "../../RDN/Load_Data/load_2018_2021.csv"}
+      resolution: {type: str, default: "15"}
+      year_range: {type: str, default: "2018-2019"}
+      time_covs: {type: str, default: "PT"}
+
+    command: |
+      python etl.py --series-csv {series_csv} --resolution {resolution} --year-range {year_range} --time-covs {time_covs}
+
+  # train:
+  #   parameters:
+  #     cut_date_val: {type: str, default: '20190901'}
+  #     cut_date_test: {type: str, default: '20191201'}
+  #     dot_darts_path: {type: path, default: ./.darts}
+  #     darts_model: {type: str, default: "darts.models.RNNModel"}
+  #     # hyperparameters: {type: str, default: >
+  #     # "{'model': 'LSTM',
+  #     #   'n_rnn_layers': 1,
+  #     #   'hidden_dim': 128,
+  #     #   'n_epochs': 200,
+  #     #   'input_chunk_length': 120,
+  #     #   'training_length': 120, # should be >= input_chunk
+  #     #   'random_state': 42,
+  #     #   'nr_epochs_val_period': 1,
+  #     #   'dropout': 0,
+  #     #   'learning_rate': 0.0005,
+  #     #   'batch_size': 32
+  #     #  }"
+
+  # main:
