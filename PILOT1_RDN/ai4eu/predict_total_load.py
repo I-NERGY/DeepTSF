@@ -5,7 +5,7 @@ import numpy as np
 from darts.models import RNNModel
 from darts import TimeSeries
 from inference import darts_block_n_step_ahead_forecast
-from preprocessing import get_time_covariates
+from etl import get_time_covariates
 import os
 import torch
 import re
