@@ -232,13 +232,12 @@ def backtester(model,
     # produce the fewest forecasts possible.
     if stride is None:
         stride = forecast_horizon
-
+    backtest_start_date = pd.Timestamp(backtest_start_date)
     # produce list of forecasts
     backtest_series_transformed = model.historical_forecasts(series_transformed,
                                                              future_covariates=future_covariates,
                                                              past_covariates=past_covariates,
-                                                             start=pd.Timestamp(
-                                                                 backtest_start_date),
+                                                             start=backtest_start_date,
                                                              forecast_horizon=forecast_horizon,
                                                              stride=stride,
                                                              retrain=retrain,
@@ -280,3 +279,21 @@ def backtester(model,
                     f'backtest_start_date_{backtest_start_date.date()}_forecast_horizon_{forecast_horizon}_mape_{mape_error:.2f}.png'))
 
     return mape_error, backtest_series
+
+
+
+# if __name__ == '__main__':
+#     # Load best model
+#     # model_name = 'LSTM_60min_20180101_val_20190901_test_20191201_input_chunk_120_training_length_120_hidden_dim_128_n_rnns_1_epochs_150_random_state_42_plus_time'
+
+#     best_model = RNNModel.load_from_checkpoint(work_dir=dot_darts_path, model_name=model_name, best=True)
+
+#     # Load used scaler
+#     transformer_ts = pickle.load(open(os.path.join(
+#         '.', '.darts', 'checkpoints', model_name, 'scaler.pkl'), "rb"))
+
+# # Set path to save evaluation results
+# path_to_save_eval = os.path.join(models_dir, model_name)
+#     eval_config = read_config(config_filepath, step='evaluation')
+#     backtest_start_date = list(eval_config.values())
+#     backtester()
