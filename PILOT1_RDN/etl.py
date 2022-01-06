@@ -185,8 +185,8 @@ def get_time_covariates(series, country_code='PT'):
 @click.option(
     "--time-covs", 
     default=" ", 
-    type=str,
-    help="Add time covariates to the timeseries"
+    type=click.Choice([" ", "PT"]),
+    help="Optionally add time covariates to the timeseries. "
 )
 def etl(series_csv, year_range, resolution, time_covs):
 
@@ -209,8 +209,6 @@ def etl(series_csv, year_range, resolution, time_covs):
         year_min = year
 
 
-    resolution = int(resolution)
-
     with mlflow.start_run() as mlrun:
         ts = pd.read_csv(series_csv, 
                         delimiter=',', 
@@ -227,12 +225,12 @@ def etl(series_csv, year_range, resolution, time_covs):
         # ts_res_darts = ts_res_darts.drop_after(pd.Timestamp(year_max))
 
         if resolution != "15":
-            ts_res = ts.resample(f'{str(resolution)}T').sum()
+            ts_res = ts.resample(resolution).sum()
         else:
             ts_res = ts
 
         # darts dataset creation
-        ts_res_darts = darts.TimeSeries.from_dataframe(ts_res, freq=f'{str(resolution)}min')
+        ts_res_darts = darts.TimeSeries.from_dataframe(ts_res, freq=resolution}')
 
         # time variables creation
         if time_covs != " ":
