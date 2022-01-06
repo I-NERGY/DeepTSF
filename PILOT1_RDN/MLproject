@@ -14,7 +14,7 @@ entry_points:
   etl:
     parameters:
       series_csv: {type: path, default: "../../RDN/Load_Data/load_2018_2021.csv"}
-      resolution: {type: str, default: "15"}
+      resolution: {type: str, default: "15min"}
       year_range: {type: str, default: "2018-2019"}
       time_covs: {type: str, default: "PT"}
 
