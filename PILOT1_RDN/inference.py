@@ -3,6 +3,14 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from darts.metrics import mape as mape_darts
 
+mlflow_serve_conda_env = {'channels': ['defaults'],
+                          'name': 'conda',
+                          'dependencies': ['python=3.9', 'pip',
+                                           {'pip': ['mlflow==1.22.0',
+                                                    'u8darts[torch]==0.15.0',
+                                                    'pandas==1.3.4',
+                                                    'numpy==1.21.4'
+                                                    ]}]}
 
 def darts_single_block_forecast(model, block_n_steps, series, future_covariates, past_covariates):
 

@@ -1,0 +1,12 @@
+  rnn: #val 2020 
+    model: LSTM
+    n_rnn_layers: 2
+    hidden_dim:  15 #128
+    n_epochs: 40
+    input_chunk_length: 192
+    training_length: 192
+    random_state: 0
+    nr_epochs_val_period: 1
+    dropout: 0.1
+    learning_rate: 0.0008
+    batch_size: 1024

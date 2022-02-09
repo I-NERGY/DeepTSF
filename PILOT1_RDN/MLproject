@@ -3,42 +3,72 @@ name: rdn_workflow
 conda_env: conda.yaml
 
 entry_points:
+
   load_raw_data:
     parameters:
-      local_path: {type: path, default: "../../RDN/Load_Data"}
-      fname: {type: str, default: "load_2018_2021.csv"}
-      url: {type: str, default: "None"}
+      series_csv: {type: str, default: ../../RDN/Load_Data/2018-2021-global-load.csv}
+      series_uri: {type: str, default: online_artifact}
     command: |
-      python load_raw_data.py --local-path {local_path} --url {url} --fname {fname}
+      python load_raw_data.py --series-csv {series_csv} --series-uri {series_uri}
 
   etl:
     parameters:
-      series_csv: {type: path, default: "../../RDN/Load_Data/load_2018_2021.csv"}
-      resolution: {type: str, default: "15min"}
-      year_range: {type: str, default: "2018-2019"}
-      time_covs: {type: str, default: "PT"}
-
+      series_csv: {type: str, default: ../../RDN/Load_Data/2018-2021-global-load.csv}
+      series_uri: {type: str, default: mlflow_artifact_uri}
+      resolution: {type: str, default: 15}
+      year_range: {type: str, default: 2018-2021}
+      time_covs: {type: str, default: PT}
     command: |
-      python etl.py --series-csv {series_csv} --resolution {resolution} --year-range {year_range} --time-covs {time_covs}
+      python etl.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs}
 
-  # train:
-  #   parameters:
-  #     cut_date_val: {type: str, default: '20190901'}
-  #     cut_date_test: {type: str, default: '20191201'}
-  #     dot_darts_path: {type: path, default: ./.darts}
-  #     darts_model: {type: str, default: "darts.models.RNNModel"}
-  #     # hyperparameters: {type: str, default: >
-  #     # "{'model': 'LSTM',
-  #     #   'n_rnn_layers': 1,
-  #     #   'hidden_dim': 128,
-  #     #   'n_epochs': 200,
-  #     #   'input_chunk_length': 120,
-  #     #   'training_length': 120, # should be >= input_chunk
-  #     #   'random_state': 42,
-  #     #   'nr_epochs_val_period': 1,
-  #     #   'dropout': 0,
-  #     #   'learning_rate': 0.0005,
-  #     #   'batch_size': 32
-  #     #  }"
+  train:
+    parameters:
+      series_csv: {type: str, default: ../../RDN/Load_Data/series.csv}
+      series_uri: {type: str, default: mlflow_artifact_uri}
+      future_covs_csv: {type: str, default: None}
+      future_covs_uri: {type: str, default: mlflow_artifact_uri}
+      past_covs_csv: {type: str, default: None}
+      past_covs_uri: {type: str, default: mlflow_artifact_uri}
+      cut_date_val: {type: str, default: 20200101}
+      cut_date_test: {type: str, default: 20210101}
+      test_end_date: {type: str, default: None}
+      darts_model: {type: str, default: RNN}
+      device: {type: str, default: cuda}
+      hyperparams_entrypoint: {type: str, default: LSTM1}
+    command: |
+      python training.py --series-csv {series_csv} --series-uri {series_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --past-covs-csv {past_covs_csv}  --past-covs-uri {past_covs_uri} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint}
 
-  # main:
+  eval:
+    parameters:
+      series_uri: {type: str, default: mlflow_artifact_uri}
+      future_covs_uri: {type: str, default: mlflow_artifact_uri}
+      past_covs_uri: {type: str, default: mlflow_artifact_uri}
+      scaler_uri: {type: str, default: mlflow_artifact_uri}
+      setup_uri: {type: str, default: mlflow_artifact_uri}
+      model_uri: {type: str, default: mlflow_artifact_uri}
+      forecast_horizon: {type: str, default: 96}
+      stride: {type: str, default: None}
+      retrain: {type: str, default: f}
+    command: |
+      python evaluate_forecasts.py --series-uri {series_uri} --future-covs-uri {future_covs_uri} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --setup-uri {setup_uri} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain}  
+
+  exp_pipeline:
+    parameters:
+      series_csv: {type: str, default: ../../RDN/Load_Data/2018-2021-global-load.csv}
+      series_uri: {type: str, default: online_artifact}
+      resolution: {type: str, default: 15}
+      year_range: {type: str, default: 2018-2021}
+      time_covs: {type: str, default: PT}
+      hyperparams_entrypoint: {type: str, default: LSTM1}
+      cut_date_val: {type: str, default: 20200101}
+      cut_date_test: {type: str, default: 20210101}
+      test_end_date: {type: str, default: None}
+      darts_model: {type: str, default: RNN}
+      device: {type: str, default: cuda}
+      forecast_horizon: {type: str, default: 96}
+      stride: {type: str, default: None}
+      retrain: {type: str, default: false}
+      ignore_previous_runs: {type: str, default: t}
+    command: |
+      python  experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs}
+

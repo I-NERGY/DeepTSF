@@ -16,7 +16,7 @@ import shutil
 import logging
 from darts.dataprocessing.transformers import MissingValuesFiller
 import pretty_errors
-import tempfile
+import uuid
 
 # get environment variables
 from dotenv import load_dotenv
@@ -30,7 +30,6 @@ def isholiday(x, holiday_list):
     if x in holiday_list:
         return True
     return False
-
 
 def isweekend(x):
     if x == 6 or x == 0:
@@ -215,15 +214,14 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
     # Also check if current transformations are ok
-    
     if series_uri != "mlflow_artifact_uri":
-        download_file_path = download_online_file(series_uri, dst_filename="load.csv")
+        download_file_path = download_online_file(series_uri, "tmpdir", "load.csv")
         series_csv = download_file_path
 
     ## Process parameters from click and MLProject
     series_csv = series_csv.replace("'", "")
 
-    # Time col check
+    # Time covs check
     time_covs = none_checker(time_covs)
 
     # Year range handling
@@ -238,8 +236,11 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
         year_max = year
         year_min = year
 
+    time_col = 'Date'
+    
     # Tempdir for artifacts 
-    tmpdir = tempfile.mkdtemp()
+    tmpdir = "features" + str(uuid.uuid4())
+    os.makedirs(tmpdir, exist_ok=True)
 
     with mlflow.start_run(run_name='etl', nested=True) as mlrun:
         print("\nLoading source dataset..")
@@ -248,59 +249,74 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
         ts = pd.read_csv(series_csv, 
                         delimiter=',', 
                         header=0, 
-                        index_col=0, 
-                        parse_dates=True)
+                        index_col=time_col) 
+                        # parse_dates=True)
+        ts.to_csv(f'{tmpdir}/0_loaded.csv')
 
-        # ts.to_csv(f'{tmpdir}/0_loaded.csv')
-
-        # temporal filtering
-        print("\nTemporal filtering...")
-        logging.info("\nTemporal filtering...")
-        ts = ts[ts.index >= pd.Timestamp(str(year_min) + '0101 00:00:00')]
-        ts = ts[ts.index <= pd.Timestamp(str(year_max) + '1231 23:59:59')]
-
-        # ts.to_csv(f'{tmpdir}/1_filtered.csv')
-
-        if resolution != "15":
-            print("\nResampling as given frequency is different than 15 minutes")
-            logging.info("\nResampling as given frequency is different than 15 minutes")
-            ts_res = ts.resample(resolution+'min').sum()
-        else:
-            ts_res = ts
-
-        # ts_res.to_csv(f'{tmpdir}/2_resampled.csv')
 
         # drop duplicate index entries, keeping the first
         print("\nDropping duplicate time index entries, keeping first one...")
         logging.info("\nDropping duplicate time index entries, keeping first one...")
-        ts_res = ts_res[~ts_res.index.duplicated(keep='first')]
+        ts = ts[~ts.index.duplicated(keep='first')]
 
-        # ts_res.to_csv(f'{tmpdir}/3_dropped_duplicates.csv')
+        ts.to_csv(f'{tmpdir}/1_dropped_duplicates.csv')
+
+        ts.reset_index(level=0, inplace=True)
+        ts = darts.TimeSeries.from_dataframe(ts, fill_missing_dates=True, freq='15min', time_col=time_col)
+        ts.to_csv(f'{tmpdir}/2_dartsed.csv')
+
+        # # temporal filtering
+        # print("\nTemporal filtering...")
+        # logging.info("\nTemporal filtering...")
+
+        # lower_limit = pd.Timestamp(str(year_min) + '0101 00:00:00')
+        # upper_limit = pd.Timestamp(str(year_min) + '0101 00:00:00')
+        # print(ts)
+        # if lower_limit > ts.time_index[0]:
+        #     ts = ts.drop_before(lower_limit)
+        # print(ts.time_index)
+        # if upper_limit < ts.time_index[-1]:
+        #     ts = ts.drop_after(upper_limit)
+        # print(ts)
+        # ts = ts[ts.index >= pd.Timestamp(str(year_min) + '0101 00:00:00')]
+        # ts = ts[ts.index <= pd.Timestamp(str(year_max) + '1231 23:59:59')]
+
+        ts.to_csv(f'{tmpdir}/3_filtered.csv')
+
+        if resolution != "15":
+            print("\nResampling as given frequency is different than 15 minutes...")
+            logging.info("\nResampling as given frequency is different than 15 minutes...")
+            ts = ts.resample(resolution+'min').sum()
+        else:
+            ts = ts
+
+        ts.to_csv(f'{tmpdir}/4_resampled.csv')
 
         print("\nCreating darts data frame...")
         logging.info("\nCreating darts data frame...")
+        
 
         # explicitly redefine frequency
-        ts_res = ts_res.asfreq(resolution+'min')
+        # ts_res = ts_res.asfreq(resolution+'min')
 
         # ts_res.to_csv(f'{tmpdir}/4_asfreq.csv')
         
-        # darts dataset creation
-        ts_res_darts = darts.TimeSeries.from_dataframe(ts_res)
+        # # darts dataset creation
+        # ts_res_darts = darts.TimeSeries.from_dataframe(ts_res, fill_missing_dates=True, freq=None)
 
         # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
         
         # fill missing values with interpolation 
         transformer = MissingValuesFiller()
-        ts_res_darts = transformer.transform(ts_res_darts)
+        ts = transformer.transform(ts)
 
-        # ts_res_darts.to_csv(f'{tmpdir}/5_filled_na.csv')
+        ts.to_csv(f'{tmpdir}/5_filled_na.csv')
 
         # time variables creation
         if time_covs is not None:
             print("\nCreating time covariates dataset...")
             logging.info("\nCreating time covariates dataset...")
-            time_covariates = get_time_covariates(ts_res_darts, time_covs)
+            time_covariates = get_time_covariates(ts, time_covs)
         else:
             print("\nSkipping the creation of time covariates")
             logging.info("\nSkipping the creation of time covariates")
@@ -309,7 +325,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
         # store locally as csv in folder
         print("\nCreating local folder to store the datasets as csv...")
         logging.info("\nCreating local folder to store the datasets as csv...")
-        ts_res_darts.to_csv(f'{tmpdir}/series.csv')
+        ts.to_csv(f'{tmpdir}/series.csv')
         
         print("\nStoring datasets locally...")
         logging.info("\nStoring datasets...")
@@ -326,15 +342,12 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
 
         print("\nETL succesful.")
         logging.info("\nETL succesful.")
-        
+
         # mlflow tags
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag('series_uri', f'{mlrun.info.artifact_uri}/features/series.csv')
-        if time_covariates is not None:
-            mlflow.set_tag('time_covariates_uri', f'{mlrun.info.artifact_uri}/features/time_covariates.csv')
-        else: # default naming for non available time covariates uri
-            mlflow.set_tag('time_covariates_uri', 'mlflow_artifact_uri')
-            
+        mlflow.set_tag('time_covariates_uri', f'{mlrun.info.artifact_uri}/features/time_covariates.csv')
+
         return
 
 
