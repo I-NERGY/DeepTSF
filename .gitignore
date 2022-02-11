@@ -49,3 +49,4 @@ nodeLanguageServer.*/**
 # ignore dots except gitignore
 .*
 !/.gitignore
+!/.gitattributes
