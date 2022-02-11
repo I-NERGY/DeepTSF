@@ -43,6 +43,8 @@ nodeLanguageServer/**
 nodeLanguageServer.*/**
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
+.mlruns
+*/mlruns/*
 
 # ignore dots except gitignore
 .*
