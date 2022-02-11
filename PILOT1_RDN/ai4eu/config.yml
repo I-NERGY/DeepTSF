@@ -1,0 +1,9 @@
+server:
+  host: '[::]'
+  port: 8061
+  model_dir: .darts/checkpoints
+  model_name: LSTM_120
+client:
+  host: localhost
+  port: 8061
+  sample_data: history_sample.csv

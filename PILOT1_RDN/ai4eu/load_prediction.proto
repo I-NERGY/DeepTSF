@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+// message Input {
+//   int32 days_to_append = 1; 
+//   int32 days_ahead = 2;
+//   int32 daily_steps = 3;
+//   repeated double news = 4; 
+// }
+
+message Input {
+  int32 forecast_horizon = 1;
+  repeated double news = 2; 
+  repeated string datetime = 3;
+}
+
+message Prediction {
+  repeated double load = 1;  
+  repeated double datetime = 2;
+}
+
+service PredictLoad {
+  rpc GetLoadPrediction(Input) returns (Prediction);
+}
