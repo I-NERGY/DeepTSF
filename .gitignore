@@ -41,3 +41,9 @@ debugpy*.log
 pydevd*.log
 nodeLanguageServer/**
 nodeLanguageServer.*/**
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# ignore dots except gitignore
+.*
+!/.gitignore
