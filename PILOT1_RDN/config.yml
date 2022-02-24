@@ -9,16 +9,16 @@ hyperparameters:
   test:
     model: LSTM
     n_rnn_layers: 1
-    hidden_dim:  8 #128
+    hidden_dim:  1 #128
     n_epochs: 1
-    input_chunk_length: 192
-    training_length: 192
+    input_chunk_length: 3
+    training_length: 3
     random_state: 0
     nr_epochs_val_period: 1
     dropout: 0
     learning_rate: 0.005
     # likelihood: Gaussian
-    batch_size: 512
+    batch_size: 8
 
   lstm2:
     model: LSTM
@@ -48,6 +48,34 @@ hyperparameters:
     # likelihood: Gaussian
     batch_size: 1024
 
+  lstm3:
+    model: LSTM
+    n_rnn_layers: 3
+    hidden_dim:  64 #128
+    n_epochs: 200
+    input_chunk_length: 192
+    training_length: 192
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.0005
+    # likelihood: Gaussian
+    batch_size: 512
+  
+  lstm4:
+    model: LSTM
+    n_rnn_layers: 3
+    hidden_dim:  64 #128
+    n_epochs: 200
+    input_chunk_length: 672
+    training_length: 672
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.0005
+    # likelihood: Gaussian
+    batch_size: 512
+
   blockrnn:
     model: LSTM
     input_chunk_length: 192
@@ -61,7 +89,22 @@ hyperparameters:
     batch_size: 512
     
   nbeats:
-    input_chunk_length: 672
+    input_chunk_length: 192
+    output_chunk_length: 96
+    num_stacks: 20
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 80
+    random_state: 42
+    nr_epochs_val_period: 2
+    # likelihood: Gaussian
+    batch_size: 512
+
+  nbeats2:
+    input_chunk_length: 286
     output_chunk_length: 96
     num_stacks: 20
     num_blocks: 1
@@ -72,9 +115,21 @@ hyperparameters:
     n_epochs: 60
     random_state: 42
     nr_epochs_val_period: 2
-    # likelihood: Gaussian
-    batch_size: 512
+    batch_size: 128
 
+  nbeats3:
+    input_chunk_length: 378
+    output_chunk_length: 96
+    num_stacks: 20
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 60
+    random_state: 42
+    nr_epochs_val_period: 2
+    batch_size: 128
 
 # preprocessing:
 #   data_root: ../../RDN/Load Data (2018-2019)/artifacts

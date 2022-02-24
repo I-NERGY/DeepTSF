@@ -1,4 +1,4 @@
-from utils import none_checker, truth_checker, load_yaml_as_dict, download_online_file, load_local_csv_as_darts_timeseries
+from utils import none_checker, truth_checker, load_yaml_as_dict, download_online_file, load_local_csv_as_darts_timeseries, load_local_pkl_as_object, load_local_model_as_torch
 
 from functools import reduce
 from darts.utils.statistics import check_seasonality, plot_acf, plot_residuals_analysis
@@ -24,7 +24,6 @@ import os
 import logging
 import click
 import mlflow
-from utils import  load_local_pkl_as_object, download_online_file, load_local_model_as_torch
 import shutil
 import pretty_errors
 from utils import ConfigParser
@@ -320,25 +319,35 @@ def backtester(model,
     return {"metrics": metrics, "eval_plot": plt, "backtest_series": backtest_series}
 
 @click.command()
+@click.option("--mode",
+              type=str,
+              default='remote',
+              help='Whether to look for files locally or remotely'
+              )
 @click.option("--series-uri",
               type=str,
-              default='mlflow_artifact_uri'
+              default='mlflow_artifact_uri',
+              help='Provide the uri of the series file'
               )
 @click.option("--future-covs-uri",
               type=str,
-              default='mlflow_artifact_uri'
+              default='mlflow_artifact_uri',
+              help='Provide the uri of the future covariates file'
               )
 @click.option("--past-covs-uri",
               type=str,
-              default='mlflow_artifact_uri'
+              default='mlflow_artifact_uri',
+              help='Provide the uri of the past covariates file'
               )
 @click.option("--scaler-uri",
               type=str,
-              default='mlflow_artifact_uri'
+              default='mlflow_artifact_uri',
+              help='Provide the uri of the future covariates file'
               )
 @click.option("--setup-uri",
               type=str,
-              default='mlflow_artifact_uri'
+              default='mlflow_artifact_uri',
+              help='Provide the uri of the yaml file containing the train / test split info',
               )
 @click.option("--model-uri",
               type=str,
@@ -354,7 +363,7 @@ def backtester(model,
 @click.option("--retrain",
               type=str,
               default="false")
-def evaluate(series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup_uri, model_uri, forecast_horizon, stride, retrain):
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup_uri, model_uri, forecast_horizon, stride, retrain):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -369,7 +378,8 @@ def evaluate(series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup_uri, 
 
     # Load model / datasets / scalers from Mlflow server
     ## load setup file
-    setup_file = download_online_file(setup_uri, "setup.yml")
+    setup_file = download_online_file(
+        setup_uri, "setup.yml") if mode == 'remote' else setup_uri
     setup = load_yaml_as_dict(setup_file)
     print("\nSplit info: ", setup)
 
@@ -378,14 +388,15 @@ def evaluate(series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup_uri, 
     test_end_date = setup['test_end']
 
     ## load series from MLflow
-    print("\nSeries uri:", series_uri)
-    series_path = download_online_file(series_uri, "series.csv")
+    series_path = download_online_file(
+        series_uri, "series.csv") if mode == 'remote' else series_uri
     series = load_local_csv_as_darts_timeseries(
         local_path=series_path,  
         last_date=test_end_date)
 
     if future_covariates_uri is not None:
-        future_covs_path = download_online_file(future_covariates_uri, "future_covariates.csv")
+        future_covs_path = download_online_file(
+            future_covariates_uri, "future_covariates.csv") if mode == 'remote' else future_covariates_uri
         future_covariates = load_local_csv_as_darts_timeseries(
             local_path=future_covs_path,  
             last_date=test_end_date)
@@ -393,7 +404,8 @@ def evaluate(series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup_uri, 
         future_covariates = None
 
     if past_covariates_uri is not None:
-        past_covs_path = download_online_file(past_covariates_uri, "past_covariates.csv")
+        past_covs_path = download_online_file(
+            past_covariates_uri, "past_covariates.csv") if mode == 'remote' else past_covariates_uri
         past_covariates = load_local_csv_as_darts_timeseries(
             local_path=past_covs_path,  
             last_date=test_end_date)
@@ -401,11 +413,13 @@ def evaluate(series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup_uri, 
         past_covariates = None
 
     ## load model from MLflow
-    model_path = download_online_file(model_uri, "model.pth.tar")
+    model_path = download_online_file(
+        model_uri, "model.pth.tar") if mode == 'remote' else model_uri
     model = load_local_model_as_torch(model_path)
 
     ## load scaler from MLflow
-    scaler_path = download_online_file(scaler_uri, "scaler.pkl")
+    scaler_path = download_online_file(
+        scaler_uri, "scaler.pkl") if mode == 'remote' else  scaler_uri
     scaler = load_local_pkl_as_object(scaler_path)
 
     series_transformed = scaler.transform(series)

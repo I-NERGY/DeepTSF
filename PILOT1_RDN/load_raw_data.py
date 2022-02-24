@@ -30,7 +30,7 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 # TODO: Update that to accept url as input instead of local file
 @click.option("--series-csv", 
     type=str, 
-    default="../../RDN/Load_Data/2018-2021-global-load.csv",
+    default="../../RDN/Load_Data/2009-2019-global-load.csv",
     help="Local time series csv file"
     )
 @click.option("--series-uri", 
