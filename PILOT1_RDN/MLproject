@@ -6,17 +6,17 @@ entry_points:
 
   load_raw_data:
     parameters:
-      series_csv: {type: str, default: ../../RDN/Load_Data/2018-2021-global-load.csv}
+      series_csv: {type: str, default: ../../RDN/Load_Data/2009-2019-global-load.csv}
       series_uri: {type: str, default: online_artifact}
     command: |
       python load_raw_data.py --series-csv {series_csv} --series-uri {series_uri}
 
   etl:
     parameters:
-      series_csv: {type: str, default: ../../RDN/Load_Data/2018-2021-global-load.csv}
+      series_csv: {type: str, default: ../../RDN/Load_Data/2009-2019-global-load.csv}
       series_uri: {type: str, default: mlflow_artifact_uri}
       resolution: {type: str, default: 15}
-      year_range: {type: str, default: 2018-2021}
+      year_range: {type: str, default: 2009-2019}
       time_covs: {type: str, default: PT}
     command: |
       python etl.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs}
@@ -40,6 +40,7 @@ entry_points:
 
   eval:
     parameters:
+      mode: {type: str, default: remote}
       series_uri: {type: str, default: mlflow_artifact_uri}
       future_covs_uri: {type: str, default: mlflow_artifact_uri}
       past_covs_uri: {type: str, default: mlflow_artifact_uri}
@@ -50,14 +51,14 @@ entry_points:
       stride: {type: str, default: None}
       retrain: {type: str, default: f}
     command: |
-      python evaluate_forecasts.py --series-uri {series_uri} --future-covs-uri {future_covs_uri} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --setup-uri {setup_uri} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain}  
+      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --setup-uri {setup_uri} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain}  
 
   exp_pipeline:
     parameters:
-      series_csv: {type: str, default: ../../RDN/Load_Data/2018-2021-global-load.csv}
+      series_csv: {type: str, default: ../../RDN/Load_Data/2009-2019-global-load.csv}
       series_uri: {type: str, default: online_artifact}
       resolution: {type: str, default: 15}
-      year_range: {type: str, default: 2018-2021}
+      year_range: {type: str, default: 2009-2019}
       time_covs: {type: str, default: PT}
       hyperparams_entrypoint: {type: str, default: LSTM1}
       cut_date_val: {type: str, default: 20200101}

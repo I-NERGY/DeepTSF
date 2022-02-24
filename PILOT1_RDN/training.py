@@ -1,3 +1,4 @@
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from utils import none_checker
 from preprocessing import scale_covariates, split_dataset
 
@@ -18,7 +19,7 @@ from utils import log_curves
 import pretty_errors
 import tempfile
 import pretty_errors
-import yaml
+from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 # get environment variables
 from dotenv import load_dotenv
@@ -26,6 +27,17 @@ load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
 os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
+
+# stop training when validation loss does not decrease more than 0.05 (`min_delta`) over
+# a period of 5 epochs (`patience`)
+my_stopper = EarlyStopping(
+    monitor="val_loss",
+    patience=10,
+    min_delta=0.00001,
+    mode='min',
+)
+
+pl_trainer_kwargs = {"callbacks": [my_stopper]}
 
 @click.command()
 @click.option("--series-csv",
@@ -109,8 +121,10 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
     ## device
     if device == 'cuda' and torch.cuda.is_available():
         device = 'cuda'
+        print("\nWill use GPU for training")
     else:
         device = 'cpu'
+        print("\nWill use CPU for training")
     ## series and covariates uri and csv
     series_uri = none_checker(series_uri)
     future_covs_uri = none_checker(future_covs_uri)
@@ -258,6 +272,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 model_name=mlrun.info.run_id,
                 **hyperparameters
             )
+            # pl_trainer_kwargs=pl_trainer_kwargs,
                 
             ## fit model
             # try:

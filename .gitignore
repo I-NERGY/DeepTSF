@@ -10,7 +10,8 @@ log.log
 *.noseids
 .nyc_output
 .vscode-test
-__pycache__
+**/__pycache__
+**/figures
 npm-debug.log
 **/.mypy_cache/**
 !yarn.lock

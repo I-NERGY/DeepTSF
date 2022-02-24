@@ -97,7 +97,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 # load arguments
 @click.option("--series-csv", 
     type=str, 
-    default="../../RDN/Load_Data/2018-2021-global-load.csv",
+    default="../../RDN/Load_Data/2009-2019-global-load.csv",
     help="Local timeseries file"
     )
 @click.option("--series-uri", 
@@ -111,7 +111,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     help="Change the resolution of the dataset (minutes)."
 )
 @click.option('--year-range',  
-    default="2018-2021",
+    default="2009-2019",
     type=str,
     help='Choose year range to include in the dataset.'
 )
