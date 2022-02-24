@@ -151,8 +151,8 @@ def get_time_covariates(series, country_code='PT'):
     hour = datetime_attribute_timeseries(
         time_index=series, attribute='hour', cyclic=True)    
     
-    minute = datetime_attribute_timeseries(
-        time_index=series, attribute='minute', cyclic=True)
+    # minute = datetime_attribute_timeseries(
+    #     time_index=series, attribute='minute', cyclic=True)
     
     dayofweek = datetime_attribute_timeseries(
         time_index=series, attribute='dayofweek', cyclic=True)
@@ -172,10 +172,10 @@ def get_time_covariates(series, country_code='PT'):
     covariates = year.stack(month) \
         .stack(dayofyear) \
         .stack(hour) \
-        .stack(minute) \
         .stack(dayofweek) \
         .stack(weekofyear) \
         .stack(holidays)
+    # .stack(minute)
 
     return covariates
 
@@ -187,7 +187,7 @@ def get_time_covariates(series, country_code='PT'):
 )
 @click.option("--series-csv", 
     type=str, 
-    default="../../RDN/Load_Data/2018-2021-global-load.csv",
+    default="../../RDN/Load_Data/2009-2019-global-load.csv",
     help="Local timeseries csv. It gets overwritten by uri if given."
 )
 @click.option("--series-uri", 
@@ -196,7 +196,7 @@ def get_time_covariates(series, country_code='PT'):
     help="Remote timeseries csv file.  If set, it overwrites the local value."
 )
 @click.option('--year-range',  
-    default="2018-2021",
+    default="2009-2019",
     type=str,
     help='The year range to include in the dataset.'
 )

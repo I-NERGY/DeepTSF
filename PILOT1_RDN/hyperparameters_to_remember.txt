@@ -10,3 +10,18 @@
     dropout: 0.1
     learning_rate: 0.0008
     batch_size: 1024
+
+  nbeats:
+    input_chunk_length: 192
+    output_chunk_length: 96
+    num_stacks: 20
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 60
+    random_state: 42
+    nr_epochs_val_period: 2
+    # likelihood: Gaussian
+    batch_size: 512

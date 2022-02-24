@@ -21,23 +21,16 @@ import yaml
 import boto3
 import sys
 
+cur_dir = os.path.dirname(os.path.realpath(__file__))
+
 class ConfigParser:
-    def __init__(self, config_file_path='./config.yml'):
+    def __init__(self, config_file_path=f'{cur_dir}/config.yml'):
         with open(config_file_path, "r") as ymlfile:
             self.config = yaml.safe_load(ymlfile)
             self.mlflow_tracking_uri = self.config['mlflow_settings']['mlflow_tracking_uri']
 
     def read_hyperparameters(self, hyperparams_entrypoint):
         return self.config['hyperparameters'][hyperparams_entrypoint]
-
-# get environment variables
-load_dotenv()
-# explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
-os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
-mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
-AWS_ACCESS_KEY_ID = os.environ["AWS_ACCESS_KEY_ID"]
-AWS_SECRET_ACCESS_KEY = os.environ["AWS_SECRET_ACCESS_KEY"] 
-MLFLOW_S3_ENDPOINT_URL = os.environ["MLFLOW_S3_ENDPOINT_URL"] 
 
 def download_file_from_s3_bucket(object_name, dst_filename, dst_dir=None, bucketName='mlflow-bucket'):
     if dst_dir is None:
