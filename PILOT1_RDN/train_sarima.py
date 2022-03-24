@@ -3,7 +3,7 @@
 
 # # Training and forecast example of an automated ARIMA model (TBATS).
 
-from rdn_train_test_split import rdn_train_test_split
+from rdn_train_test_split import rdn_train_test_split_old
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -14,27 +14,104 @@ import statsmodels.api as sm
 import statsmodels
 import pickle
 from datetime import timedelta
-from tbats import TBATS
+# from tbats import TBATS
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 import pickle
 import math
-from evaluate_forecasts import simple_n_day_ahead_forecast
+# from evaluate_forecasts import simple_n_day_ahead_forecast
 import os
+
+
+def simple_n_day_ahead_forecast(model, days_ahead, steps, train, test, scaler, exog_test=None, scaler_exog=None, naive_remebers_k_timesteps=1):
+
+    print(f"Simple {days_ahead} day ahead forecast:\n")
+
+    if exog_test is not None:
+        if scaler_exog is not None:
+            exog_test = pd.Series(scaler_exog.transform(
+                exog_test.values), index=test.index)
+        exog_test = exog_test[:steps * days_ahead]
+
+    if scaler is not None:
+
+        forecast_scaled = model.forecast(steps * days_ahead, exog=exog_test) \
+            if 'SARIMAX' in str(model) \
+            else model.forecast(steps * days_ahead)
+
+        if isinstance(forecast_scaled, np.ndarray):
+            predictions = scaler.inverse_transform(
+                forecast_scaled.reshape(-1, 1)).reshape(-1)
+        else:
+            predictions = scaler.inverse_transform(
+                forecast_scaled.values.reshape(-1, 1)).reshape(-1)
+    else:
+
+        predictions = \
+            model.forecast(steps * days_ahead, exog=exog_test) \
+            if 'SARIMAX' in str(model) \
+            else model.forecast(steps * days_ahead)
+        # if exog_test \
+        # else model.forecast(steps * days_ahead)
+
+    # adjust test set based on days_ahead given
+    test = test[:len(predictions)]
+    predictions = pd.Series(predictions, index=test.index)
+
+    metrics = {
+        "MAPE": mape(test, predictions),
+        "MSE": mse(test, predictions),
+        "RMSE": np.sqrt(mse(test, predictions))
+    }
+
+    if train is not None:
+
+        ground_truth_line = \
+            pd.DataFrame(index=pd.concat([train[-7*24:], test]).index)
+        ground_truth_line['Train'] = train[-7*24:]
+        ground_truth_line['Test'] = test
+
+        series = TimeSeries.from_series(train)
+        naive_model = NaiveSeasonal(K=naive_remebers_k_timesteps)
+        naive_model.fit(series)
+        naive_pred = naive_model.predict(steps * days_ahead)
+        naive_pred = TimeSeries.pd_series(naive_pred)
+
+        # naive_pred=[train.tolist()[-1]] + test.tolist()[:-1]
+        metrics = {
+            "MAPE naive": mape(test, naive_pred),
+            "MAPE": mape(test, predictions),
+            "MSE": mse(test, predictions),
+            "RMSE": np.sqrt(mse(test, predictions))
+        }
+
+        plt.figure()
+        plot = ground_truth_line.plot(figsize=(15, 7),
+                                      label='Data',
+                                      legend=True,
+                                      title=f"{days_ahead} day ahead forecast")
+        predictions.plot(label='Forecast', legend=True)
+        naive_pred.plot(
+            label=f'Naive method (#memory_steps={naive_remebers_k_timesteps})', legend=True)
+        plot.grid()
+        plt.show()
+
+        return predictions, metrics
+
 
 
 # ## Load dataset
 
 
 ts60 = pd.read_csv(
-    '../../RDN/Load Data (2018-2019)/artifacts/load_60min.csv', index_col=0, parse_dates=True)
+    '../../RDN/Load_Data/2009-2019-global-load.csv', index_col=0, parse_dates=True)
 load60 = ts60['Load'].dropna()
 load60.head()
 
-steps = 24
-days_ahead = 7
-last_train_year_id = 2019
+steps = 96
+days_ahead = 1
+last_train_year_id = 2018
 last_train_month_id = 12
-last_train_day_id = 1
+last_train_day_id = 31
 last_train_day = datetime(last_train_year_id, last_train_month_id, last_train_day_id)  # a week finishes there
 model_id_date = f'{last_train_year_id}_{last_train_month_id}_{last_train_day_id}'
 
@@ -46,12 +123,12 @@ scaler = StandardScaler()
 model_dir = '.'
 
 # ## Train / test split
-train, test, train_std, test_std, scalert = rdn_train_test_split(load60,
-                                                                 last_train_day,
-                                                                 days_ahead,
-                                                                 steps,
-                                                                 freq='H',
-                                                                 scaler=scaler)
+train, test, train_std, test_std, scalert = rdn_train_test_split_old(load60,
+                                                                     last_train_day,
+                                                                     days_ahead,
+                                                                     steps,
+                                                                     freq='15min',
+                                                                     scaler_class=scaler)
 
 # ## SARIMA
 
@@ -86,7 +163,7 @@ train, test, train_std, test_std, scalert = rdn_train_test_split(load60,
 # A sarima is fitted as selected in the gridsearch process of R_tal_time_series_analysis.ipynb (further analysis can be sought there). However we have limited the seasonal autoregressive terms to 1 for speed and simplicity as longs as the model could not be saved otherwise. AIC, residuals, ACF, PACFs are presented again for completeness.
 print("Training SARIMA full...\n")
 sarima = sm.tsa.statespace.SARIMAX(endog=train_std, order=(2, 1, 1),
-                                   seasonal_order=(4, 1, 2, 24)).fit(max_iter=200, method='powell')
+                                   seasonal_order=(4, 1, 2, 96)).fit(max_iter=200, method='powell')
 print(sarima.summary())
 
 res = sarima.resid

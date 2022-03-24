@@ -1,24 +1,24 @@
 from datetime import timedelta
 import pandas as pd
 
-# def rdn_train_test_split(timeseries, last_train_day, days_ahead, steps, freq='H', scaler_class=None):
+def rdn_train_test_split_old(timeseries, last_train_day, days_ahead, steps, freq='15min', scaler_class=None):
     
-#     train = timeseries[:(last_train_day - timedelta(hours=1))].asfreq(freq)
-#     test = timeseries[last_train_day:last_train_day + timedelta(hours=days_ahead * steps - 1)].asfreq(freq)
+    train = timeseries[:(last_train_day - timedelta(minutes=15))].asfreq(freq)
+    test = timeseries[last_train_day:last_train_day + timedelta(minutes=(days_ahead * steps - 1) * 15)].asfreq(freq)
     
-#     # Scaling
-#     if scaler_class:
+    # Scaling
+    if scaler_class:
        
-#         scaler_class = scaler_class.fit(train.values.reshape(-1, 1))
+        scaler_class = scaler_class.fit(train.values.reshape(-1, 1))
 
-#         train_scaled = pd.Series(scaler_class.transform(train.values.reshape(-1, 1)).reshape(-1), index=train.index)
-#         test_scaled = pd.Series(scaler_class.transform(test.values.reshape(-1, 1)).reshape(-1), index=test.index)
+        train_scaled = pd.Series(scaler_class.transform(train.values.reshape(-1, 1)).reshape(-1), index=train.index)
+        test_scaled = pd.Series(scaler_class.transform(test.values.reshape(-1, 1)).reshape(-1), index=test.index)
         
-#         return train, test, train_scaled, test_scaled, scaler_class
+        return train, test, train_scaled, test_scaled, scaler_class
     
-#     else:
+    else:
         
-#         return train, test
+        return train, test
 
 
 def rdn_train_test_split(timeseries, last_train_day, days_ahead, steps, freq='H'):

@@ -1,21 +1,23 @@
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from utils import none_checker
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, log_curves, truth_checker
 from preprocessing import scale_covariates, split_dataset
 
 # the following are used through eval(darts_model + 'Model')
 import darts
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, LightGBMModel, RandomForest, TFTModel
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal
+from darts.models.forecasting.auto_arima import AutoARIMA
+from darts.models.forecasting.gradient_boosted_model import LightGBMModel
+from darts.models.forecasting.random_forest import RandomForest
 from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
+from darts.metrics import mape as mape_darts
 
 import mlflow
 import click
 import os
-from utils import ConfigParser, download_online_file, load_local_csv_as_darts_timeseries
 import shutil
 import torch
 import logging
 import pickle
-from utils import log_curves
 import pretty_errors
 import tempfile
 import pretty_errors
@@ -72,8 +74,10 @@ pl_trainer_kwargs = {"callbacks": [my_stopper]}
                    'RNN',
                    'BlockRNN',
                    'TFT',
-                   'LightGbm',
-                   'RandomForest']),
+                   'LightGBM',
+                   'RandomForest',
+                   'Naive',
+                   'AutoARIMA']),
               multiple=False,
               default='RNN',
               help="The base architecture of the model to be trained"
@@ -118,6 +122,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
     ## hyperparameters   
     hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
+
     ## device
     if device == 'cuda' and torch.cuda.is_available():
         device = 'cuda'
@@ -148,9 +153,23 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
     ## model
     # TODO: Take care of future covariates (RNN, ...) / past covariates (BlockRNN, NBEATS, ...)
     if darts_model in ["NBEATS", "BlockRNN"]:
+        """They do not accept future covariates as they predict blocks all together.
+        They won't use initial forecasted values to predict the rest of the block 
+        So they won't need to additionally feed future covariates during the recurrent process.
+        """
+        past_covs_csv = future_covs_csv
         future_covs_csv = None
-    if darts_model in ["RNN"]:
+
+    elif darts_model in ["RNN"]:
+        """Does not accept past covariates as it needs to know future ones to provide chain forecasts
+        its input needs to remain in the same feature space while recurring and with no future covariates
+        this is not possible. The existence of past_covs is not permitted for the same reason. The 
+        feature space will change during inference. If for example I have current temperature and during 
+        the forecast chain I only have time covariates, as I won't know the real temp then a constant \
+        architecture like LSTM cannot handle this"""
+        future_covs_csv = past_covs_csv
         past_covs_csv = None
+    #elif: extend for other models!! (time_covariates are always future covariates, but some models can't handle them as so)
 
     future_covariates = none_checker(future_covs_csv)
     past_covariates = none_checker(past_covs_csv)
@@ -240,24 +259,14 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             store_dir=features_dir, 
             filename_suffix="past_covariates_transformed.csv")
 
-        # Save scaled features and scalers locally and then to mlflow server
-        print("\nDatasets and scalers are being uploaded to MLflow...")
-        logging.info("\nDatasets and scalers are being uploaded to MLflow...")
-        mlflow.log_artifacts(scalers_dir, "scalers")
-        mlflow.log_artifacts(features_dir, "features")
-        print("\nDatasets uploaded. ...")
-        logging.info("\nDatasets uploaded. ...")
-
         ######################
         # Model training
         print("\nTraining model...")
         logging.info("\nTraining model...")
-        ## log hyperparams to mlflow server
-        mlflow.log_params(hyperparameters)
 
         ## choose architecture
         if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT']:
-
+            hparams_to_log = hyperparameters
             if 'learning_rate' in hyperparameters:
                 hyperparameters['optimizer_kwargs'] = {'lr': hyperparameters['learning_rate']}
                 del hyperparameters['learning_rate']
@@ -287,6 +296,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 verbose=True)
 
             # TODO: Package Models as python functions for MLflow (see RiskML and https://mlflow.org/docs/0.5.0/models.html#python-function-python-function)
+            print('\nStoring torch model to MLflow...')
+            logging.info('\nStoring torch model to MLflow...')
             model_dir_list = os.listdir(f"./.darts/checkpoints/{mlrun.info.run_id}")
             best_model_name = [fname for fname in model_dir_list if "model_best" in fname][0]
             best_model_path = f"./.darts/checkpoints/{mlrun.info.run_id}/{best_model_name}"
@@ -304,13 +315,96 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             #     log_curves(tensorboard_event_folder=f"./.darts/runs/{mlrun.info.run_id}", 
             #     output_dir='training_curves')
             #     mlflow.log_param("status", "forced_stop")                
-        # TODO: Implement LightGBM and RandomForest
+        
+        # LightGBM and RandomForest
         elif darts_model in ['LightGBM', 'RandomForest']:
-            model = eval(darts_model)
-            raise NotImplementedError(
-                "LightGBM and RandomForest not yet implemented!!")
+
+            if "lags_future_covariates" in hyperparameters:
+                if truth_checker(str(hyperparameters["future_covs_as_tuple"])):
+                    hyperparameters["lags_future_covariates"] = tuple(
+                        hyperparameters["lags_future_covariates"])
+                hyperparameters.pop("future_covs_as_tuple")
+            
+            if future_covariates is None:
+                hyperparameters["lags_future_covariates"] = None
+            
+            if past_covariates is None:
+                hyperparameters["lags_past_covariates"] = None
+
+            hparams_to_log = hyperparameters
+            
+            if darts_model == 'RandomForest':
+                model = RandomForest(**hyperparameters)
+            elif darts_model == 'LightGBM':
+                model = LightGBMModel(**hyperparameters)
+
+            print(f'\nTraining {darts_model}...')
+            logging.info(f'\nTraining {darts_model}...')
+
+            model.fit(
+                series=scaled_series['train'],
+                # val_series=scaled_series['val'],
+                future_covariates=scaled_future_covariates['train'],
+                past_covariates=scaled_past_covariates['train'], 
+                # val_future_covariates=scaled_future_covariates['val'],
+                # val_past_covariates=scaled_past_covariates['val']
+                )
+
+            print('\nStoring the model as pkl to MLflow...')
+            logging.info('\nStoring the model as pkl to MLflow...')
+            forest_dir = tempfile.mkdtemp()
+
+            pickle.dump(model, open(
+                f"{forest_dir}/model_best_{darts_model}.pkl", "wb"))
+            mlflow.log_artifacts(forest_dir, "checkpoints")
+        
+        # ARIMA
+        elif darts_model == 'AutoARIMA':
+            hparams_to_log={}
+            print("\nEmploying AutoARIMA - Ignoring hyperparameters")
+            logging.info("\nEmploying AutoARIMA - Ignoring hyperparameters")
+            model = AutoARIMA(random_state=0, information_criterion='bic')
+            model.fit(scaled_series['train'].append(scaled_series['val']), future_covariates=future_covariates)
+            # hparams = model.get_params()
+            # print(model.summary())
+
+            print("\nStoring the model as pkl...")
+            logging.info("\nStoring the model as pkl...")
+            arima_dir = tempfile.mkdtemp()
+
+            pickle.dump(model, open(
+                f"{arima_dir}/model_best_arima.pkl", "wb"))
+            mlflow.log_artifacts(arima_dir, "checkpoints")
+
+
+            # hyperparameters = {k: eval(v) for (k, v) in hyperparameters.items()}
+            # model = ARIMA().gridsearch(
+            #     parameters=hyperparameters, 
+            #     series=series_split['train'].append(series_split['val']),
+            #     past_covariates=past_covariates,
+            #     future_covariates=future_covariates,
+            #     forecast_horizon=hyperparameters[forecast_horizon],
+            #     stride=hyperparameters[forecast_horizon],
+            #     start= cut_date_val,
+            #     last_points_only=False,
+            #     metric=mape_darts,
+            #     n_jobs=-1,
+            #     verbose=True
+            #     )
+
+        # Save scaled features and scalers locally and then to mlflow server
+        print("\nDatasets and scalers are being uploaded to MLflow...")
+        logging.info("\nDatasets and scalers are being uploaded to MLflow...")
+        mlflow.log_artifacts(scalers_dir, "scalers")
+        mlflow.log_artifacts(features_dir, "features")
+        print("\nDatasets uploaded. ...")
+        logging.info("\nDatasets uploaded. ...")
+
+        # Log hyperparameters
+        mlflow.log_params(hparams_to_log)
         # Set tags
         mlflow.set_tag("run_id", mlrun.info.run_id)
+        mlflow.set_tag("stage", "training")
 
         client = mlflow.tracking.MlflowClient()
         model_dir_list = client.list_artifacts(run_id=mlrun.info.run_id, path='checkpoints')

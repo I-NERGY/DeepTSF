@@ -329,6 +329,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
         
         # mlflow tags
         mlflow.set_tag("run_id", mlrun.info.run_id)
+        mlflow.set_tag("stage", "etl")
         mlflow.set_tag('series_uri', f'{mlrun.info.artifact_uri}/features/series.csv')
         if time_covariates is not None:
             mlflow.set_tag('time_covariates_uri', f'{mlrun.info.artifact_uri}/features/time_covariates.csv')

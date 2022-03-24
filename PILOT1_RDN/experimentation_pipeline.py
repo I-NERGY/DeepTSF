@@ -80,7 +80,7 @@ def _already_ran(entry_point_name, parameters, git_commit, experiment_id=None):
 
 # TODO(aaron): This is not great because it doesn't account for:
 # - changes in code
-# - changes in dependant steps
+# - changes in dependent steps
 def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, use_cache=True):
     # TODO: this was removed to always run the pipeline from the beginning.
     if not ignore_previous_run:
@@ -97,7 +97,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 # load arguments
 @click.option("--series-csv", 
     type=str, 
-    default="../../RDN/Load_Data/2009-2019-global-load.csv",
+    default="../../RDN/Load_Data/2009-2021-global-load.csv",
     help="Local timeseries file"
     )
 @click.option("--series-uri", 
@@ -128,8 +128,10 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
                    'RNN',
                    'BlockRNN',
                    'TFT',
-                   'LightGbm',
-                   'RandomForest']),
+                   'LightGBM',
+                   'RandomForest', 
+                   'Naive',
+                   'AutoARIMA']),
               multiple=False,
               default='RNN',
               help="The base architecture of the model to be trained"
@@ -189,7 +191,8 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
     # Note: The entrypoint names are defined in MLproject. The artifact directories
     # are documented by each step's .py file.
     with mlflow.start_run(run_name=darts_model + '_pipeline') as active_run:
-        
+        mlflow.set_tag("stage", "main")
+
         # 1.Load Data
         git_commit = active_run.data.tags.get(mlflow_tags.MLFLOW_GIT_COMMIT)
         
@@ -215,7 +218,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
         train_params = {
             "series_uri": etl_series_uri, 
             "future_covs_uri": etl_time_covariates_uri,
-            "past_covs_uri": etl_time_covariates_uri,
+            "past_covs_uri": None, # fix that in case REAL Temperatures come -> etl_temp_covs_uri. For forecasts, integrate them into future covariates!!
             "darts_model": darts_model, 
             "hyperparams_entrypoint": hyperparams_entrypoint, 
             "cut_date_val": cut_date_val, 
