@@ -61,6 +61,7 @@ def load_raw_data(series_csv, series_uri):
 
         # set mlflow tags for next steps
         mlflow.set_tag("run_id", mlrun.info.run_id)
+        mlflow.set_tag("stage", "load_raw_data")
         mlflow.set_tag('dataset_uri', f'{mlrun.info.artifact_uri}/raw_data/{fname}')
 
         return
