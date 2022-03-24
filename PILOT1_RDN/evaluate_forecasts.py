@@ -1,4 +1,4 @@
-from utils import none_checker, truth_checker, load_yaml_as_dict, download_online_file, load_local_csv_as_darts_timeseries, load_local_pkl_as_object, load_local_model_as_torch
+from utils import ConfigParser, none_checker, truth_checker, load_yaml_as_dict, download_online_file, load_local_csv_as_darts_timeseries, load_local_pkl_as_object, load_local_model_as_torch
 
 from functools import reduce
 from darts.utils.statistics import check_seasonality, plot_acf, plot_residuals_analysis
@@ -26,7 +26,6 @@ import click
 import mlflow
 import shutil
 import pretty_errors
-from utils import ConfigParser
 from preprocessing import split_dataset
 import tempfile
 
@@ -230,7 +229,7 @@ def backtester(model,
                path_to_save_backtest=None):
     """ Does the same job with advanced forecast but much more quickly using the darts
     bult-in historical_forecasts method. Use this for evaluation. The other only 
-    provides pure inference. Provide a unified timeseries set test point based 
+    provides pure inference. Provide a unified timeseries test set point based 
     on test_start_date. series_transformed does not need to be adjacent to 
     training series. if transformer_ts=None then no inverse transform is applied
     to the model predictions.
@@ -269,8 +268,9 @@ def backtester(model,
     else:
         series = series_transformed
         backtest_series = backtest_series_transformed
-        print("\nNeed to provide both transformer and original series to obtain evaluation results at normal scale!!")
-        logging.info("\nNeed to provide both transformer and original series to obtain evaluation results at normal scale!!")
+        print("\nWarning: Scaler not provided. Ensure model provides normal scale predictions")
+        logging.info(
+            "\n Warning: Scaler not provided. Ensure model provides normal scale predictions")
 
     # plot
     plt.figure(figsize=(15, 8))
@@ -413,15 +413,21 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup
         past_covariates = None
 
     ## load model from MLflow
-    model_path = download_online_file(
-        model_uri, "model.pth.tar") if mode == 'remote' else model_uri
-    model = load_local_model_as_torch(model_path)
+    ## as torch
+    if model_uri.endswith('pth.tar'):
+        model_path = download_online_file(
+            model_uri, "model.pth.tar") if mode == 'remote' else model_uri
+        model = load_local_model_as_torch(model_path)
+    ## as pkl
+    elif model_uri.endswith('.pkl'):
+        model_path = download_online_file(
+            model_uri, "model.pkl") if mode == 'remote' else model_uri
+        model = load_local_pkl_as_object(model_path)
 
     ## load scaler from MLflow
     scaler_path = download_online_file(
         scaler_uri, "scaler.pkl") if mode == 'remote' else  scaler_uri
     scaler = load_local_pkl_as_object(scaler_path)
-
     series_transformed = scaler.transform(series)
 
     # Split in the same way as in training
@@ -440,6 +446,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup
     evaltmpdir = tempfile.mkdtemp()
     with mlflow.start_run(run_name='eval', nested=True) as mlrun: 
         mlflow.set_tag("run_id", mlrun.info.run_id)
+        mlflow.set_tag("stage", "evaluation")
         evaluation_results = backtester(model=model,
                                 series_transformed=series_transformed_split['all'],
                                 series=series_split['all'],
