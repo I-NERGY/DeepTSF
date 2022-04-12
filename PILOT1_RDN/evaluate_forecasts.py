@@ -272,16 +272,36 @@ def backtester(model,
         logging.info(
             "\n Warning: Scaler not provided. Ensure model provides normal scale predictions")
 
-    # plot
-    plt.figure(figsize=(15, 8))
+    # plot all test
+    fig1 = plt.figure(figsize=(15, 8))
+    ax1 = fig1.add_subplot(111)
     backtest_series.plot(label='forecast')
     series \
         .drop_before(pd.Timestamp(pd.Timestamp(test_start_date) - datetime.timedelta(days=7))) \
         .drop_after(backtest_series.time_index[-1]) \
         .plot(label='actual')
-    plt.legend()
-    plt.title(
+    ax1.legend()
+    ax1.set_title(
         f'Backtest, starting {test_start_date}, {forecast_horizon}-steps horizon')
+    # plt.show()
+
+    # plot one week (better visibility)
+    forecast_start_date = pd.Timestamp(
+        test_start_date + datetime.timedelta(days=7))
+        
+    fig2 = plt.figure(figsize=(15, 8))
+    ax2 = fig2.add_subplot(111)
+    backtest_series \
+        .drop_before(pd.Timestamp(forecast_start_date)) \
+        .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
+        .plot(label='Forecast')
+    series \
+        .drop_before(pd.Timestamp(forecast_start_date)) \
+        .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
+        .plot(label='Actual')
+    ax2.legend()
+    ax2.set_title(
+        f'Weekly forecast, Start date: {forecast_start_date}, Forecast horizon (timesteps): {forecast_horizon}, Forecast extended with backtesting...')
 
     # Metrix
     test_series = series.drop_before(pd.Timestamp(test_start_date))
@@ -311,8 +331,10 @@ def backtester(model,
     if path_to_save_backtest is not None:
         os.makedirs(path_to_save_backtest, exist_ok=True)
         mape = metrics['mape']
-        plt.savefig(os.path.join(path_to_save_backtest,
+        fig1.savefig(os.path.join(path_to_save_backtest,
             f'test_start_date_{test_start_date.date()}_forecast_horizon_{forecast_horizon}_mape_{mape:.2f}.png'))
+        fig2.savefig(os.path.join(path_to_save_backtest,
+            f' week2_forecast_start_date_{test_start_date.date()}_forecast_horizon_{forecast_horizon}.png'))
         backtest_series.drop_before(pd.Timestamp(test_start_date)) \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions.csv'))
 
