@@ -283,7 +283,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             model = eval(darts_model + 'Model')(
                 save_checkpoints=True,
-                log_tensorboard=True,
+                log_tensorboard=False,
                 torch_device_str=device,
                 model_name=mlrun.info.run_id,
                 **hyperparameters
