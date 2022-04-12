@@ -1,4 +1,4 @@
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+# from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, log_curves, truth_checker
 from preprocessing import scale_covariates, split_dataset
 
