@@ -5,7 +5,7 @@ trains a darts model, and evaluates the model.
 
 import pretty_errors
 from darts.dataprocessing.transformers import Scaler
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, LightGBMModel, RandomForest, TFTModel
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, LightGBMModel, RandomForest, TFTModel, TCNModel
 import pandas as pd
 import matplotlib.pyplot as plt
 import mlflow
@@ -126,6 +126,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
               type=click.Choice(
                   ['NBEATS',
                    'RNN',
+                   'TCN',
                    'BlockRNN',
                    'TFT',
                    'LightGBM',

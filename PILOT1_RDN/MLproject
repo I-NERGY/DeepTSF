@@ -13,7 +13,7 @@ entry_points:
 
   etl:
     parameters:
-      series_csv: {type: str, default: ../../RDN/Load_Data/2009-2019-global-load.csv}
+      series_csv: {type: str, default: ../../RDN/Load_Data/2009-2021-global-load.csv}
       series_uri: {type: str, default: mlflow_artifact_uri}
       resolution: {type: str, default: 15}
       year_range: {type: str, default: 2009-2019}

@@ -4,7 +4,7 @@ from preprocessing import scale_covariates, split_dataset
 
 # the following are used through eval(darts_model + 'Model')
 import darts
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
 from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.gradient_boosted_model import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
@@ -71,6 +71,7 @@ pl_trainer_kwargs = {"callbacks": [my_stopper]}
 @click.option("--darts-model",
               type=click.Choice(
                   ['NBEATS',
+                   'TCN',
                    'RNN',
                    'BlockRNN',
                    'TFT',
@@ -126,10 +127,10 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
     ## device
     if device == 'cuda' and torch.cuda.is_available():
         device = 'cuda'
-        print("\nWill use GPU for training")
+        print("\nGPU is available")
     else:
         device = 'cpu'
-        print("\nWill use CPU for training")
+        print("\nGPU is available")
     ## series and covariates uri and csv
     series_uri = none_checker(series_uri)
     future_covs_uri = none_checker(future_covs_uri)
@@ -152,7 +153,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
     ## model
     # TODO: Take care of future covariates (RNN, ...) / past covariates (BlockRNN, NBEATS, ...)
-    if darts_model in ["NBEATS", "BlockRNN"]:
+    if darts_model in ["NBEATS", "BlockRNN", "TCN"]:
         """They do not accept future covariates as they predict blocks all together.
         They won't use initial forecasted values to predict the rest of the block 
         So they won't need to additionally feed future covariates during the recurrent process.
@@ -202,9 +203,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         print("\nCreating local folder to store the scaler as pkl...")
         logging.info("\nCreating local folder to store the scaler as pkl...")
         scalers_dir = tempfile.mkdtemp()
-
-        print("\nCreating local folder to store the datasets as csv...")
-        logging.info("\nCreating local folder to store the scalers as csv...")
         features_dir = tempfile.mkdtemp()
 
         ######################
@@ -260,12 +258,21 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             filename_suffix="past_covariates_transformed.csv")
 
         ######################
+        # Save scaled features and scalers locally and then to mlflow server
+        print("\nDatasets and scalers are being uploaded to MLflow...")
+        logging.info("\nDatasets and scalers are being uploaded to MLflow...")
+        mlflow.log_artifacts(scalers_dir, "scalers")
+        mlflow.log_artifacts(features_dir, "features")
+        print("\nDatasets uploaded. ...")
+        logging.info("\nDatasets uploaded. ...")
+
+        ######################
         # Model training
         print("\nTraining model...")
         logging.info("\nTraining model...")
 
         ## choose architecture
-        if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT']:
+        if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN']:
             hparams_to_log = hyperparameters
             if 'learning_rate' in hyperparameters:
                 hyperparameters['optimizer_kwargs'] = {'lr': hyperparameters['learning_rate']}
@@ -391,14 +398,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             #     n_jobs=-1,
             #     verbose=True
             #     )
-
-        # Save scaled features and scalers locally and then to mlflow server
-        print("\nDatasets and scalers are being uploaded to MLflow...")
-        logging.info("\nDatasets and scalers are being uploaded to MLflow...")
-        mlflow.log_artifacts(scalers_dir, "scalers")
-        mlflow.log_artifacts(features_dir, "features")
-        print("\nDatasets uploaded. ...")
-        logging.info("\nDatasets uploaded. ...")
 
         # Log hyperparameters
         mlflow.log_params(hparams_to_log)
