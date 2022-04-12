@@ -329,7 +329,7 @@ hyperparameters:
     num_blocks: 1
     num_layers: 4
     generic_architecture: True
-    layer_widths: 1024
+    layer_widths: 512
     expansion_coefficient_dim: 5
     n_epochs: 120
     random_state: 0
@@ -343,7 +343,7 @@ hyperparameters:
     num_blocks: 1
     num_layers: 4
     generic_architecture: True
-    layer_widths: 1024
+    layer_widths: 512
     expansion_coefficient_dim: 5
     n_epochs: 140
     random_state: 0
@@ -357,7 +357,7 @@ hyperparameters:
     num_blocks: 1
     num_layers: 4
     generic_architecture: True
-    layer_widths: 1024
+    layer_widths: 512
     expansion_coefficient_dim: 5
     n_epochs: 150
     random_state: 0
