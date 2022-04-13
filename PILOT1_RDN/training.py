@@ -306,8 +306,10 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             logging.info('\nStoring torch model to MLflow...')
             # model_dir_list = os.listdir(f"./.darts/checkpoints/{mlrun.info.run_id}")
             # best_model_name = [fname for fname in model_dir_list if "model_best" in fname][0]
-            best_model_path = f"./darts_logs/{mlrun.info.run_id}/_model.pth.tar"
-            mlflow.log_artifact(best_model_path, f"checkpoints")
+            # best_model_path = f"./darts_logs/{mlrun.info.run_id}/_model.pth.tar"
+            logs_path = f"./darts_logs/{mlrun.info.run_id}/"
+            mlflow.log_artifacts(logs_path)
+            # mlflow.log_artifact(best_model_path)
             
             # TODO: Implement this step without tensorboard (fix utils.py: get_training_progress_by_tag)
             # log_curves(tensorboard_event_folder=f"./darts_logs/{mlrun.info.run_id}/logs", output_dir='training_curves')
@@ -401,12 +403,13 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
         # Log hyperparameters
         mlflow.log_params(hparams_to_log)
+
         # Set tags
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "training")
 
         client = mlflow.tracking.MlflowClient()
-        model_dir_list = client.list_artifacts(run_id=mlrun.info.run_id, path='checkpoints')
+        model_dir_list = client.list_artifacts(run_id=mlrun.info.run_id)
         src_path = [fileinfo.path for fileinfo in model_dir_list if '_model' in fileinfo.path][0]
         mlflow.set_tag('model_uri', mlflow.get_artifact_uri(src_path))
 
