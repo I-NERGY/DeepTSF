@@ -160,7 +160,8 @@ class MlflowArtifactDownloader():
 
         pkl_object = pickle.load(open(local_path, "rb"))
         return pkl_object
-
+        
+#TODO: Fix it. It does not get any progress any more
 def get_training_progress_by_tag(fn, tag):
     # assert(os.path.isdir(output_dir))
 
@@ -187,9 +188,17 @@ def log_curves(tensorboard_event_folder, output_dir='training_curves'):
     # locate tensorboard event file
     event_file_names = os.listdir(tensorboard_event_folder)
     if len(event_file_names) > 1:
-        os.logging("MORE TENSORBOARD FILES HAVE BEEN DETECTED! ONLY FIRST USED!")
-        print("MORE TENSORBOARD FILES HAVE BEEN DETECTED! ONLY FIRST USED!")
-    tensorboard_event_file = os.path.join(tensorboard_event_folder, event_file_names[0])
+        logging.info(
+            "Searching for term 'events.out.tfevents.' in logs folder to extract tensorboard file...\n")
+        print(
+            "Searching for term 'events.out.tfevents.' in logs folder to extract tensorboard file...\n")
+    tensorboard_folder_list = os.listdir(tensorboard_event_folder)
+    event_file_name = [fname for fname in tensorboard_folder_list if 
+        "events.out.tfevents." in fname][0]
+    tensorboard_event_file = os.path.join(tensorboard_event_folder, event_file_name)
+    
+    # test for get_training_progress_by_tag
+    print(tensorboard_event_file)
 
     # local folder
     print("Creating local folder to store the datasets as csv...")
@@ -200,8 +209,16 @@ def log_curves(tensorboard_event_folder, output_dir='training_curves'):
     training_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/loss_total'))
     training_loss.to_csv(os.path.join(output_dir, 'training_loss.csv'))
     
+    # testget_training_progress_by_tag
+    print(training_loss)
+    
     ## consider here nr_epoch_val_period
     validation_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'validation/loss_total'))
+
+    # test for get_training_progress_by_tag
+    print(validation_loss)
+    print(validation_loss.__dict__)
+    
     validation_loss["Epoch"] = (validation_loss["Epoch"] * int(len(training_loss) / len(validation_loss)) + 1).astype(int)
     validation_loss.to_csv(os.path.join(output_dir, 'validation_loss.csv'))
 
