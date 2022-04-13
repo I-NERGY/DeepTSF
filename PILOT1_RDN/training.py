@@ -407,7 +407,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
         client = mlflow.tracking.MlflowClient()
         model_dir_list = client.list_artifacts(run_id=mlrun.info.run_id, path='checkpoints')
-        src_path = [fileinfo.path for fileinfo in model_dir_list if 'model_best' in fileinfo.path][0]
+        src_path = [fileinfo.path for fileinfo in model_dir_list if '_model' in fileinfo.path][0]
         mlflow.set_tag('model_uri', mlflow.get_artifact_uri(src_path))
 
         mlflow.set_tag('series_uri', f'{mlrun.info.artifact_uri}/features/series.csv')
