@@ -30,7 +30,7 @@ from utils import truth_checker
 from dotenv import load_dotenv
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
-os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
+# os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 

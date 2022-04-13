@@ -9,7 +9,7 @@ from darts.dataprocessing.transformers import Scaler
 from dotenv import load_dotenv
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
-os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
+# os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 def split_dataset(covariates, val_start_date_str, test_start_date_str, 

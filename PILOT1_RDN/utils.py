@@ -27,7 +27,7 @@ class ConfigParser:
     def __init__(self, config_file_path=f'{cur_dir}/config.yml'):
         with open(config_file_path, "r") as ymlfile:
             self.config = yaml.safe_load(ymlfile)
-            self.mlflow_tracking_uri = self.config['mlflow_settings']['mlflow_tracking_uri']
+            # self.mlflow_tracking_uri = self.config['mlflow_settings']['mlflow_tracking_uri']
 
     def read_hyperparameters(self, hyperparams_entrypoint):
         return self.config['hyperparameters'][hyperparams_entrypoint]
@@ -160,7 +160,7 @@ class MlflowArtifactDownloader():
 
         pkl_object = pickle.load(open(local_path, "rb"))
         return pkl_object
-        
+
 #TODO: Fix it. It does not get any progress any more
 def get_training_progress_by_tag(fn, tag):
     # assert(os.path.isdir(output_dir))
