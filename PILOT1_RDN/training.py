@@ -1,4 +1,3 @@
-# from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, log_curves, truth_checker
 from preprocessing import scale_covariates, split_dataset
 
@@ -18,7 +17,6 @@ import shutil
 import torch
 import logging
 import pickle
-import pretty_errors
 import tempfile
 import pretty_errors
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
@@ -35,11 +33,15 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 my_stopper = EarlyStopping(
     monitor="val_loss",
     patience=10,
-    min_delta=0.00001,
+    min_delta=0.00,
     mode='min',
 )
 
-pl_trainer_kwargs = {"callbacks": [my_stopper]}
+pl_trainer_kwargs = {"callbacks": [my_stopper],
+                     "accelerator": "gpu", 
+                     "gpus": -1, 
+                     "auto_select_gpus": True,
+                     "log_every_n_steps": 20}
 
 @click.command()
 @click.option("--series-csv",
@@ -283,13 +285,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             model = eval(darts_model + 'Model')(
                 save_checkpoints=True,
-                log_tensorboard=False,
-                torch_device_str=device,
+                log_tensorboard=True,
                 model_name=mlrun.info.run_id,
+                pl_trainer_kwargs=pl_trainer_kwargs,
                 **hyperparameters
-            )
-            # pl_trainer_kwargs=pl_trainer_kwargs,
-                
+            )                
             ## fit model
             # try:
             # print(scaled_series['train'])
@@ -299,18 +299,18 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 past_covariates=scaled_past_covariates['train'],
                 val_series=scaled_series['val'],
                 val_future_covariates=scaled_future_covariates['val'],
-                val_past_covariates=scaled_past_covariates['val'],
-                verbose=True)
+                val_past_covariates=scaled_past_covariates['val'])
 
             # TODO: Package Models as python functions for MLflow (see RiskML and https://mlflow.org/docs/0.5.0/models.html#python-function-python-function)
             print('\nStoring torch model to MLflow...')
             logging.info('\nStoring torch model to MLflow...')
-            model_dir_list = os.listdir(f"./.darts/checkpoints/{mlrun.info.run_id}")
-            best_model_name = [fname for fname in model_dir_list if "model_best" in fname][0]
-            best_model_path = f"./.darts/checkpoints/{mlrun.info.run_id}/{best_model_name}"
+            # model_dir_list = os.listdir(f"./.darts/checkpoints/{mlrun.info.run_id}")
+            # best_model_name = [fname for fname in model_dir_list if "model_best" in fname][0]
+            best_model_path = f"./darts_logs/{mlrun.info.run_id}/_model.pth.tar"
             mlflow.log_artifact(best_model_path, f"checkpoints")
-            log_curves(tensorboard_event_folder=f"./.darts/runs/{mlrun.info.run_id}", 
-            output_dir='training_curves')
+            
+            # TODO: Implement this step without tensorboard (fix utils.py: get_training_progress_by_tag)
+            # log_curves(tensorboard_event_folder=f"./darts_logs/{mlrun.info.run_id}/logs", output_dir='training_curves')
 
             # TODO: Implement early stopping without keyboard interupt ?? (consider tags as well)
             # except KeyboardInterrupt:
