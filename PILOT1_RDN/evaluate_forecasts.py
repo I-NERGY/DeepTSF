@@ -1,4 +1,4 @@
-from utils import ConfigParser, none_checker, truth_checker, load_yaml_as_dict, download_online_file, load_local_csv_as_darts_timeseries, load_local_pkl_as_object, load_local_model_as_torch
+from utils import ConfigParser, none_checker, truth_checker, load_yaml_as_dict, download_online_file, load_local_csv_as_darts_timeseries, load_local_pkl_as_object, load_model_from_server
 
 from functools import reduce
 from darts.utils.statistics import check_seasonality, plot_acf, plot_residuals_analysis
@@ -254,7 +254,7 @@ def backtester(model,
                                                              stride=stride,
                                                              retrain=retrain,
                                                              last_points_only=False,
-                                                             verbose=True)
+                                                             verbose=False)
 
     # flatten lists of forecasts due to last_points_only=False
     if isinstance(backtest_series_transformed, list):
@@ -376,6 +376,11 @@ def backtester(model,
               default='mlflow_artifact_uri',
               help='Remote URI of the model to be evaluated'
               )
+@click.option("--darts-forecasting-model",
+              type=str,
+              default='NBEATSModel',
+              help='Class of darts model as str'
+              )
 @click.option("--forecast-horizon",
               type=str,
               default="96")
@@ -385,7 +390,7 @@ def backtester(model,
 @click.option("--retrain",
               type=str,
               default="false")
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup_uri, model_uri, forecast_horizon, stride, retrain):
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup_uri, model_uri, darts_forecasting_model, forecast_horizon, stride, retrain):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -403,7 +408,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup
     setup_file = download_online_file(
         setup_uri, "setup.yml") if mode == 'remote' else setup_uri
     setup = load_yaml_as_dict(setup_file)
-    print("\nSplit info: ", setup)
+    print(f"\nSplit info: {setup} \n")
 
     cut_date_val = setup['val_start']
     cut_date_test = setup['test_start']
@@ -434,17 +439,11 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup
     else:
         past_covariates = None
 
+    # TODO: Also implement for local files 
     ## load model from MLflow
-    ## as torch
-    if model_uri.endswith('pth.tar'):
-        model_path = download_online_file(
-            model_uri, "model.pth.tar") if mode == 'remote' else model_uri
-        model = load_local_model_as_torch(model_path)
-    ## as pkl
-    elif model_uri.endswith('.pkl'):
-        model_path = download_online_file(
-            model_uri, "model.pkl") if mode == 'remote' else model_uri
-        model = load_local_pkl_as_object(model_path)
+    print(f"Darts forecasting model: {darts_forecasting_model}\n")
+    model = load_model_from_server(
+        model_uri, darts_forecasting_model=darts_forecasting_model, mlflow_dir_name='model', )
 
     ## load scaler from MLflow
     scaler_path = download_online_file(

@@ -47,11 +47,12 @@ entry_points:
       scaler_uri: {type: str, default: mlflow_artifact_uri}
       setup_uri: {type: str, default: mlflow_artifact_uri}
       model_uri: {type: str, default: mlflow_artifact_uri}
+      darts_forecasting_model: {type: str, default: None}
       forecast_horizon: {type: str, default: 96}
       stride: {type: str, default: None}
       retrain: {type: str, default: f}
     command: |
-      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --setup-uri {setup_uri} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain}  
+      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --setup-uri {setup_uri} --model-uri {model_uri} --darts-forecasting-model {darts_forecasting_model} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain}  
 
   exp_pipeline:
     parameters:

@@ -33,7 +33,7 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 my_stopper = EarlyStopping(
     monitor="val_loss",
     patience=10,
-    min_delta=0.00,
+    min_delta=1e-6,
     mode='min',
 )
 
@@ -41,7 +41,7 @@ pl_trainer_kwargs = {"callbacks": [my_stopper],
                      "accelerator": "gpu", 
                      "gpus": -1, 
                      "auto_select_gpus": True,
-                     "log_every_n_steps": 20}
+                     "log_every_n_steps": 10}
 
 @click.command()
 @click.option("--series-csv",
@@ -237,7 +237,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             # store_dir=features_dir, 
             name='past_covariates')
 
-        ######################
+        #################
         # Scaling
         print("\nScaling...")
         logging.info("\nScaling...")
@@ -304,11 +304,21 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             # TODO: Package Models as python functions for MLflow (see RiskML and https://mlflow.org/docs/0.5.0/models.html#python-function-python-function)
             print('\nStoring torch model to MLflow...')
             logging.info('\nStoring torch model to MLflow...')
-            # model_dir_list = os.listdir(f"./.darts/checkpoints/{mlrun.info.run_id}")
-            # best_model_name = [fname for fname in model_dir_list if "model_best" in fname][0]
-            # best_model_path = f"./darts_logs/{mlrun.info.run_id}/_model.pth.tar"
+            
             logs_path = f"./darts_logs/{mlrun.info.run_id}/"
-            mlflow.log_artifacts(logs_path)
+            # checkpoints_path = f"./darts_logs/{mlrun.info.run_id}/checkpoints"
+            
+            # checkpoints_path_list = os.listdir(checkpoints_path)
+            # logs_path_list = os.listdir(logs_path)
+            
+            # architecture_fname = [fname for fname in logs_path_list if "_model" in fname][0]
+            # architecture_path = f"{logs_path}/{architecture_fname}"
+            # best_model_dict_fname = [fname for fname in checkpoints_path_list if "best" in fname][0]
+            # best_model_dict_path = f"{checkpoints_path}/{best_model_dict_fname}"
+
+            # mlflow.log_artifact(best_model_dict_path)
+            # mlflow.log_artifact(architecture_path)
+            mlflow.log_artifacts(logs_path, "model")
             # mlflow.log_artifact(best_model_path)
             
             # TODO: Implement this step without tensorboard (fix utils.py: get_training_progress_by_tag)
@@ -365,7 +375,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             pickle.dump(model, open(
                 f"{forest_dir}/model_best_{darts_model}.pkl", "wb"))
-            mlflow.log_artifacts(forest_dir, "checkpoints")
+            mlflow.log_artifacts(forest_dir)
         
         # ARIMA
         elif darts_model == 'AutoARIMA':
@@ -383,45 +393,33 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             pickle.dump(model, open(
                 f"{arima_dir}/model_best_arima.pkl", "wb"))
-            mlflow.log_artifacts(arima_dir, "checkpoints")
+            mlflow.log_artifacts(arima_dir)
 
-
-            # hyperparameters = {k: eval(v) for (k, v) in hyperparameters.items()}
-            # model = ARIMA().gridsearch(
-            #     parameters=hyperparameters, 
-            #     series=series_split['train'].append(series_split['val']),
-            #     past_covariates=past_covariates,
-            #     future_covariates=future_covariates,
-            #     forecast_horizon=hyperparameters[forecast_horizon],
-            #     stride=hyperparameters[forecast_horizon],
-            #     start= cut_date_val,
-            #     last_points_only=False,
-            #     metric=mape_darts,
-            #     n_jobs=-1,
-            #     verbose=True
-            #     )
 
         # Log hyperparameters
         mlflow.log_params(hparams_to_log)
-
+        
+        ######################
         # Set tags
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "training")
 
         client = mlflow.tracking.MlflowClient()
-        model_dir_list = client.list_artifacts(run_id=mlrun.info.run_id)
-        src_path = [fileinfo.path for fileinfo in model_dir_list if '_model' in fileinfo.path][0]
+        artifact_list = client.list_artifacts(run_id=mlrun.info.run_id, path='model')
+        
+        src_path = [
+            fileinfo.path for fileinfo in artifact_list if 'pth.tar' in fileinfo.path or '.pkl' in fileinfo.path][0]
         mlflow.set_tag('model_uri', mlflow.get_artifact_uri(src_path))
+
+        mlflow.set_tag("darts_forecasting_model", model.__class__.__name__)
 
         mlflow.set_tag('series_uri', f'{mlrun.info.artifact_uri}/features/series.csv')
 
-        # check if future_covariates exist
         if future_covariates is not None:
             mlflow.set_tag('future_covariates_uri', f'{mlrun.info.artifact_uri}/features/future_covariates_transformed.csv')
         else:
             mlflow.set_tag('future_covariates_uri', 'mlflow_artifact_uri')
 
-        # check if past_covariates exist
         if past_covariates is not None:
             mlflow.set_tag('past_covariates_uri', f'{mlrun.info.artifact_uri}/features/past_covariates_transformed.csv')
         else:

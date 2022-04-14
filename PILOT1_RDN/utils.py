@@ -1,9 +1,6 @@
-from tabnanny import check
-from threading import local
-from dotenv import load_dotenv
+
 import yaml
 import os
-import scipy.misc
 import tensorflow as tf
 from tensorflow.python.summary.summary_iterator import summary_iterator
 import seaborn as sns
@@ -20,6 +17,8 @@ import tempfile
 import yaml
 import boto3
 import sys
+import numpy as np
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
 
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -44,6 +43,15 @@ def download_file_from_s3_bucket(object_name, dst_filename, dst_dir=None, bucket
     bucket.download_file(object_name, local_path)
     return local_path
 
+def load_yaml_as_dict(filepath):
+    with open(filepath, 'r') as stream:
+        try:
+            parsed_yaml = yaml.safe_load(stream)
+            return parsed_yaml
+        except yaml.YAMLError as exc:
+            print(exc)
+            return
+
 def download_online_file(url, dst_filename, dst_dir=None):
     if dst_dir is None:
         dst_dir = tempfile.mkdtemp()
@@ -60,14 +68,32 @@ def download_online_file(url, dst_filename, dst_dir=None):
     file.close()
     return filepath
 
-def load_yaml_as_dict(filepath):
-    with open(filepath, 'r') as stream:
-        try:
-            parsed_yaml = yaml.safe_load(stream)
-            return parsed_yaml
-        except yaml.YAMLError as exc:
-            print(exc)
-            return 
+def load_model_from_server(model_uri, darts_forecasting_model, mlflow_dir_name='model'):
+    if model_uri.endswith('pth.tar'):
+        client = mlflow.tracking.MlflowClient()
+        local_dir = tempfile.mkdtemp()
+        client.download_artifacts(run_id=model_uri.split(
+            "/")[-4], path=mlflow_dir_name, dst_path=local_dir)
+
+        model_dir = os.path.join(local_dir, mlflow_dir_name)
+        # model = load_local_model_as_torch(base_model_path)
+        model = eval(darts_forecasting_model)
+
+        chk_local_dir = os.path.join(
+            local_dir, mlflow_dir_name, "checkpoints")
+        chk_fname = [file for file in os.listdir(
+            chk_local_dir) if 'best' in file][0]
+        chk_path = os.path.join(chk_local_dir, chk_fname)
+
+        best_model = model.load_from_checkpoint(model_dir)
+
+        return best_model        
+    ## as pkl
+    elif model_uri.endswith('.pkl'):
+        model_path = download_online_file(
+            model_uri, "model.pkl") if mode == 'remote' else model_uri
+        best_model = load_local_pkl_as_object(model_path)
+    return best_model
 
 def truth_checker(argument):
     """ Returns True if string has specific truth values else False"""
@@ -99,6 +125,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             local_path, time_col=time_col, 
             fill_missing_dates=True, 
             freq=None)
+        covariates = covariates.astype(np.float32)
         if last_date is not None:
             covariates.drop_after(pd.Timestamp(last_date))
     except (FileNotFoundError, PermissionError) as e:
@@ -145,7 +172,7 @@ class MlflowArtifactDownloader():
         load_artifacts(self.run_id, src_path=src_path, dst_path=tmpdir)
         local_path = os.path.join(tmpdir, src_path.replace('/', os.path.sep))
 
-        darts_ts = darts.TimeSeries.from_csv(local_path, time_col=time_col)
+        darts_ts = darts.TimeSeries.from_csv(local_path, time_col=time_col, dtype=np.float32)
 
         return darts_ts
 
