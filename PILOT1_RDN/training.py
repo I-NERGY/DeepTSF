@@ -37,12 +37,6 @@ my_stopper = EarlyStopping(
     mode='min',
 )
 
-pl_trainer_kwargs = {"callbacks": [my_stopper],
-                     "accelerator": "gpu", 
-                     "gpus": -1, 
-                     "auto_select_gpus": True,
-                     "log_every_n_steps": 10}
-
 @click.command()
 @click.option("--series-csv",
               type=str,
@@ -108,10 +102,10 @@ pl_trainer_kwargs = {"callbacks": [my_stopper],
               )
 @click.option("--device",
               type=click.Choice(
-                  ['cuda', 
+                  ['gpu', 
                    'cpu']),
               multiple=False,
-              default='cuda',
+              default='gpu',
               )
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri, 
           past_covs_csv, past_covs_uri, darts_model, 
@@ -127,8 +121,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
     hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
 
     ## device
-    if device == 'cuda' and torch.cuda.is_available():
-        device = 'cuda'
+    if device == 'gpu' and torch.cuda.is_available():
+        device = 'gpu'
         print("\nGPU is available")
     else:
         device = 'cpu'
@@ -272,6 +266,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         # Model training
         print("\nTraining model...")
         logging.info("\nTraining model...")
+        pl_trainer_kwargs = {"callbacks": [my_stopper],
+                             "accelerator": device,
+                             "gpus": -1,
+                             "auto_select_gpus": True,
+                             "log_every_n_steps": 10}
 
         ## choose architecture
         if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN']:

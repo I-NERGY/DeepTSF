@@ -160,10 +160,10 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
               )
 @click.option("--device",
               type=click.Choice(
-                  ['cuda', 
+                  ['gpu', 
                    'cpu']),
               multiple=False,
-              default='cuda',
+              default='gpu',
               )
 # eval
 @click.option("--forecast-horizon",

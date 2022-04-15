@@ -33,7 +33,7 @@ entry_points:
       cut_date_test: {type: str, default: 20210101}
       test_end_date: {type: str, default: None}
       darts_model: {type: str, default: RNN}
-      device: {type: str, default: cuda}
+      device: {type: str, default: gpu}
       hyperparams_entrypoint: {type: str, default: LSTM1}
     command: |
       python training.py --series-csv {series_csv} --series-uri {series_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --past-covs-csv {past_covs_csv}  --past-covs-uri {past_covs_uri} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint}
@@ -66,7 +66,7 @@ entry_points:
       cut_date_test: {type: str, default: 20190101}
       test_end_date: {type: str, default: None}
       darts_model: {type: str, default: RNN}
-      device: {type: str, default: cuda}
+      device: {type: str, default: gpu}
       forecast_horizon: {type: str, default: 96}
       stride: {type: str, default: None}
       retrain: {type: str, default: false}
