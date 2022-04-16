@@ -1,8 +1,9 @@
 
+import pretty_errors
 import yaml
 import os
-import tensorflow as tf
-from tensorflow.python.summary.summary_iterator import summary_iterator
+# import tensorflow as tf
+# from tensorflow.python.summary.summary_iterator import summary_iterator
 import seaborn as sns
 import matplotlib.pyplot as plt
 import logging
@@ -18,6 +19,8 @@ import yaml
 import boto3
 import sys
 import numpy as np
+from darts.models.forecasting.gradient_boosted_model import LightGBMModel
+from darts.models.forecasting.random_forest import RandomForest
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
 
 cur_dir = os.path.dirname(os.path.realpath(__file__))
@@ -83,9 +86,8 @@ def load_model_from_server(model_uri, darts_forecasting_model, mlflow_dir_name='
             local_dir, mlflow_dir_name, "checkpoints")
         chk_fname = [file for file in os.listdir(
             chk_local_dir) if 'best' in file][0]
-        chk_path = os.path.join(chk_local_dir, chk_fname)
 
-        best_model = model.load_from_checkpoint(model_dir)
+        best_model = model.load_from_checkpoint(model_dir, best=True)
 
         return best_model        
     ## as pkl
@@ -189,91 +191,91 @@ class MlflowArtifactDownloader():
         return pkl_object
 
 #TODO: Fix it. It does not get any progress any more
-def get_training_progress_by_tag(fn, tag):
-    # assert(os.path.isdir(output_dir))
+# def get_training_progress_by_tag(fn, tag):
+#     # assert(os.path.isdir(output_dir))
 
-    image_str = tf.compat.v1.placeholder(tf.string)
+#     image_str = tf.compat.v1.placeholder(tf.string)
     
-    im_tf = tf.image.decode_image(image_str)
+#     im_tf = tf.image.decode_image(image_str)
 
-    sess = tf.compat.v1.InteractiveSession()
-    with sess.as_default():
-        count = 0
-        values = []
-        for e in summary_iterator(fn):
-            for v in e.summary.value:
-                if tag == v.tag:
-                    values.append(v.simple_value)
-    sess.close()
-    return {"Epoch": range(1, len(values) + 1), "Value": values}
+#     sess = tf.compat.v1.InteractiveSession()
+#     with sess.as_default():
+#         count = 0
+#         values = []
+#         for e in summary_iterator(fn):
+#             for v in e.summary.value:
+#                 if tag == v.tag:
+#                     values.append(v.simple_value)
+#     sess.close()
+#     return {"Epoch": range(1, len(values) + 1), "Value": values}
 
-def log_curves(tensorboard_event_folder, output_dir='training_curves'):
+# def log_curves(tensorboard_event_folder, output_dir='training_curves'):
     # TODO: fix deprecation warnings
 
-    tf.compat.v1.disable_eager_execution()
+    # tf.compat.v1.disable_eager_execution()
 
-    # locate tensorboard event file
-    event_file_names = os.listdir(tensorboard_event_folder)
-    if len(event_file_names) > 1:
-        logging.info(
-            "Searching for term 'events.out.tfevents.' in logs folder to extract tensorboard file...\n")
-        print(
-            "Searching for term 'events.out.tfevents.' in logs folder to extract tensorboard file...\n")
-    tensorboard_folder_list = os.listdir(tensorboard_event_folder)
-    event_file_name = [fname for fname in tensorboard_folder_list if 
-        "events.out.tfevents." in fname][0]
-    tensorboard_event_file = os.path.join(tensorboard_event_folder, event_file_name)
+    # # locate tensorboard event file
+    # event_file_names = os.listdir(tensorboard_event_folder)
+    # if len(event_file_names) > 1:
+    #     logging.info(
+    #         "Searching for term 'events.out.tfevents.' in logs folder to extract tensorboard file...\n")
+    #     print(
+    #         "Searching for term 'events.out.tfevents.' in logs folder to extract tensorboard file...\n")
+    # tensorboard_folder_list = os.listdir(tensorboard_event_folder)
+    # event_file_name = [fname for fname in tensorboard_folder_list if 
+    #     "events.out.tfevents." in fname][0]
+    # tensorboard_event_file = os.path.join(tensorboard_event_folder, event_file_name)
     
-    # test for get_training_progress_by_tag
-    print(tensorboard_event_file)
+    # # test for get_training_progress_by_tag
+    # print(tensorboard_event_file)
 
-    # local folder
-    print("Creating local folder to store the datasets as csv...")
-    logging.info("Creating local folder to store the datasets as csv...")
-    os.makedirs(output_dir, exist_ok=True)
+    # # local folder
+    # print("Creating local folder to store the datasets as csv...")
+    # logging.info("Creating local folder to store the datasets as csv...")
+    # os.makedirs(output_dir, exist_ok=True)
 
-    # get metrix and store locally
-    training_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/loss_total'))
-    training_loss.to_csv(os.path.join(output_dir, 'training_loss.csv'))
+    # # get metrix and store locally
+    # training_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/loss_total'))
+    # training_loss.to_csv(os.path.join(output_dir, 'training_loss.csv'))
     
-    # testget_training_progress_by_tag
-    print(training_loss)
+    # # testget_training_progress_by_tag
+    # print(training_loss)
     
-    ## consider here nr_epoch_val_period
-    validation_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'validation/loss_total'))
+    # ## consider here nr_epoch_val_period
+    # validation_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'validation/loss_total'))
 
-    # test for get_training_progress_by_tag
-    print(validation_loss)
-    print(validation_loss.__dict__)
+    # # test for get_training_progress_by_tag
+    # print(validation_loss)
+    # print(validation_loss.__dict__)
     
-    validation_loss["Epoch"] = (validation_loss["Epoch"] * int(len(training_loss) / len(validation_loss)) + 1).astype(int)
-    validation_loss.to_csv(os.path.join(output_dir, 'validation_loss.csv'))
+    # validation_loss["Epoch"] = (validation_loss["Epoch"] * int(len(training_loss) / len(validation_loss)) + 1).astype(int)
+    # validation_loss.to_csv(os.path.join(output_dir, 'validation_loss.csv'))
 
-    learning_rate = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/learning_rate'))    
-    learning_rate.to_csv(os.path.join(output_dir, 'learning_rate.csv'))
+    # learning_rate = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/learning_rate'))    
+    # learning_rate.to_csv(os.path.join(output_dir, 'learning_rate.csv'))
 
-    sns.lineplot(x="Epoch", y="Value", data=training_loss, label="Training")
-    sns.lineplot(x="Epoch", y="Value", data=validation_loss, label="Validation", marker='o')
-    plt.grid()
-    plt.legend()
-    plt.title("Loss")
-    plt.savefig(os.path.join(output_dir, 'loss.png'))
+    # sns.lineplot(x="Epoch", y="Value", data=training_loss, label="Training")
+    # sns.lineplot(x="Epoch", y="Value", data=validation_loss, label="Validation", marker='o')
+    # plt.grid()
+    # plt.legend()
+    # plt.title("Loss")
+    # plt.savefig(os.path.join(output_dir, 'loss.png'))
 
-    plt.figure()
-    sns.lineplot(x="Epoch", y="Value", data=learning_rate)
-    plt.grid()
-    plt.title("Learning rate")
-    plt.savefig(os.path.join(output_dir, 'learning_rate.png'))
+    # plt.figure()
+    # sns.lineplot(x="Epoch", y="Value", data=learning_rate)
+    # plt.grid()
+    # plt.title("Learning rate")
+    # plt.savefig(os.path.join(output_dir, 'learning_rate.png'))
 
-    print("Uploading training curves to MLflow server...")
-    logging.info("Uploading training curves to MLflow server...")
-    mlflow.log_artifacts(output_dir, output_dir)
+    # print("Uploading training curves to MLflow server...")
+    # logging.info("Uploading training curves to MLflow server...")
+    # mlflow.log_artifacts(output_dir, output_dir)
 
-    print("Artifacts uploaded. Deleting local copies...")
-    logging.info("Artifacts uploaded. Deleting local copies...")
-    shutil.rmtree(output_dir)
+    # print("Artifacts uploaded. Deleting local copies...")
+    # logging.info("Artifacts uploaded. Deleting local copies...")
+    # shutil.rmtree(output_dir)
 
-    return
+    # return
     
 
 
