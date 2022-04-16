@@ -1,8 +1,8 @@
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, log_curves, truth_checker
+import pretty_errors
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker #, log_curves
 from preprocessing import scale_covariates, split_dataset
 
 # the following are used through eval(darts_model + 'Model')
-import darts
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
 from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.gradient_boosted_model import LightGBMModel
@@ -13,12 +13,10 @@ from darts.metrics import mape as mape_darts
 import mlflow
 import click
 import os
-import shutil
 import torch
 import logging
 import pickle
 import tempfile
-import pretty_errors
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 
 # get environment variables
@@ -179,10 +177,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 name='series', 
                 time_col='Date', 
                 last_date=test_end_date)
-        # print(series.time_index)
-        # a = pd.date_range(start='20180101 00:00:00',
-        #               end='20211212 23:00:00').difference(series.time_index)
-        # print(f'\n\n {a}')
         if future_covariates is not None:
             future_covariates = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv, 
@@ -213,6 +207,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             series, 
             val_start_date_str=cut_date_val, 
             test_start_date_str=cut_date_test,
+            test_end_date=test_end_date,
             store_dir=features_dir, 
             name='series',
             conf_file_name='split_info.yml')
@@ -221,6 +216,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             future_covariates, 
             val_start_date_str=cut_date_val, 
             test_start_date_str=cut_date_test, 
+            test_end_date=test_end_date,
             # store_dir=features_dir,
             name='future_covariates')
         ## past covariates
@@ -228,6 +224,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             past_covariates, 
             val_start_date_str=cut_date_val, 
             test_start_date_str=cut_date_test,
+            test_end_date=test_end_date,
             # store_dir=features_dir, 
             name='past_covariates')
 
@@ -254,21 +251,12 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             filename_suffix="past_covariates_transformed.csv")
 
         ######################
-        # Save scaled features and scalers locally and then to mlflow server
-        print("\nDatasets and scalers are being uploaded to MLflow...")
-        logging.info("\nDatasets and scalers are being uploaded to MLflow...")
-        mlflow.log_artifacts(scalers_dir, "scalers")
-        mlflow.log_artifacts(features_dir, "features")
-        print("\nDatasets uploaded. ...")
-        logging.info("\nDatasets uploaded. ...")
-
-        ######################
         # Model training
         print("\nTraining model...")
         logging.info("\nTraining model...")
         pl_trainer_kwargs = {"callbacks": [my_stopper],
                              "accelerator": device,
-                             "gpus": -1,
+                             "gpus": 1,
                              "auto_select_gpus": True,
                              "log_every_n_steps": 10}
 
@@ -426,6 +414,15 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
         mlflow.set_tag('scaler_uri', f'{mlrun.info.artifact_uri}/scalers/scaler_series.pkl')
         mlflow.set_tag('setup_uri', f'{mlrun.info.artifact_uri}/features/split_info.yml')
+
+        ######################
+        # Save scaled features and scalers locally and then to mlflow server
+        print("\nDatasets and scalers are being uploaded to MLflow...")
+        logging.info("\nDatasets and scalers are being uploaded to MLflow...")
+        mlflow.log_artifacts(scalers_dir, "scalers")
+        mlflow.log_artifacts(features_dir, "features")
+        print("\nDatasets uploaded. ...")
+        logging.info("\nDatasets uploaded. ...")
         
         return
 

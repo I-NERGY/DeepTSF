@@ -6,16 +6,12 @@ trains a darts model, and evaluates the model.
 import pretty_errors
 from darts.dataprocessing.transformers import Scaler
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, LightGBMModel, RandomForest, TFTModel, TCNModel
-import pandas as pd
-import matplotlib.pyplot as plt
 import mlflow
 import click
 import os
-from utils import ConfigParser, download_online_file
-from utils import log_curves
 import pretty_errors
-from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
-import tempfile
+from utils import download_online_file
+# from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
 import pretty_errors
 import click
 import os
@@ -24,7 +20,7 @@ from mlflow.utils import mlflow_tags
 from mlflow.entities import RunStatus
 from mlflow.utils.logging_utils import eprint
 from mlflow.tracking.fluent import _get_experiment_id
-from utils import truth_checker
+from utils import truth_checker, load_yaml_as_dict, download_online_file
 
 # get environment variables
 from dotenv import load_dotenv
@@ -247,12 +243,19 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
         train_setup_uri = train_run.data.tags["setup_uri"].replace("s3:/", S3_ENDPOINT_URL)
 
         # 4. Evaluation
+        ## load setup file
+        setup_file = download_online_file(
+            train_setup_uri, "setup.yml")
+        setup = load_yaml_as_dict(setup_file)
+        print(f"\nSplit info: {setup} \n")
+
         eval_params = {
             "series_uri": train_series_uri, 
             "future_covs_uri": train_future_covariates_uri,
             "past_covs_uri": train_past_covariates_uri,
             "scaler_uri": train_scaler_uri,
-            "setup_uri": train_setup_uri,
+            "cut_date_test": setup['test_start'],
+            "test_end_date": setup['test_end'],
             "model_uri": train_model_uri,
             "darts_forecasting_model": train_dfm,
             "forecast_horizon": forecast_horizon,

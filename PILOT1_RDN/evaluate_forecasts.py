@@ -1,7 +1,7 @@
-from utils import ConfigParser, none_checker, truth_checker, load_yaml_as_dict, download_online_file, load_local_csv_as_darts_timeseries, load_local_pkl_as_object, load_model_from_server
+import pretty_errors
+from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_local_pkl_as_object, load_model_from_server
 
 from functools import reduce
-from darts.utils.statistics import check_seasonality, plot_acf, plot_residuals_analysis
 from darts.metrics import mape as mape_darts
 from darts.metrics import mase as mase_darts
 from darts.metrics import mae as mae_darts
@@ -25,7 +25,6 @@ import logging
 import click
 import mlflow
 import shutil
-import pretty_errors
 from preprocessing import split_dataset
 import tempfile
 
@@ -309,7 +308,7 @@ def backtester(model,
         "mape": mape_darts(
             test_series, 
             backtest_series),
-        "smape": mape_darts(
+        "smape": smape_darts(
             test_series, 
             backtest_series),
         "mase": mase_darts(
@@ -366,10 +365,15 @@ def backtester(model,
               default='mlflow_artifact_uri',
               help='Provide the uri of the future covariates file'
               )
-@click.option("--setup-uri",
+@click.option("--cut-date-test",
               type=str,
-              default='mlflow_artifact_uri',
-              help='Provide the uri of the yaml file containing the train / test split info',
+              default='20210101',
+              help="Test set start date [str: 'YYYYMMDD']",
+              )
+@click.option("--test-end-date",
+              type=str,
+              default='20213112',
+              help="Test end start date [str: 'YYYYMMDD']",
               )
 @click.option("--model-uri",
               type=str,
@@ -390,7 +394,7 @@ def backtester(model,
 @click.option("--retrain",
               type=str,
               default="false")
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup_uri, model_uri, darts_forecasting_model, forecast_horizon, stride, retrain):
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, darts_forecasting_model, forecast_horizon, stride, retrain):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -404,15 +408,6 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup
     past_covariates_uri = none_checker(past_covs_uri)
 
     # Load model / datasets / scalers from Mlflow server
-    ## load setup file
-    setup_file = download_online_file(
-        setup_uri, "setup.yml") if mode == 'remote' else setup_uri
-    setup = load_yaml_as_dict(setup_file)
-    print(f"\nSplit info: {setup} \n")
-
-    cut_date_val = setup['val_start']
-    cut_date_test = setup['test_start']
-    test_end_date = setup['test_end']
 
     ## load series from MLflow
     series_path = download_online_file(
@@ -455,13 +450,15 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, setup
     ## series
     series_split = split_dataset(
         series, 
-        val_start_date_str=cut_date_val, 
-        test_start_date_str=cut_date_test)
+        val_start_date_str=cut_date_test, 
+        test_start_date_str=cut_date_test,
+        test_end_date=test_end_date)
     
     series_transformed_split = split_dataset(
         series_transformed, 
-        val_start_date_str=cut_date_val, 
-        test_start_date_str=cut_date_test)
+        val_start_date_str=cut_date_test, 
+        test_start_date_str=cut_date_test,
+        test_end_date=test_end_date)
 
     # Evaluate Model
     evaltmpdir = tempfile.mkdtemp()
