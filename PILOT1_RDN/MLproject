@@ -45,14 +45,15 @@ entry_points:
       future_covs_uri: {type: str, default: mlflow_artifact_uri}
       past_covs_uri: {type: str, default: mlflow_artifact_uri}
       scaler_uri: {type: str, default: mlflow_artifact_uri}
-      setup_uri: {type: str, default: mlflow_artifact_uri}
+      cut_date_test: {type: str, default: 20210101}
+      test_end_date: {type: str, default: None}
       model_uri: {type: str, default: mlflow_artifact_uri}
       darts_forecasting_model: {type: str, default: None}
       forecast_horizon: {type: str, default: 96}
       stride: {type: str, default: None}
       retrain: {type: str, default: f}
     command: |
-      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --setup-uri {setup_uri} --model-uri {model_uri} --darts-forecasting-model {darts_forecasting_model} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain}  
+      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --darts-forecasting-model {darts_forecasting_model} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain}  
 
   exp_pipeline:
     parameters:

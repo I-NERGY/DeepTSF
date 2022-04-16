@@ -13,17 +13,25 @@ load_dotenv()
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 def split_dataset(covariates, val_start_date_str, test_start_date_str, 
-    store_dir=None, name='series', conf_file_name='split_info.yml'):
+        test_end_date=None, store_dir=None, name='series', 
+        conf_file_name='split_info.yml'):
+    
     if covariates is not None:
         covariates_train, covariates_val = covariates.split_before(
             pd.Timestamp(val_start_date_str))
-        covariates_val, covariates_test = covariates_val.split_before(
-            pd.Timestamp(test_start_date_str))
+        if val_start_date_str == test_start_date_str:
+            covariates_test = covariates_val
+        else:
+            covariates_val, covariates_test = covariates_val.split_before(
+                pd.Timestamp(test_start_date_str))
+        if test_end_date is not None:
+            covariates_test = covariates_test.drop_after(
+                pd.Timestamp(test_end_date))
         if store_dir is not None:
             split_info = {
                 "val_start": val_start_date_str,
                 "test_start": test_start_date_str,
-                "test_end": covariates.time_index[-1].strftime('%Y%m%d')
+                "test_end": covariates_test.time_index[-1].strftime('%Y%m%d')
             }
             with open(f'{store_dir}/{conf_file_name}', 'w') as outfile:
                 yaml.dump(split_info, outfile, default_flow_style=False)

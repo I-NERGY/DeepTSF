@@ -372,9 +372,9 @@ hyperparameters:
     dilation_base: 2
     weight_norm: True
     dropout: 0
-    n_epochs: 2
+    n_epochs: 1
     random_state: 0
-    nr_epochs_val_period: 2
+    nr_epochs_val_period: 1
     batch_size: 1024
 # Generally speaking, for a receptive field with no holes, the kernel size k has to be at least as big as the dilation base b.
   tcn0_4:
@@ -448,6 +448,45 @@ hyperparameters:
     kernel_size: 5
     num_filters: 5
     dilation_base: 3
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  tcn3_4:
+    input_chunk_length: 384
+    output_chunk_length: 96
+    kernel_size: 13
+    num_filters: 9
+    dilation_base: 9
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  tcn3_7:
+    input_chunk_length: 672
+    output_chunk_length: 96
+    kernel_size: 13
+    num_filters: 9
+    dilation_base: 9
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+  
+  tcn3_10:
+    input_chunk_length: 960
+    output_chunk_length: 96
+    kernel_size: 13
+    num_filters: 9
+    dilation_base: 9
     weight_norm: True
     dropout: 0
     n_epochs: 300
