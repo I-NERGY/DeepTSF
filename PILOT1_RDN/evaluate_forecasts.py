@@ -466,8 +466,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
         evaluation_results = backtester(model=model,
-                                series_transformed=series_transformed_split['all'],
-                                series=series_split['all'],
+                                series_transformed=series_transformed_split['all'].drop_after(pd.Timestamp(test_end_date)),
+                                series=series_split['all'].drop_after(pd.Timestamp(test_end_date)),
                                 transformer_ts=scaler,
                                 test_start_date=cut_date_test,
                                 forecast_horizon=forecast_horizon,
