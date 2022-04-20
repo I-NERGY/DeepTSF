@@ -19,14 +19,17 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
     if covariates is not None:
         covariates_train, covariates_val = covariates.split_before(
             pd.Timestamp(val_start_date_str))
+        
+        if test_end_date is not None:
+            covariates = covariates.drop_after(
+                pd.Timestamp(test_end_date))
+        
         if val_start_date_str == test_start_date_str:
             covariates_test = covariates_val
         else:
             covariates_val, covariates_test = covariates_val.split_before(
                 pd.Timestamp(test_start_date_str))
-        if test_end_date is not None:
-            covariates_test = covariates_test.drop_after(
-                pd.Timestamp(test_end_date))
+
         if store_dir is not None:
             split_info = {
                 "val_start": val_start_date_str,
@@ -41,36 +44,45 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
         covariates_val = None
         covariates_test = None
         
-    return {"train":covariates_train,
+    return {"train": covariates_train,
             "val": covariates_val,
             "test": covariates_test,
-            "all": covariates 
+            "all": covariates
            }
 
-def scale_covariates(covariates_split, store_dir=None, filename_suffix=''):
+def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale=True):
     covariates_train = covariates_split['train'] 
     covariates_val = covariates_split['val']
     covariates_test = covariates_split['test'] 
     covariates = covariates_split['all'] 
     if covariates is not None:
-        # scale them between 0 and 1:
-        transformer = Scaler()
-        # TODO: future covariates are a priori known! 
-        # i can fit on all dataset, but I won't do it as this function works for all covariates! 
-        # this is a problem only if not a full year is contained in the training set
-        covariates_train_transformed = \
-            transformer.fit_transform(covariates_train) 
-        covariates_val_transformed = \
-            transformer.transform(covariates_val)
-        covariates_test_transformed = \
-            transformer.transform(covariates_test)
-        covariates_transformed = \
-            transformer.transform(covariates)
+        if scale:
+            # scale them between 0 and 1:
+            transformer = Scaler()
+            # TODO: future covariates are a priori known! 
+            # i can fit on all dataset, but I won't do it as this function works for all covariates! 
+            # this is a problem only if not a full year is contained in the training set
+            covariates_train_transformed = \
+                transformer.fit_transform(covariates_train, n_jobs=-1) 
+            covariates_val_transformed = \
+                transformer.transform(covariates_val, n_jobs=-1)
+            covariates_test_transformed = \
+                transformer.transform(covariates_test, n_jobs=-1)
+            covariates_transformed = \
+                transformer.transform(covariates, n_jobs=-1)
+        else:
+            # To avoid scaling
+            covariates_train_transformed = covariates_train
+            covariates_val_transformed = covariates_val
+            covariates_test_transformed = covariates_test
+            covariates_transformed = covariates
+            transformer = None
+
         if store_dir is not None:
             covariates_transformed.to_csv(
                 f"{store_dir}/{filename_suffix}")
 
-        return {"train":covariates_train_transformed,
+        return {"train": covariates_train_transformed,
                 "val": covariates_val_transformed,
                 "test": covariates_test_transformed,
                 "all": covariates_transformed, 
@@ -83,3 +95,5 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix=''):
                 "all": None,
                 "transformer": None 
                 }
+
+

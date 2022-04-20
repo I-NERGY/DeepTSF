@@ -172,15 +172,21 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
               type=str,
               default="false",
               help="Whether to retrain model during backtesting")
-# Settings
 @click.option("--ignore-previous-runs",
               type=str,
               default="true",
               help="Whether to ignore previous step runs while running the pipeline")
+@click.option("--scale",
+              type=str,
+              default="true",
+              help="Whether to scale the target series")
+@click.option("--scale-covs",
+              type=str,
+              default="true",
+              help="Whether to scale the covariates")
 def workflow(series_csv, series_uri, year_range, resolution, time_covs, 
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
-             forecast_horizon, stride, retrain,
-             ignore_previous_runs):
+             forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -221,7 +227,9 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
             "cut_date_val": cut_date_val, 
             "cut_date_test": cut_date_test,
             "test_end_date": test_end_date,
-            "device": device
+            "device": device,
+            "scale": scale,
+            "scale_covs": scale_covs
             } 
         train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 

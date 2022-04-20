@@ -337,6 +337,12 @@ def backtester(model,
         backtest_series.drop_before(pd.Timestamp(test_start_date)) \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions.csv'))
 
+        backtest_series_transformed.drop_before(pd.Timestamp(test_start_date)) \
+            .to_csv(os.path.join(path_to_save_backtest, 'predictions_transformed.csv'))
+        series_transformed.drop_before(pd.Timestamp(test_start_date)) \
+            .to_csv(os.path.join(path_to_save_backtest, 'test_transformed.csv'))
+        
+
     return {"metrics": metrics, "eval_plot": plt, "backtest_series": backtest_series}
 
 @click.command()
@@ -441,10 +447,14 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         model_uri, darts_forecasting_model=darts_forecasting_model, mlflow_dir_name='model', )
 
     ## load scaler from MLflow
-    scaler_path = download_online_file(
-        scaler_uri, "scaler.pkl") if mode == 'remote' else  scaler_uri
-    scaler = load_local_pkl_as_object(scaler_path)
-    series_transformed = scaler.transform(series)
+    if none_checker(scaler_uri) is not None:
+        scaler_path = download_online_file(
+            scaler_uri, "scaler.pkl") if mode == 'remote' else  scaler_uri
+        scaler = load_local_pkl_as_object(scaler_path)
+        series_transformed = scaler.transform(series)
+    else:
+        scaler = None
+        series_transformed = series
 
     # Split in the same way as in training
     ## series
@@ -466,8 +476,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
         evaluation_results = backtester(model=model,
-                                series_transformed=series_transformed_split['all'].drop_after(pd.Timestamp(test_end_date)),
-                                series=series_split['all'].drop_after(pd.Timestamp(test_end_date)),
+                                series_transformed=series_transformed_split['all'],
+                                series=series_split['all'],
                                 transformer_ts=scaler,
                                 test_start_date=cut_date_test,
                                 forecast_horizon=forecast_horizon,

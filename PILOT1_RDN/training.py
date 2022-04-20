@@ -8,7 +8,6 @@ from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.gradient_boosted_model import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
 from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
-from darts.metrics import mape as mape_darts
 
 import mlflow
 import click
@@ -105,15 +104,27 @@ my_stopper = EarlyStopping(
               multiple=False,
               default='gpu',
               )
+@click.option("--scale",
+              type=str,
+              default="true",
+              help="Whether to scale the target series")
+@click.option("--scale-covs",
+              type=str,
+              default="true",
+              help="Whether to scale the covariates")
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri, 
           past_covs_csv, past_covs_uri, darts_model, 
           hyperparams_entrypoint, cut_date_val, cut_date_test,
-          test_end_date, device):
+          test_end_date, device, scale, scale_covs):
     
     # Argument preprocessing
 
     ## test_end_date
     test_end_date = none_checker(test_end_date) 
+
+    ## scale or not
+    scale = truth_checker(scale)
+    scale_covs = truth_checker(scale_covs)
 
     ## hyperparameters   
     hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
@@ -192,7 +203,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
         print("\nCreating local folder to store the scaler as pkl...")
         logging.info("\nCreating local folder to store the scaler as pkl...")
-        scalers_dir = tempfile.mkdtemp()
+        if scale:
+            scalers_dir = tempfile.mkdtemp()
         features_dir = tempfile.mkdtemp()
 
         ######################
@@ -237,18 +249,22 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         scaled_series = scale_covariates(
             series_split, 
             store_dir=features_dir, 
-            filename_suffix="series_transformed.csv")
-        pickle.dump(scaled_series["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
+            filename_suffix="series_transformed.csv", 
+            scale=scale)
+        if scale:
+            pickle.dump(scaled_series["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
         ## scale future covariates
         scaled_future_covariates = scale_covariates(
             future_covariates_split, 
             store_dir=features_dir, 
-            filename_suffix="future_covariates_transformed.csv")
+            filename_suffix="future_covariates_transformed.csv",
+            scale=scale_covs)
         ## scale past covariates
         scaled_past_covariates = scale_covariates(
             past_covariates_split,
             store_dir=features_dir, 
-            filename_suffix="past_covariates_transformed.csv")
+            filename_suffix="past_covariates_transformed.csv",
+            scale=scale_covs)
 
         ######################
         # Model training
@@ -293,35 +309,12 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             logging.info('\nStoring torch model to MLflow...')
             
             logs_path = f"./darts_logs/{mlrun.info.run_id}/"
-            # checkpoints_path = f"./darts_logs/{mlrun.info.run_id}/checkpoints"
-            
-            # checkpoints_path_list = os.listdir(checkpoints_path)
-            # logs_path_list = os.listdir(logs_path)
-            
-            # architecture_fname = [fname for fname in logs_path_list if "_model" in fname][0]
-            # architecture_path = f"{logs_path}/{architecture_fname}"
-            # best_model_dict_fname = [fname for fname in checkpoints_path_list if "best" in fname][0]
-            # best_model_dict_path = f"{checkpoints_path}/{best_model_dict_fname}"
 
-            # mlflow.log_artifact(best_model_dict_path)
-            # mlflow.log_artifact(architecture_path)
             mlflow.log_artifacts(logs_path, "model")
-            # mlflow.log_artifact(best_model_path)
             
             # TODO: Implement this step without tensorboard (fix utils.py: get_training_progress_by_tag)
             # log_curves(tensorboard_event_folder=f"./darts_logs/{mlrun.info.run_id}/logs", output_dir='training_curves')
 
-            # TODO: Implement early stopping without keyboard interupt ?? (consider tags as well)
-            # except KeyboardInterrupt:
-            #     # TODO: Package Models as python functions for MLflow (see RiskML and https://mlflow.org/docs/0.5.0/models.html#python-function-python-function)
-            #     model_dir_list = os.listdir(f"./.darts/checkpoints/{mlrun.info.run_id}")
-            #     best_model_name = [fname for fname in model_dir_list if "model_best" in fname][0]
-            #     best_model_path = f"./.darts/checkpoints/{mlrun.info.run_id}/{best_model_name}"
-            #     mlflow.log_artifact(best_model_path, f"checkpoints")
-            #     log_curves(tensorboard_event_folder=f"./.darts/runs/{mlrun.info.run_id}", 
-            #     output_dir='training_curves')
-            #     mlflow.log_param("status", "forced_stop")                
-        
         # LightGBM and RandomForest
         elif darts_model in ['LightGBM', 'RandomForest']:
 
@@ -362,7 +355,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             pickle.dump(model, open(
                 f"{forest_dir}/model_best_{darts_model}.pkl", "wb"))
-            mlflow.log_artifacts(forest_dir)
+
+            mlflow.log_artifacts(forest_dir, "model")
         
         # ARIMA
         elif darts_model == 'AutoARIMA':
@@ -387,16 +381,27 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         mlflow.log_params(hparams_to_log)
         
         ######################
-        # Set tags
+        # Log artifacts and set respective tags
+        print("\nDatasets and scalers are being uploaded to MLflow...")
+        logging.info("\nDatasets and scalers are being uploaded to MLflow...")
+        mlflow.log_artifacts(features_dir, "features")
+
+        if scale:
+            mlflow.log_artifacts(scalers_dir, "scalers")
+            mlflow.set_tag(
+                'scaler_uri', f'{mlrun.info.artifact_uri}/scalers/scaler_series.pkl')
+        else:
+            mlflow.set_tag('scaler_uri', 'mlflow_artifact_uri')
+
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "training")
 
         client = mlflow.tracking.MlflowClient()
         artifact_list = client.list_artifacts(run_id=mlrun.info.run_id, path='model')
-        
-        src_path = [
+
+        mlflow_path = [
             fileinfo.path for fileinfo in artifact_list if 'pth.tar' in fileinfo.path or '.pkl' in fileinfo.path][0]
-        mlflow.set_tag('model_uri', mlflow.get_artifact_uri(src_path))
+        mlflow.set_tag('model_uri', mlflow.get_artifact_uri(mlflow_path))
 
         mlflow.set_tag("darts_forecasting_model", model.__class__.__name__)
 
@@ -412,17 +417,10 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         else:
             mlflow.set_tag('past_covariates_uri', 'mlflow_artifact_uri')
 
-        mlflow.set_tag('scaler_uri', f'{mlrun.info.artifact_uri}/scalers/scaler_series.pkl')
         mlflow.set_tag('setup_uri', f'{mlrun.info.artifact_uri}/features/split_info.yml')
 
-        ######################
-        # Save scaled features and scalers locally and then to mlflow server
-        print("\nDatasets and scalers are being uploaded to MLflow...")
-        logging.info("\nDatasets and scalers are being uploaded to MLflow...")
-        mlflow.log_artifacts(scalers_dir, "scalers")
-        mlflow.log_artifacts(features_dir, "features")
-        print("\nDatasets uploaded. ...")
-        logging.info("\nDatasets uploaded. ...")
+        print("\nArtifacts uploaded.")
+        logging.info("\nArtifacts uploaded.")
         
         return
 
