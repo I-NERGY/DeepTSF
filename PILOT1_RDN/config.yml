@@ -507,6 +507,20 @@ hyperparameters:
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
+
+  lgbm_7d_none:
+    lags: 672
+    lags_past_covariates: null
+    lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+  
+  lgbm_7d:
+    lags: 672
+    lags_past_covariates: null
+    lags_future_covariates: None
+    future_covs_as_tuple: false
+    random_state: 0
   
   lgbm_3d:
     lags: 288
