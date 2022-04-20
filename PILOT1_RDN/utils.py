@@ -93,7 +93,7 @@ def load_model_from_server(model_uri, darts_forecasting_model, mlflow_dir_name='
     ## as pkl
     elif model_uri.endswith('.pkl'):
         model_path = download_online_file(
-            model_uri, "model.pkl") if mode == 'remote' else model_uri
+            model_uri, "model.pkl")
         best_model = load_local_pkl_as_object(model_path)
     return best_model
 
