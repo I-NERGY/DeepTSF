@@ -76,7 +76,8 @@ def download_online_file(url, dst_filename, dst_dir=None):
 
 def load_pkl_model_from_server(model_uri):
     print("\nLoading remote PKL model...")
-    model_path = download_online_file(model_uri, "model.pkl")
+    model_path = download_online_file(f'{model_uri}/_model.pkl', '_model.pkl')
+    print(model_path)
     best_model = load_local_pkl_as_object(model_path)
     return best_model
 
@@ -115,7 +116,7 @@ def load_model(model_uri, mode="remote", model_type="pl"):
     if mode == "remote" and model_type == "pl":
         model = load_pl_model_from_server(model_root_dir=model_uri)
     elif mode == "remote" and model_type == "pkl":
-        model = load_pkl_model_from_server(model_uri, model_type)
+        model = load_pkl_model_from_server(model_uri)
     elif mode == "local" and model_type == 'pl':
         model = load_local_pl_model(model_root_dir=model_uri)
     else:

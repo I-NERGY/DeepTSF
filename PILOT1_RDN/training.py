@@ -1,7 +1,6 @@
 import pretty_errors
 from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker #, log_curves
 from preprocessing import scale_covariates, split_dataset
-# from inference import _MLflowDartsModelWrapper, mlflow_serve_conda_env
 
 # the following are used through eval(darts_model + 'Model')
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
@@ -146,7 +145,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
     # redirect to local location of downloaded remote file
     if series_uri is not None:
-        print(series_uri)
         download_file_path = download_online_file(series_uri, dst_filename="load.csv")
         series_csv = download_file_path
     if  future_covs_uri is not None:
@@ -358,7 +356,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             forest_dir = tempfile.mkdtemp()
 
             pickle.dump(model, open(
-                f"{forest_dir}/_model_{darts_model}.pkl", "wb"))
+                f"{forest_dir}/_model.pkl", "wb"))
             
             logs_path = forest_dir 
             model_type = "pkl"
@@ -391,14 +389,24 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         shutil.move('model_info.yml', target_dir)
 
         ## Rename logs path to get rid of run name
-        logs_path_new = logs_path.replace(
-            mlrun.info.run_id, "model_artifacts")
-        os.rename(logs_path, logs_path_new)
+        if model_type == 'pl':
+            logs_path_new = logs_path.replace(
+                mlrun.info.run_id, "model_artifacts")
+            os.rename(logs_path, logs_path_new)
+        elif model_type == 'pkl':
+            logs_path_new = logs_path.replace(
+            forest_dir.split('/')[-1], "model_artifacts")
+            os.rename(logs_path, logs_path_new)
 
         ## Log MLflow model
-        mlflow.pyfunc.log_model(mlflow_model_root_dir,
-                                loader_module="inference",
-                                data_path=logs_path_new)
+        if model_type == 'pl':
+            mlflow.pyfunc.log_model(mlflow_model_root_dir,
+                                    loader_module="inference_pl",
+                                    data_path=logs_path_new)
+        elif model_type == 'pkl':
+            mlflow.pyfunc.log_model(mlflow_model_root_dir,
+                                    loader_module="inference_pkl",
+                                    data_path=logs_path_new)
 
         ## Clean logs_path: Now it is necessary to avoid conflicts
         shutil.rmtree(logs_path_new)
