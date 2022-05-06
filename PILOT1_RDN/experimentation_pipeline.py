@@ -243,7 +243,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 pass
 
         train_model_uri = train_run.data.tags["model_uri"].replace("s3:/", S3_ENDPOINT_URL)
-        train_dfm = train_run.data.tags["darts_forecasting_model"].replace("s3:/", S3_ENDPOINT_URL)
+        train_model_type = train_run.data.tags["model_type"]
         train_series_uri = train_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
         train_future_covariates_uri = train_run.data.tags["future_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
         train_past_covariates_uri = train_run.data.tags["past_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
@@ -265,7 +265,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
             "cut_date_test": setup['test_start'],
             "test_end_date": setup['test_end'],
             "model_uri": train_model_uri,
-            "darts_forecasting_model": train_dfm,
+            "model_type": train_model_type,
             "forecast_horizon": forecast_horizon,
             "stride": stride,
             "retrain": retrain
