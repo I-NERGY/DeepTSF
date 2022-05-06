@@ -1,17 +1,14 @@
-from tabnanny import check
-from threading import local
-from dotenv import load_dotenv
+
+import pretty_errors
 import yaml
 import os
-import scipy.misc
-import tensorflow as tf
-from tensorflow.python.summary.summary_iterator import summary_iterator
-import seaborn as sns
+# import tensorflow as tf
+# from tensorflow.python.summary.summary_iterator import summary_iterator
+# import seaborn as sns
 import matplotlib.pyplot as plt
 import logging
 import pandas as pd
 import mlflow
-import shutil
 import torch
 import darts
 import pickle
@@ -20,6 +17,10 @@ import tempfile
 import yaml
 import boto3
 import sys
+import numpy as np
+from darts.models.forecasting.gradient_boosted_model import LightGBMModel
+from darts.models.forecasting.random_forest import RandomForest
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
 
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -27,7 +28,7 @@ class ConfigParser:
     def __init__(self, config_file_path=f'{cur_dir}/config.yml'):
         with open(config_file_path, "r") as ymlfile:
             self.config = yaml.safe_load(ymlfile)
-            self.mlflow_tracking_uri = self.config['mlflow_settings']['mlflow_tracking_uri']
+            # self.mlflow_tracking_uri = self.config['mlflow_settings']['mlflow_tracking_uri']
 
     def read_hyperparameters(self, hyperparams_entrypoint):
         return self.config['hyperparameters'][hyperparams_entrypoint]
@@ -43,6 +44,19 @@ def download_file_from_s3_bucket(object_name, dst_filename, dst_dir=None, bucket
     local_path = os.path.join(dst_dir, dst_filename)
     bucket.download_file(object_name, local_path)
     return local_path
+
+def load_yaml_as_dict(filepath):
+    with open(filepath, 'r') as stream:
+        try:
+            parsed_yaml = yaml.safe_load(stream)
+            return parsed_yaml
+        except yaml.YAMLError as exc:
+            print(exc)
+            return
+
+def load_local_pkl_as_object(local_path):
+    pkl_object = pickle.load(open(local_path, "rb"))
+    return pkl_object
 
 def download_online_file(url, dst_filename, dst_dir=None):
     if dst_dir is None:
@@ -60,14 +74,77 @@ def download_online_file(url, dst_filename, dst_dir=None):
     file.close()
     return filepath
 
-def load_yaml_as_dict(filepath):
-    with open(filepath, 'r') as stream:
-        try:
-            parsed_yaml = yaml.safe_load(stream)
-            return parsed_yaml
-        except yaml.YAMLError as exc:
-            print(exc)
-            return 
+def load_pkl_model_from_server(model_uri):
+    print("\nLoading remote PKL model...")
+    model_path = download_online_file(f'{model_uri}/_model.pkl', '_model.pkl')
+    print(model_path)
+    best_model = load_local_pkl_as_object(model_path)
+    return best_model
+
+def load_local_pl_model(model_root_dir):
+    print("\nLoading local PL model...")
+    model_info_dict = load_yaml_as_dict(
+        os.path.join(model_root_dir, 'model_info.yml'))
+
+    darts_forecasting_model = model_info_dict[
+        "darts_forecasting_model"]
+
+    model = eval(darts_forecasting_model)
+    best_model = model.load_from_checkpoint(model_root_dir, best=True)
+    return best_model
+
+
+def load_pl_model_from_server(model_root_dir):
+    print("\nLoading remote PL model...")
+    client = mlflow.tracking.MlflowClient()
+    print(model_root_dir)
+    model_run_id = model_root_dir.split("/")[5]
+    mlflow_relative_model_root_dir = model_root_dir.split("/artifacts/")[1]
+    
+    local_dir = tempfile.mkdtemp()
+    client.download_artifacts(
+        run_id=model_run_id, path=mlflow_relative_model_root_dir, dst_path=local_dir)
+    
+    best_model = load_local_pl_model(os.path.join(local_dir, mlflow_relative_model_root_dir))
+    return best_model
+
+def load_model(model_uri, mode="remote", model_type="pl"):
+    if mode == "remote" and model_type == "pl":
+        model = load_pl_model_from_server(model_root_dir=model_uri)
+    elif mode == "remote" and model_type == "pkl":
+        model = load_pkl_model_from_server(model_uri)
+    elif mode == "local" and model_type == 'pl':
+        model = load_local_pl_model(model_root_dir=model_uri)
+    else:
+        print("\nLoading local PKL model...")
+        model = load_local_pkl_as_object(model_uri)
+    return model
+
+def load_scaler(scaler_uri=None, mode="remote"):
+    
+    if scaler_uri is None:
+        print("\nNo scaler loaded.")
+        return None
+
+    if mode == "remote":
+        run_id = scaler_uri.split("/")[5]
+        mlflow_filepath = scaler_uri.split("/artifacts/")[1]
+
+        client = mlflow.tracking.MlflowClient()
+        local_dir = tempfile.mkdtemp()
+
+        client.download_artifacts(
+            run_id=run_id, 
+            path=mlflow_filepath,
+            dst_path=local_dir
+            )
+        # scaler_path = download_online_file(
+        #     scaler_uri, "scaler.pkl") if mode == 'remote' else scaler_uri
+        scaler = load_local_pkl_as_object(os.path.join(local_dir, mlflow_filepath))
+    else:
+        scaler = load_local_pkl_as_object(scaler_uri)
+    return scaler
+
 
 def truth_checker(argument):
     """ Returns True if string has specific truth values else False"""
@@ -99,6 +176,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             local_path, time_col=time_col, 
             fill_missing_dates=True, 
             freq=None)
+        covariates = covariates.astype(np.float32)
         if last_date is not None:
             covariates.drop_after(pd.Timestamp(last_date))
     except (FileNotFoundError, PermissionError) as e:
@@ -108,11 +186,6 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             f"\nBad {name} file. The model won't include {name}...")
         covariates = None
     return covariates
-
-def load_local_pkl_as_object(local_path):
-    pkl_object = pickle.load(open(local_path, "rb"))
-    return pkl_object
-
 
 class MlflowArtifactDownloader():
     def __init__(self, run_id=None, uri=None):
@@ -136,24 +209,24 @@ class MlflowArtifactDownloader():
         return model
 
     def load_csv_artifact_as_darts(self, time_col="Date", 
-        prefix="features", suffix="test.csv"):
+        parent_dir="features", fname="test.csv"):
 
         # ideally needs tmpfiles but does not work in venv
         
-        src_path = "/".join([prefix, suffix])
+        src_path = "/".join([parent_dir, fname])
         tmpdir = tempfile.mkdtemp()
         load_artifacts(self.run_id, src_path=src_path, dst_path=tmpdir)
         local_path = os.path.join(tmpdir, src_path.replace('/', os.path.sep))
 
-        darts_ts = darts.TimeSeries.from_csv(local_path, time_col=time_col)
+        darts_ts = darts.TimeSeries.from_csv(local_path, time_col=time_col, dtype=np.float32)
 
         return darts_ts
 
-    def load_pkl_artifact_as_object(self, prefix="scalers", suffix="scaler_series.pkl"):
+    def load_pkl_artifact_as_object(self, parent_dir="scalers", fname="scaler_series.pkl"):
 
         # ideally needs tmpfiles but does not work in venv
         
-        src_path = "/".join([prefix, suffix])
+        src_path = "/".join([parent_dir, fname])
         tmpdir = tempfile.mkdtemp()
         load_artifacts(self.run_id, src_path=src_path, dst_path=tmpdir)
         local_path = os.path.join(tmpdir, src_path)
@@ -161,75 +234,92 @@ class MlflowArtifactDownloader():
         pkl_object = pickle.load(open(local_path, "rb"))
         return pkl_object
 
-def get_training_progress_by_tag(fn, tag):
-    # assert(os.path.isdir(output_dir))
+#TODO: Fix it. It does not get any progress any more
+# def get_training_progress_by_tag(fn, tag):
+#     # assert(os.path.isdir(output_dir))
 
-    image_str = tf.compat.v1.placeholder(tf.string)
+#     image_str = tf.compat.v1.placeholder(tf.string)
     
-    im_tf = tf.image.decode_image(image_str)
+#     im_tf = tf.image.decode_image(image_str)
 
-    sess = tf.compat.v1.InteractiveSession()
-    with sess.as_default():
-        count = 0
-        values = []
-        for e in summary_iterator(fn):
-            for v in e.summary.value:
-                if tag == v.tag:
-                    values.append(v.simple_value)
-    sess.close()
-    return {"Epoch": range(1, len(values) + 1), "Value": values}
+#     sess = tf.compat.v1.InteractiveSession()
+#     with sess.as_default():
+#         count = 0
+#         values = []
+#         for e in summary_iterator(fn):
+#             for v in e.summary.value:
+#                 if tag == v.tag:
+#                     values.append(v.simple_value)
+#     sess.close()
+#     return {"Epoch": range(1, len(values) + 1), "Value": values}
 
-def log_curves(tensorboard_event_folder, output_dir='training_curves'):
+# def log_curves(tensorboard_event_folder, output_dir='training_curves'):
     # TODO: fix deprecation warnings
 
-    tf.compat.v1.disable_eager_execution()
+    # tf.compat.v1.disable_eager_execution()
 
-    # locate tensorboard event file
-    event_file_names = os.listdir(tensorboard_event_folder)
-    if len(event_file_names) > 1:
-        os.logging("MORE TENSORBOARD FILES HAVE BEEN DETECTED! ONLY FIRST USED!")
-        print("MORE TENSORBOARD FILES HAVE BEEN DETECTED! ONLY FIRST USED!")
-    tensorboard_event_file = os.path.join(tensorboard_event_folder, event_file_names[0])
-
-    # local folder
-    print("Creating local folder to store the datasets as csv...")
-    logging.info("Creating local folder to store the datasets as csv...")
-    os.makedirs(output_dir, exist_ok=True)
-
-    # get metrix and store locally
-    training_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/loss_total'))
-    training_loss.to_csv(os.path.join(output_dir, 'training_loss.csv'))
+    # # locate tensorboard event file
+    # event_file_names = os.listdir(tensorboard_event_folder)
+    # if len(event_file_names) > 1:
+    #     logging.info(
+    #         "Searching for term 'events.out.tfevents.' in logs folder to extract tensorboard file...\n")
+    #     print(
+    #         "Searching for term 'events.out.tfevents.' in logs folder to extract tensorboard file...\n")
+    # tensorboard_folder_list = os.listdir(tensorboard_event_folder)
+    # event_file_name = [fname for fname in tensorboard_folder_list if 
+    #     "events.out.tfevents." in fname][0]
+    # tensorboard_event_file = os.path.join(tensorboard_event_folder, event_file_name)
     
-    ## consider here nr_epoch_val_period
-    validation_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'validation/loss_total'))
-    validation_loss["Epoch"] = (validation_loss["Epoch"] * int(len(training_loss) / len(validation_loss)) + 1).astype(int)
-    validation_loss.to_csv(os.path.join(output_dir, 'validation_loss.csv'))
+    # # test for get_training_progress_by_tag
+    # print(tensorboard_event_file)
 
-    learning_rate = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/learning_rate'))    
-    learning_rate.to_csv(os.path.join(output_dir, 'learning_rate.csv'))
+    # # local folder
+    # print("Creating local folder to store the datasets as csv...")
+    # logging.info("Creating local folder to store the datasets as csv...")
+    # os.makedirs(output_dir, exist_ok=True)
 
-    sns.lineplot(x="Epoch", y="Value", data=training_loss, label="Training")
-    sns.lineplot(x="Epoch", y="Value", data=validation_loss, label="Validation", marker='o')
-    plt.grid()
-    plt.legend()
-    plt.title("Loss")
-    plt.savefig(os.path.join(output_dir, 'loss.png'))
+    # # get metrix and store locally
+    # training_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/loss_total'))
+    # training_loss.to_csv(os.path.join(output_dir, 'training_loss.csv'))
+    
+    # # testget_training_progress_by_tag
+    # print(training_loss)
+    
+    # ## consider here nr_epoch_val_period
+    # validation_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'validation/loss_total'))
 
-    plt.figure()
-    sns.lineplot(x="Epoch", y="Value", data=learning_rate)
-    plt.grid()
-    plt.title("Learning rate")
-    plt.savefig(os.path.join(output_dir, 'learning_rate.png'))
+    # # test for get_training_progress_by_tag
+    # print(validation_loss)
+    # print(validation_loss.__dict__)
+    
+    # validation_loss["Epoch"] = (validation_loss["Epoch"] * int(len(training_loss) / len(validation_loss)) + 1).astype(int)
+    # validation_loss.to_csv(os.path.join(output_dir, 'validation_loss.csv'))
 
-    print("Uploading training curves to MLflow server...")
-    logging.info("Uploading training curves to MLflow server...")
-    mlflow.log_artifacts(output_dir, output_dir)
+    # learning_rate = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/learning_rate'))    
+    # learning_rate.to_csv(os.path.join(output_dir, 'learning_rate.csv'))
 
-    print("Artifacts uploaded. Deleting local copies...")
-    logging.info("Artifacts uploaded. Deleting local copies...")
-    shutil.rmtree(output_dir)
+    # sns.lineplot(x="Epoch", y="Value", data=training_loss, label="Training")
+    # sns.lineplot(x="Epoch", y="Value", data=validation_loss, label="Validation", marker='o')
+    # plt.grid()
+    # plt.legend()
+    # plt.title("Loss")
+    # plt.savefig(os.path.join(output_dir, 'loss.png'))
 
-    return
+    # plt.figure()
+    # sns.lineplot(x="Epoch", y="Value", data=learning_rate)
+    # plt.grid()
+    # plt.title("Learning rate")
+    # plt.savefig(os.path.join(output_dir, 'learning_rate.png'))
+
+    # print("Uploading training curves to MLflow server...")
+    # logging.info("Uploading training curves to MLflow server...")
+    # mlflow.log_artifacts(output_dir, output_dir)
+
+    # print("Artifacts uploaded. Deleting local copies...")
+    # logging.info("Artifacts uploaded. Deleting local copies...")
+    # shutil.rmtree(output_dir)
+
+    # return
     
 
 

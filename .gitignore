@@ -48,6 +48,9 @@ nodeLanguageServer.*/**
 .mlruns
 */mlruns/*
 
+# darts
+*/darts_logs/*
+
 # ignore dots except gitignore
 .*
 !/.gitignore

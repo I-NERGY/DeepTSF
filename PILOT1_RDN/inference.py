@@ -1,113 +1,96 @@
+from utils import none_checker, load_local_csv_as_darts_timeseries, download_online_file
+import click
+import os
+import mlflow
+import darts
 import logging
-from tqdm import tqdm
-import matplotlib.pyplot as plt
-from darts.metrics import mape as mape_darts
+import tempfile
 
-mlflow_serve_conda_env = {'channels': ['defaults'],
-                          'name': 'conda',
-                          'dependencies': ['python=3.9', 'pip',
-                                           {'pip': ['mlflow==1.22.0',
-                                                    'u8darts[torch]==0.15.0',
-                                                    'pandas==1.3.4',
-                                                    'numpy==1.21.4'
-                                                    ]}]}
+# get environment variables
+from dotenv import load_dotenv
+load_dotenv()
+MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
+S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 
-def darts_single_block_forecast(model, block_n_steps, series, future_covariates, past_covariates):
+@click.command()
+@click.option("--pyfunc-model-folder",
+              type=str,
+              default="s3://mlflow-bucket/2/33d85746285c42a7b3ef403eb2f5c95f/artifacts/pyfunc_model")
+@click.option("--forecast-horizon",
+              type=str,
+              default="96")
+@click.option("--series-uri",
+              type=str,
+              default="ENG/series.csv")
+@click.option("--future-covariates-uri",
+              type=str,
+              default="None")
+@click.option("--past-covariates-uri",
+              type=str,
+              default="None")
+@click.option("--roll-size",
+              type=str,
+              default="96")
+@click.option("--batch-size",
+              type=str,
+              default="1")
+def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, future_covariates_uri, past_covariates_uri, roll_size, batch_size):
+    # Parse arguments
+    batch_size = int(batch_size)
+    roll_size = int(roll_size)
+    forecast_horizon = int(forecast_horizon)
 
-    pred = model.predict(n=block_n_steps,
-                         future_covariates=future_covariates,
-                         past_covariates=past_covariates,
-                         series=series)
-    return pred
+    with mlflow.start_run(run_name='inference') as mlrun:
+
+        # in case of remote series uri
+        if 's3://mlflow-bucket/' in series_uri:
+            series_uri = series_uri.replace("s3:/", S3_ENDPOINT_URL)
+            download_file_path = download_online_file(
+                series_uri, dst_filename="load.csv")
+            series_uri = download_file_path
+        series = load_local_csv_as_darts_timeseries(
+            local_path=series_uri,
+            name='series',
+            time_col='Date',
+            last_date=None)
+
+        if none_checker(future_covariates_uri) is not None:
+            future_covariates = darts.TimeSeries.from_csv(
+                future_covariates_uri, time_col='Date')
+        else:
+            future_covariates = None
+        if none_checker(past_covariates_uri) is not None:
+            past_covariates = darts.TimeSeries.from_csv(
+                past_covariates_uri, time_col='Date')
+        else:
+            past_covariates = None
+
+        input = {
+            "n": forecast_horizon,
+            "history": series,
+            "roll_size": roll_size,
+            "future_covariates": future_covariates,
+            "past_covariates": past_covariates,
+            "batch_size": batch_size,
+        }
+        print("\nPyfunc model prediction...")
+
+        # Load model as a PyFuncModel.
+        loaded_model = mlflow.pyfunc.load_model(pyfunc_model_folder)
+
+        # Predict on a Pandas DataFrame.
+        predictions = loaded_model.predict(input)
+        print(predictions)
+
+        infertmpdir = tempfile.mkdtemp()
+        predictions.to_csv(os.path.join(infertmpdir, 'predictions.csv'))
+        mlflow.log_artifacts(infertmpdir)
 
 
-def darts_block_n_step_ahead_forecast(model,
-                                      history,
-                                      test,
-                                      block_n_steps=24,
-                                      n_blocks=31,
-                                      future_covariates=None,
-                                      past_covariates=None,
-                                      path_to_save_eval=None):
-    """ This function produces a chained darts forecast that is a forecast in successive blocks. 
-    Thus, in the first iteration a forecast of length block_n_steps is produced using the darts "predict" method. 
-    At each next of the "n_blocks" iterations the predict function is called but fed with the ground truth historical 
-    data of the previous block  as input timeseries. This helps to avoid lengthy forecasts that are produced 
-    without updating with newly obtained ground truth, as this not a realistic condition for an online power system
-    and surely leads to undesirable error propagations. Append whatever you like as historical news (no need to be 
-    adjacent to training set but should be longer than input_chunk_length)... However, history and test must be adjacent 
-    time series (if test exists). And future and past covariates must be taken care of -> need to be provided.
-    
-    Parameters
-    ----------
-        model: darts.models.forecasting.[darts_forecasting_model_class].[darts_model_name]Model
-            A darts model providing a .predict method.
-
-        history: darts.timeseries.TimeSeries
-            A darts timeseries dataset that carries the initial historical values of the timeseries.
-        
-        test: darts.timeseries.TimeSeries
-            A darts timeseries dataset that carries the unknown values needed to evaluate the model
-            
-        block_n_steps: int
-            The number of timesteps (forecast horizon) of each block forecast. It implies the number of
-            timesteps after which historical ground truth values of the target timeseries are fed back
-            to the model so as to be included ois renewed for the model.
-        
-        n_blocks: int
-            The number of forecast blocks. Multiplied by block_n_steps it results to the total forecasting
-            horizon.
-
-        future_covariates: Optional[darts.timeseries.TimeSeries] 
-            Optionally, a series or sequence of series specifying future-known covariates (see darts docs).
-        
-        past_covariates: Optional[darts.timeseries.TimeSeries] 
-            Optionally, a series or sequence of series specifying past-observed covariates (see darts docs)
-
-    Returns
-    ----------
-
-    """
-
-    # you can always feed your time series history to the model
-    # or at least a history longer or equal to input chunk length
-    if test is not None:
-        series = history.append(test)
-    elif n_blocks != 1:
-        n_blocks = 1
-        message = 'Warning: n_blocks was set equal to 1 as no test set was provided to further update history. One forecasting iteration will be run.'
-        print(message)
-        logging.info(message)
-
-    # calculate predictions in blocks, updating the history after each block
-    for i in tqdm(range(n_blocks)):
-        pred_i = darts_single_block_forecast(model,
-                                             block_n_steps,
-                                             history,
-                                             future_covariates,
-                                             past_covariates)
-        pred = pred_i if i == 0 else pred.append(pred_i)
-        if test is None:
-            return pred
-        history = history.append(test[block_n_steps*(i):block_n_steps*(i+1)])
-
-    # evaluate
-    plt.figure(figsize=(15, 8))
-    # series.drop_before(pd.Timestamp(pred.time_index[0] - datetime.timedelta(
-    #     days=7))).drop_after(pred.time_index[-1]).plot(label='actual')
-    if len(series) - len(test) - 7*24 > 0:
-        series.drop_before(len(series) - len(test) - 7 *
-                           24).drop_after(pred.time_index[-1]).plot(label='actual')
-    else:
-        series.drop_after(pred.time_index[-1]).plot(label='actual')
-
-    pred.plot(label='forecast')
-    plt.legend()
-    mape_error = mape_darts(test, pred)
-    print('MAPE = {:.2f}%'.format(mape_error))
-
-    if path_to_save_eval is not None:
-        plt.savefig(os.path.join(path_to_save_eval,
-                    f"block_n_steps_{block_n_steps}_n_blocks_{n_blocks}_mape_{mape_error:.2f}.png"))
-
-    return mape_error, pred
+#TODO: Input should be newly ingested time series data passing through the load_raw data step and the etl step. How can this be done?
+# Maybe I need a second pipeline (inference pipeline) that goes like that: load_raw_data -> etl -> inference for a specific registered MLflow model"""
+if __name__ == '__main__':
+    print("\n=========== INFERENCE =============")
+    logging.info("\n=========== INFERENCE =============")
+    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    MLflowDartsModelPredict()
