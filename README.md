@@ -2,6 +2,21 @@
 
 Repository for energy demand forecasting 
 
+## To create conda environment file
+
+```conda env export conda.yaml```
+
+If it is packaged from windows to linux do the following instead:
+
+```conda env export --no-builds > conda.yaml```
+
+And remember to remove any windows related dependencies such as:
+- vc
+- wincertstore
+- vs2015_runtime
+- win_inet_pton
+- pywin32
+
 ## Reproduce the conda environment manually
 ```conda env create -f conda.yaml```
 

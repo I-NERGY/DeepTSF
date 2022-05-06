@@ -208,8 +208,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 time_col=time_col,
                 last_date=test_end_date)
 
-        print("\nCreating local folder to store the scaler as pkl...")
-        logging.info("\nCreating local folder to store the scaler as pkl...")
+        print("\nCreating local folders...")
+        logging.info("\nCreating local folders...")
         
         if scale:
             scalers_dir = tempfile.mkdtemp()
@@ -389,13 +389,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         shutil.move('model_info.yml', target_dir)
 
         ## Rename logs path to get rid of run name
-        if model_type == 'pl':
+        if model_type == 'pkl':
             logs_path_new = logs_path.replace(
-                mlrun.info.run_id, "model_artifacts")
-            os.rename(logs_path, logs_path_new)
-        elif model_type == 'pkl':
-            logs_path_new = logs_path.replace(
-            forest_dir.split('/')[-1], "model_artifacts")
+            forest_dir.split('/')[-1], mlrun.info.run_id)
             os.rename(logs_path, logs_path_new)
 
         ## Log MLflow model
@@ -424,7 +420,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             # mlflow.log_artifacts(scalers_dir, f"{mlflow_model_path}/scalers")
             mlflow.set_tag(
                 'scaler_uri', 
-                f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/model_artifacts/scaler_series.pkl')
+                f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_series.pkl')
         else:
             mlflow.set_tag('scaler_uri', 'mlflow_artifact_uri')
 
@@ -461,7 +457,10 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         
         # model_uri
         mlflow.set_tag('model_uri', mlflow.get_artifact_uri(
-            f"{mlflow_model_root_dir}/data/model_artifacts"))
+            f"{mlflow_model_root_dir}/data/{mlrun.info.run_id}"))
+        # inference_model_uri
+        mlflow.set_tag('inference_model_uri', mlflow.get_artifact_uri(
+            f"{mlflow_model_root_dir}"))
 
         return
 

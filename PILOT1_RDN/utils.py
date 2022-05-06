@@ -83,9 +83,6 @@ def load_pkl_model_from_server(model_uri):
 
 def load_local_pl_model(model_root_dir):
     print("\nLoading local PL model...")
-    # model_info_dict = load_yaml_as_dict(
-    #     os.path.join(model_root_dir, 'data', 'model_artifacts',
-    #     'model_info.yml'))
     model_info_dict = load_yaml_as_dict(
         os.path.join(model_root_dir, 'model_info.yml'))
 
@@ -93,7 +90,6 @@ def load_local_pl_model(model_root_dir):
         "darts_forecasting_model"]
 
     model = eval(darts_forecasting_model)
-    # best_model = model.load_from_checkpoint(f"{model_root_dir}/data/model_artifacts", best=True)
     best_model = model.load_from_checkpoint(model_root_dir, best=True)
     return best_model
 

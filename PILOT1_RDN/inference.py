@@ -4,6 +4,7 @@ import os
 import mlflow
 import darts
 import logging
+import tempfile
 
 # get environment variables
 from dotenv import load_dotenv
@@ -39,44 +40,51 @@ def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, f
     roll_size = int(roll_size)
     forecast_horizon = int(forecast_horizon)
 
-    # in case of remote series uri
-    if 's3://mlflow-bucket/' in series_uri:
-        series_uri = series_uri.replace("s3:/", S3_ENDPOINT_URL)
-        download_file_path = download_online_file(
-            series_uri, dst_filename="load.csv")
-        series_uri = download_file_path
-    series = load_local_csv_as_darts_timeseries(
-        local_path=series_uri,
-        name='series',
-        time_col='Date',
-        last_date=None)
+    with mlflow.start_run(run_name='inference') as mlrun:
 
-    if none_checker(future_covariates_uri) is not None:
-        future_covariates = darts.TimeSeries.from_csv(
-            future_covariates_uri, time_col='Date')
-    else:
-        future_covariates = None
-    if none_checker(past_covariates_uri) is not None:
-        past_covariates = darts.TimeSeries.from_csv(
-            past_covariates_uri, time_col='Date')
-    else:
-        past_covariates = None
+        # in case of remote series uri
+        if 's3://mlflow-bucket/' in series_uri:
+            series_uri = series_uri.replace("s3:/", S3_ENDPOINT_URL)
+            download_file_path = download_online_file(
+                series_uri, dst_filename="load.csv")
+            series_uri = download_file_path
+        series = load_local_csv_as_darts_timeseries(
+            local_path=series_uri,
+            name='series',
+            time_col='Date',
+            last_date=None)
 
-    input = {
-        "n": forecast_horizon,
-        "history": series,
-        "roll_size": roll_size,
-        "future_covariates": future_covariates,
-        "past_covariates": past_covariates,
-        "batch_size": batch_size,
-    }
-    print("\nPyfunc model prediction...")
+        if none_checker(future_covariates_uri) is not None:
+            future_covariates = darts.TimeSeries.from_csv(
+                future_covariates_uri, time_col='Date')
+        else:
+            future_covariates = None
+        if none_checker(past_covariates_uri) is not None:
+            past_covariates = darts.TimeSeries.from_csv(
+                past_covariates_uri, time_col='Date')
+        else:
+            past_covariates = None
 
-    # Load model as a PyFuncModel.
-    loaded_model = mlflow.pyfunc.load_model(pyfunc_model_folder)
+        input = {
+            "n": forecast_horizon,
+            "history": series,
+            "roll_size": roll_size,
+            "future_covariates": future_covariates,
+            "past_covariates": past_covariates,
+            "batch_size": batch_size,
+        }
+        print("\nPyfunc model prediction...")
 
-    # Predict on a Pandas DataFrame.
-    print(loaded_model.predict(input))
+        # Load model as a PyFuncModel.
+        loaded_model = mlflow.pyfunc.load_model(pyfunc_model_folder)
+
+        # Predict on a Pandas DataFrame.
+        predictions = loaded_model.predict(input)
+        print(predictions)
+
+        infertmpdir = tempfile.mkdtemp()
+        predictions.to_csv(os.path.join(infertmpdir, 'predictions.csv'))
+        mlflow.log_artifacts(infertmpdir)
 
 
 #TODO: Input should be newly ingested time series data passing through the load_raw data step and the etl step. How can this be done?
