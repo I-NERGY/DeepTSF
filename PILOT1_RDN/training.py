@@ -393,6 +393,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             logs_path_new = logs_path.replace(
             forest_dir.split('/')[-1], mlrun.info.run_id)
             os.rename(logs_path, logs_path_new)
+        elif model_type == 'pl':
+            logs_path_new = logs_path
 
         ## Log MLflow model
         if model_type == 'pl':
