@@ -4,12 +4,11 @@ import yaml
 import os
 # import tensorflow as tf
 # from tensorflow.python.summary.summary_iterator import summary_iterator
-import seaborn as sns
+# import seaborn as sns
 import matplotlib.pyplot as plt
 import logging
 import pandas as pd
 import mlflow
-import shutil
 import torch
 import darts
 import pickle
@@ -55,6 +54,10 @@ def load_yaml_as_dict(filepath):
             print(exc)
             return
 
+def load_local_pkl_as_object(local_path):
+    pkl_object = pickle.load(open(local_path, "rb"))
+    return pkl_object
+
 def download_online_file(url, dst_filename, dst_dir=None):
     if dst_dir is None:
         dst_dir = tempfile.mkdtemp()
@@ -71,31 +74,80 @@ def download_online_file(url, dst_filename, dst_dir=None):
     file.close()
     return filepath
 
-def load_model_from_server(model_uri, darts_forecasting_model, mlflow_dir_name='model'):
-    if model_uri.endswith('pth.tar'):
+def load_pkl_model_from_server(model_uri):
+    print("\nLoading remote PKL model...")
+    model_path = download_online_file(model_uri, "model.pkl")
+    best_model = load_local_pkl_as_object(model_path)
+    return best_model
+
+def load_local_pl_model(model_root_dir):
+    print("\nLoading local PL model...")
+    # model_info_dict = load_yaml_as_dict(
+    #     os.path.join(model_root_dir, 'data', 'model_artifacts',
+    #     'model_info.yml'))
+    model_info_dict = load_yaml_as_dict(
+        os.path.join(model_root_dir, 'model_info.yml'))
+
+    darts_forecasting_model = model_info_dict[
+        "darts_forecasting_model"]
+
+    model = eval(darts_forecasting_model)
+    # best_model = model.load_from_checkpoint(f"{model_root_dir}/data/model_artifacts", best=True)
+    best_model = model.load_from_checkpoint(model_root_dir, best=True)
+    return best_model
+
+
+def load_pl_model_from_server(model_root_dir):
+    print("\nLoading remote PL model...")
+    client = mlflow.tracking.MlflowClient()
+    print(model_root_dir)
+    model_run_id = model_root_dir.split("/")[5]
+    mlflow_relative_model_root_dir = model_root_dir.split("/artifacts/")[1]
+    
+    local_dir = tempfile.mkdtemp()
+    client.download_artifacts(
+        run_id=model_run_id, path=mlflow_relative_model_root_dir, dst_path=local_dir)
+    
+    best_model = load_local_pl_model(os.path.join(local_dir, mlflow_relative_model_root_dir))
+    return best_model
+
+def load_model(model_uri, mode="remote", model_type="pl"):
+    if mode == "remote" and model_type == "pl":
+        model = load_pl_model_from_server(model_root_dir=model_uri)
+    elif mode == "remote" and model_type == "pkl":
+        model = load_pkl_model_from_server(model_uri, model_type)
+    elif mode == "local" and model_type == 'pl':
+        model = load_local_pl_model(model_root_dir=model_uri)
+    else:
+        print("\nLoading local PKL model...")
+        model = load_local_pkl_as_object(model_uri)
+    return model
+
+def load_scaler(scaler_uri=None, mode="remote"):
+    
+    if scaler_uri is None:
+        print("\nNo scaler loaded.")
+        return None
+
+    if mode == "remote":
+        run_id = scaler_uri.split("/")[5]
+        mlflow_filepath = scaler_uri.split("/artifacts/")[1]
+
         client = mlflow.tracking.MlflowClient()
         local_dir = tempfile.mkdtemp()
-        client.download_artifacts(run_id=model_uri.split(
-            "/")[-4], path=mlflow_dir_name, dst_path=local_dir)
 
-        model_dir = os.path.join(local_dir, mlflow_dir_name)
-        # model = load_local_model_as_torch(base_model_path)
-        model = eval(darts_forecasting_model)
+        client.download_artifacts(
+            run_id=run_id, 
+            path=mlflow_filepath,
+            dst_path=local_dir
+            )
+        # scaler_path = download_online_file(
+        #     scaler_uri, "scaler.pkl") if mode == 'remote' else scaler_uri
+        scaler = load_local_pkl_as_object(os.path.join(local_dir, mlflow_filepath))
+    else:
+        scaler = load_local_pkl_as_object(scaler_uri)
+    return scaler
 
-        chk_local_dir = os.path.join(
-            local_dir, mlflow_dir_name, "checkpoints")
-        chk_fname = [file for file in os.listdir(
-            chk_local_dir) if 'best' in file][0]
-
-        best_model = model.load_from_checkpoint(model_dir, best=True)
-
-        return best_model        
-    ## as pkl
-    elif model_uri.endswith('.pkl'):
-        model_path = download_online_file(
-            model_uri, "model.pkl")
-        best_model = load_local_pkl_as_object(model_path)
-    return best_model
 
 def truth_checker(argument):
     """ Returns True if string has specific truth values else False"""
@@ -138,11 +190,6 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
         covariates = None
     return covariates
 
-def load_local_pkl_as_object(local_path):
-    pkl_object = pickle.load(open(local_path, "rb"))
-    return pkl_object
-
-
 class MlflowArtifactDownloader():
     def __init__(self, run_id=None, uri=None):
         self.run_id = run_id
@@ -165,11 +212,11 @@ class MlflowArtifactDownloader():
         return model
 
     def load_csv_artifact_as_darts(self, time_col="Date", 
-        prefix="features", suffix="test.csv"):
+        parent_dir="features", fname="test.csv"):
 
         # ideally needs tmpfiles but does not work in venv
         
-        src_path = "/".join([prefix, suffix])
+        src_path = "/".join([parent_dir, fname])
         tmpdir = tempfile.mkdtemp()
         load_artifacts(self.run_id, src_path=src_path, dst_path=tmpdir)
         local_path = os.path.join(tmpdir, src_path.replace('/', os.path.sep))
@@ -178,11 +225,11 @@ class MlflowArtifactDownloader():
 
         return darts_ts
 
-    def load_pkl_artifact_as_object(self, prefix="scalers", suffix="scaler_series.pkl"):
+    def load_pkl_artifact_as_object(self, parent_dir="scalers", fname="scaler_series.pkl"):
 
         # ideally needs tmpfiles but does not work in venv
         
-        src_path = "/".join([prefix, suffix])
+        src_path = "/".join([parent_dir, fname])
         tmpdir = tempfile.mkdtemp()
         load_artifacts(self.run_id, src_path=src_path, dst_path=tmpdir)
         local_path = os.path.join(tmpdir, src_path)
