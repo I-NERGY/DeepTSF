@@ -50,12 +50,12 @@ entry_points:
       cut_date_test: {type: str, default: 20210101}
       test_end_date: {type: str, default: None}
       model_uri: {type: str, default: mlflow_artifact_uri}
-      darts_forecasting_model: {type: str, default: None}
+      model_type: {type: str, default: pl}
       forecast_horizon: {type: str, default: 96}
       stride: {type: str, default: None}
       retrain: {type: str, default: "false"}
     command: |
-      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --darts-forecasting-model {darts_forecasting_model} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain}  
+      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --model-type {model_type} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain}  
 
   exp_pipeline:
     parameters:
@@ -79,3 +79,15 @@ entry_points:
     command: |
       python  experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs}
 
+  inference:
+    parameters:
+      pyfunc_model_folder: {type: str, default: s3://mlflow-bucket/2/33d85746285c42a7b3ef403eb2f5c95f/artifacts/pyfunc_model}
+      forecast_horizon:  {type: str, default: 960}
+      series_uri: {type: str, default: ENG/series.csv}
+      past_covariates_uri: {type: str, default: "None"}
+      future_covariates_uri: {type: str, default: "None"}
+      roll_size: {type: str, default: 96}
+      batch_size:  {type: str, default: 1}
+
+    command: |
+      python inference.py --pyfunc-model-folder {pyfunc_model_folder} --forecast-horizon {forecast_horizon} --series-uri {series_uri} --past-covariates-uri {past_covariates_uri} --future-covariates-uri {future_covariates_uri} --roll-size {roll_size} --batch-size {batch_size}
