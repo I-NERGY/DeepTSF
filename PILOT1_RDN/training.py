@@ -310,7 +310,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 past_covariates=past_covariates_transformed['train'],
                 val_series=series_transformed['val'],
                 val_future_covariates=future_covariates_transformed['val'],
-                val_past_covariates=past_covariates_transformed['val'])
+                val_past_covariates=past_covariates_transformed['val'],
+                num_loader_workers=-1)
             
             logs_path = f"./darts_logs/{mlrun.info.run_id}/"
             model_type = "pl"
@@ -461,7 +462,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         mlflow.set_tag('model_uri', mlflow.get_artifact_uri(
             f"{mlflow_model_root_dir}/data/{mlrun.info.run_id}"))
         # inference_model_uri
-        mlflow.set_tag('inference_model_uri', mlflow.get_artifact_uri(
+        mlflow.set_tag('pyfunc_model_folder', mlflow.get_artifact_uri(
             f"{mlflow_model_root_dir}"))
 
         return
