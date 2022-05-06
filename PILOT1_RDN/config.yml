@@ -6,25 +6,39 @@
 #   #     aws_secret_access_key: secretminio
 
 hyperparameters:
+
   test:
     model: LSTM
     n_rnn_layers: 1
-    hidden_dim:  1 #128
+    hidden_dim: 2  #128
     n_epochs: 1
-    input_chunk_length: 3
-    training_length: 3
+    input_chunk_length: 96
+    training_length: 96
     random_state: 0
     nr_epochs_val_period: 1
     dropout: 0
-    learning_rate: 0.005
+    learning_rate: 0.009
     # likelihood: Gaussian
-    batch_size: 1024
+    batch_size: 2048
+  
+  test2:
+    model: LSTM
+    n_rnn_layers: 1
+    input_chunk_length: 96
+    output_chunk_length: 96
+    hidden_size:  1
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.01
+    batch_size: 2048
 
   # lstm0_1:
   #   model: LSTM
   #   n_rnn_layers: 1
   #   hidden_dim:  20 #128
-  #   n_epochs: 120
+  #   n_epochs: 200
   #   input_chunk_length: 96
   #   training_length: 96
   #   random_state: 0
@@ -146,19 +160,19 @@ hyperparameters:
   #   # likelihood: Gaussian
   #   batch_size: 1024
 
-  # lstm1_7:
-  #   model: LSTM
-  #   n_rnn_layers: 2
-  #   hidden_dim:  64 #128
-  #   n_epochs: 100
-  #   input_chunk_length: 672
-  #   training_length: 672
-  #   random_state: 0
-  #   nr_epochs_val_period: 2
-  #   dropout: 0
-  #   learning_rate: 0.001
-  #   # likelihood: Gaussian
-  #   batch_size: 1024
+  lstm1_7:
+    model: LSTM
+    n_rnn_layers: 2
+    hidden_dim:  64 #128
+    n_epochs: 100
+    input_chunk_length: 672
+    training_length: 672
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    # likelihood: Gaussian
+    batch_size: 1024
 
   blocklstm0_4:
     model: LSTM
