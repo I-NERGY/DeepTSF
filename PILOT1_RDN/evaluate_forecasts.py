@@ -1,5 +1,5 @@
 import pretty_errors
-from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_local_pkl_as_object, load_model_from_server
+from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_model, load_scaler
 
 from functools import reduce
 from darts.metrics import mape as mape_darts
@@ -35,164 +35,6 @@ load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
-
-def simple_n_day_ahead_forecast(model, days_ahead, steps, train, test, scaler, exog_test=None, scaler_exog=None, naive_remebers_k_timesteps=1):
-
-    print(f"Simple {days_ahead} day ahead forecast:\n")
-
-    if exog_test is not None:
-        if scaler_exog is not None:
-            exog_test = pd.Series(scaler_exog.transform(
-                exog_test.values), index=test.index)
-        exog_test = exog_test[:steps * days_ahead]
-
-    if scaler is not None:
-
-        forecast_scaled = model.forecast(steps * days_ahead, exog=exog_test) \
-            if 'SARIMAX' in str(model) \
-            else model.forecast(steps * days_ahead)
-
-        if isinstance(forecast_scaled, np.ndarray):
-            predictions = scaler.inverse_transform(
-                forecast_scaled.reshape(-1, 1)).reshape(-1)
-        else:
-            predictions = scaler.inverse_transform(
-                forecast_scaled.values.reshape(-1, 1)).reshape(-1)
-    else:
-
-        predictions = \
-            model.forecast(steps * days_ahead, exog=exog_test) \
-            if 'SARIMAX' in str(model) \
-            else model.forecast(steps * days_ahead)
-        # if exog_test \
-        # else model.forecast(steps * days_ahead)
-
-    # adjust test set based on days_ahead given
-    test = test[:len(predictions)]
-    predictions = pd.Series(predictions, index=test.index)
-
-    metrics = {
-        "MAPE": mape(test, predictions),
-        "MSE": mse(test, predictions),
-        "RMSE": np.sqrt(mse(test, predictions))
-    }
-
-    if train is not None:
-
-        ground_truth_line = \
-            pd.DataFrame(index=pd.concat([train[-7*24:], test]).index)
-        ground_truth_line['Train'] = train[-7*24:]
-        ground_truth_line['Test'] = test
-
-        series = TimeSeries.from_series(train)
-        naive_model = NaiveSeasonal(K=naive_remebers_k_timesteps)
-        naive_model.fit(series)
-        naive_pred = naive_model.predict(steps * days_ahead)
-        naive_pred = TimeSeries.pd_series(naive_pred)
-
-        # naive_pred=[train.tolist()[-1]] + test.tolist()[:-1]
-        metrics = {
-            "MAPE naive": mape(test, naive_pred),
-            "MAPE": mape(test, predictions),
-            "MSE": mse(test, predictions),
-            "RMSE": np.sqrt(mse(test, predictions))
-        }
-
-        plt.figure()
-        plot = ground_truth_line.plot(figsize=(15, 7),
-                                      label='Data',
-                                      legend=True,
-                                      title=f"{days_ahead} day ahead forecast")
-        predictions.plot(label='Forecast', legend=True)
-        naive_pred.plot(
-            label=f'Naive method (#memory_steps={naive_remebers_k_timesteps})', legend=True)
-        plot.grid()
-        plt.show()
-
-        return predictions, metrics
-
-def advanced_n_day_ahead_forecast(model, days_ahead, steps, train, test, scaler):
-
-    print(f"Advanced {days_ahead} day ahead forecast:\n")
-
-    predictions = pd.Series(dtype='float64')
-
-    if scaler:
-
-        for n_day in range(days_ahead):
-            cur_timestep = n_day * steps
-            next_timestep = cur_timestep + steps
-
-            day_preds_scaled = model.forecast(steps)
-            if isinstance(day_preds_scaled, np.ndarray):
-                day_preds = pd.Series(
-                    scaler.inverse_transform(
-                        day_preds_scaled.reshape(-1, 1)).reshape(-1),
-                    index=test[cur_timestep:next_timestep].index)
-            else:
-                day_preds = pd.Series(
-                    scaler.inverse_transform(
-                        day_preds_scaled.values.reshape(-1, 1)).reshape(-1),
-                    index=test[cur_timestep:next_timestep].index)
-            predictions = pd.concat([predictions, pd.Series(day_preds)])
-            y_news = test.iloc[cur_timestep: next_timestep].values
-            # y_news = y_news.asfreq('H')
-            model = model.append(y_news)
-
-    else:
-
-        for n_day in range(days_ahead):
-            cur_timestep = n_day * steps
-            next_timestep = cur_timestep + steps
-            day_preds = model.forecast(steps)
-            predictions = pd.concat([predictions, day_preds])
-            y_news = test.iloc[cur_timestep: next_timestep]
-            y_news = y_news.asfreq('H')
-            model = model.append(y_news)
-
-    # adjust test set based on days_ahead given
-    test = test[:len(predictions)]
-
-    predictions.name = test.name
-    predictions = predictions.rename_axis('datetime')
-
-    metrics = {
-        "MAPE": mape(test, predictions),
-        "MSE": mse(test, predictions),
-        "RMSE": np.sqrt(mse(test, predictions))
-    }
-
-    if train is not None:
-
-        ground_truth_line = pd.DataFrame(
-            index=pd.concat([train[-7*24:], test]).index)
-        ground_truth_line['Train'] = train[-7*24:]
-        ground_truth_line['Test'] = test
-        ground_truth_line
-
-        series = TimeSeries.from_series(train)
-        naive_model = NaiveSeasonal(K=naive_remebers_k_timesteps)
-        naive_model.fit(series)
-        naive_pred = naive_model.predict(steps * days_ahead)
-        naive_pred = TimeSeries.pd_series(naive_pred)
-
-        # naive_pred= [train.tolist()[-1]] + test.tolist()[:-1]
-
-        metrics = {
-            "MAPE naive": mape(test, naive_pred),
-            "MAPE": mape(test, predictions),
-            "MSE": mse(test, predictions),
-            "RMSE": np.sqrt(mse(test, predictions))
-        }
-
-        plt.figure()
-        plot = ground_truth_line.plot(figsize=(
-            15, 3), label='Data', legend=True, title=f"{days_ahead} day ahead forecast")
-        predictions.plot(label='Forecast', legend=True)
-        plot.grid()
-        plt.show()
-
-    return predictions, metrics
 
 # DARTS
 
@@ -244,6 +86,7 @@ def backtester(model,
     if stride is None:
         stride = forecast_horizon
     test_start_date = pd.Timestamp(test_start_date)
+
     # produce list of forecasts
     backtest_series_transformed = model.historical_forecasts(series_transformed,
                                                              future_covariates=future_covariates,
@@ -341,7 +184,6 @@ def backtester(model,
             .to_csv(os.path.join(path_to_save_backtest, 'predictions_transformed.csv'))
         series_transformed.drop_before(pd.Timestamp(test_start_date)) \
             .to_csv(os.path.join(path_to_save_backtest, 'test_transformed.csv'))
-        
 
     return {"metrics": metrics, "eval_plot": plt, "backtest_series": backtest_series}
 
@@ -386,10 +228,12 @@ def backtester(model,
               default='mlflow_artifact_uri',
               help='Remote URI of the model to be evaluated'
               )
-@click.option("--darts-forecasting-model",
-              type=str,
-              default='NBEATSModel',
-              help='Class of darts model as str'
+@click.option("--model-type",
+              default='pl',
+              type=click.Choice(
+                  ['pl',
+                   'pkl']),
+              help='Type of Model'
               )
 @click.option("--forecast-horizon",
               type=str,
@@ -400,7 +244,7 @@ def backtester(model,
 @click.option("--retrain",
               type=str,
               default="false")
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, darts_forecasting_model, forecast_horizon, stride, retrain):
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -440,21 +284,13 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     else:
         past_covariates = None
 
-    # TODO: Also implement for local files 
+    # TODO: Also implement for local files -> Done?
     ## load model from MLflow
-    print(f"Darts forecasting model: {darts_forecasting_model}\n")
-    model = load_model_from_server(
-        model_uri, darts_forecasting_model=darts_forecasting_model, mlflow_dir_name='model', )
+    model = load_model(model_uri, mode, model_type)
+    scaler = load_scaler(scaler_uri=none_checker(scaler_uri), mode=mode)
 
-    ## load scaler from MLflow
-    if none_checker(scaler_uri) is not None:
-        scaler_path = download_online_file(
-            scaler_uri, "scaler.pkl") if mode == 'remote' else  scaler_uri
-        scaler = load_local_pkl_as_object(scaler_path)
+    if scaler is not None:
         series_transformed = scaler.transform(series)
-    else:
-        scaler = None
-        series_transformed = series
 
     # Split in the same way as in training
     ## series
