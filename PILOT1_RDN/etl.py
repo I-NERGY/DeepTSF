@@ -1,5 +1,5 @@
-from utils import ConfigParser, none_checker
-
+import pretty_errors
+from utils import none_checker
 import os
 from os import times
 from utils import download_online_file
@@ -15,14 +15,13 @@ import click
 import shutil
 import logging
 from darts.dataprocessing.transformers import MissingValuesFiller
-import pretty_errors
 import tempfile
 
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
-os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
+# os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 # DATE HANDLERS
@@ -273,6 +272,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
         # drop duplicate index entries, keeping the first
         print("\nDropping duplicate time index entries, keeping first one...")
         logging.info("\nDropping duplicate time index entries, keeping first one...")
+        # TODO: fix!!! It is not working correctly! Remember IISA 2022...
         ts_res = ts_res[~ts_res.index.duplicated(keep='first')]
 
         # ts_res.to_csv(f'{tmpdir}/3_dropped_duplicates.csv')

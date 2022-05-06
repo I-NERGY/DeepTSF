@@ -1,33 +1,30 @@
-from pytorch_lightning.callbacks.early_stopping import EarlyStopping
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, log_curves, truth_checker
+import pretty_errors
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker #, log_curves
 from preprocessing import scale_covariates, split_dataset
 
 # the following are used through eval(darts_model + 'Model')
-import darts
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal
-from darts.models.forecasting.auto_arima import AutoARIMA
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
+# from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.gradient_boosted_model import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
 from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
-from darts.metrics import mape as mape_darts
 
+import yaml
 import mlflow
 import click
 import os
-import shutil
 import torch
 import logging
 import pickle
-import pretty_errors
 import tempfile
-import pretty_errors
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
+import shutil
 
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
-os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
+# os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 # stop training when validation loss does not decrease more than 0.05 (`min_delta`) over
@@ -35,11 +32,9 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 my_stopper = EarlyStopping(
     monitor="val_loss",
     patience=10,
-    min_delta=0.00001,
+    min_delta=1e-6,
     mode='min',
 )
-
-pl_trainer_kwargs = {"callbacks": [my_stopper]}
 
 @click.command()
 @click.option("--series-csv",
@@ -71,6 +66,7 @@ pl_trainer_kwargs = {"callbacks": [my_stopper]}
 @click.option("--darts-model",
               type=click.Choice(
                   ['NBEATS',
+                   'TCN',
                    'RNN',
                    'BlockRNN',
                    'TFT',
@@ -105,31 +101,43 @@ pl_trainer_kwargs = {"callbacks": [my_stopper]}
               )
 @click.option("--device",
               type=click.Choice(
-                  ['cuda', 
+                  ['gpu', 
                    'cpu']),
               multiple=False,
-              default='cuda',
+              default='gpu',
               )
+@click.option("--scale",
+              type=str,
+              default="true",
+              help="Whether to scale the target series")
+@click.option("--scale-covs",
+              type=str,
+              default="true",
+              help="Whether to scale the covariates")
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri, 
           past_covs_csv, past_covs_uri, darts_model, 
           hyperparams_entrypoint, cut_date_val, cut_date_test,
-          test_end_date, device):
+          test_end_date, device, scale, scale_covs):
     
     # Argument preprocessing
 
     ## test_end_date
     test_end_date = none_checker(test_end_date) 
 
+    ## scale or not
+    scale = truth_checker(scale)
+    scale_covs = truth_checker(scale_covs)
+
     ## hyperparameters   
     hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
 
     ## device
-    if device == 'cuda' and torch.cuda.is_available():
-        device = 'cuda'
-        print("\nWill use GPU for training")
+    if device == 'gpu' and torch.cuda.is_available():
+        device = 'gpu'
+        print("\nGPU is available")
     else:
         device = 'cpu'
-        print("\nWill use CPU for training")
+        print("\nGPU is available")
     ## series and covariates uri and csv
     series_uri = none_checker(series_uri)
     future_covs_uri = none_checker(future_covs_uri)
@@ -152,13 +160,14 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
     ## model
     # TODO: Take care of future covariates (RNN, ...) / past covariates (BlockRNN, NBEATS, ...)
-    if darts_model in ["NBEATS", "BlockRNN"]:
+    if darts_model in ["NBEATS", "BlockRNN", "TCN"]:
         """They do not accept future covariates as they predict blocks all together.
         They won't use initial forecasted values to predict the rest of the block 
         So they won't need to additionally feed future covariates during the recurrent process.
         """
         past_covs_csv = future_covs_csv
         future_covs_csv = None
+        # TODO: when actual weather comes extend it, now the stage only accepts future covariates as argument.
 
     elif darts_model in ["RNN"]:
         """Does not accept past covariates as it needs to know future ones to provide chain forecasts
@@ -167,44 +176,43 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         feature space will change during inference. If for example I have current temperature and during 
         the forecast chain I only have time covariates, as I won't know the real temp then a constant \
         architecture like LSTM cannot handle this"""
-        future_covs_csv = past_covs_csv
         past_covs_csv = None
+        # TODO: when actual weather comes extend it, now the stage only accepts future covariates as argument.
     #elif: extend for other models!! (time_covariates are always future covariates, but some models can't handle them as so)
 
     future_covariates = none_checker(future_covs_csv)
     past_covariates = none_checker(past_covs_csv)
 
     with mlflow.start_run(run_name=f'train_{darts_model}', nested=True) as mlrun:
+
+        mlflow_model_root_dir = "pyfunc_model"
+        
         ######################
         # Load series and covariates datasets
+        time_col = "Date"
         series = load_local_csv_as_darts_timeseries(
                 local_path=series_csv, 
                 name='series', 
-                time_col='Date', 
+                time_col=time_col, 
                 last_date=test_end_date)
-        # print(series.time_index)
-        # a = pd.date_range(start='20180101 00:00:00',
-        #               end='20211212 23:00:00').difference(series.time_index)
-        # print(f'\n\n {a}')
         if future_covariates is not None:
             future_covariates = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv, 
                 name='future covariates', 
-                time_col='Date', 
+                time_col=time_col,
                 last_date=test_end_date)
         if past_covariates is not None:
             past_covariates = load_local_csv_as_darts_timeseries(
                 local_path=past_covs_csv, 
                 name='past covariates', 
-                time_col='Date', 
+                time_col=time_col,
                 last_date=test_end_date)
 
-        print("\nCreating local folder to store the scaler as pkl...")
-        logging.info("\nCreating local folder to store the scaler as pkl...")
-        scalers_dir = tempfile.mkdtemp()
-
-        print("\nCreating local folder to store the datasets as csv...")
-        logging.info("\nCreating local folder to store the scalers as csv...")
+        print("\nCreating local folders...")
+        logging.info("\nCreating local folders...")
+        
+        if scale:
+            scalers_dir = tempfile.mkdtemp()
         features_dir = tempfile.mkdtemp()
 
         ######################
@@ -219,6 +227,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             series, 
             val_start_date_str=cut_date_val, 
             test_start_date_str=cut_date_test,
+            test_end_date=test_end_date,
             store_dir=features_dir, 
             name='series',
             conf_file_name='split_info.yml')
@@ -227,6 +236,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             future_covariates, 
             val_start_date_str=cut_date_val, 
             test_start_date_str=cut_date_test, 
+            test_end_date=test_end_date,
             # store_dir=features_dir,
             name='future_covariates')
         ## past covariates
@@ -234,38 +244,48 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             past_covariates, 
             val_start_date_str=cut_date_val, 
             test_start_date_str=cut_date_test,
+            test_end_date=test_end_date,
             # store_dir=features_dir, 
             name='past_covariates')
 
-        ######################
+        #################
         # Scaling
         print("\nScaling...")
         logging.info("\nScaling...")
 
         ## scale series
-        scaled_series = scale_covariates(
+        series_transformed = scale_covariates(
             series_split, 
             store_dir=features_dir, 
-            filename_suffix="series_transformed.csv")
-        pickle.dump(scaled_series["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
+            filename_suffix="series_transformed.csv", 
+            scale=scale)
+        if scale:
+            pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
         ## scale future covariates
-        scaled_future_covariates = scale_covariates(
+        future_covariates_transformed = scale_covariates(
             future_covariates_split, 
             store_dir=features_dir, 
-            filename_suffix="future_covariates_transformed.csv")
+            filename_suffix="future_covariates_transformed.csv",
+            scale=scale_covs)
         ## scale past covariates
-        scaled_past_covariates = scale_covariates(
+        past_covariates_transformed = scale_covariates(
             past_covariates_split,
             store_dir=features_dir, 
-            filename_suffix="past_covariates_transformed.csv")
+            filename_suffix="past_covariates_transformed.csv",
+            scale=scale_covs)
 
         ######################
         # Model training
         print("\nTraining model...")
         logging.info("\nTraining model...")
+        pl_trainer_kwargs = {"callbacks": [my_stopper],
+                             "accelerator": device,
+                             "gpus": 1,
+                             "auto_select_gpus": True,
+                             "log_every_n_steps": 10}
 
         ## choose architecture
-        if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT']:
+        if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN']:
             hparams_to_log = hyperparameters
             if 'learning_rate' in hyperparameters:
                 hyperparameters['optimizer_kwargs'] = {'lr': hyperparameters['learning_rate']}
@@ -276,46 +296,27 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             model = eval(darts_model + 'Model')(
                 save_checkpoints=True,
-                log_tensorboard=True,
-                torch_device_str=device,
+                log_tensorboard=False,
                 model_name=mlrun.info.run_id,
+                pl_trainer_kwargs=pl_trainer_kwargs,
                 **hyperparameters
-            )
-            # pl_trainer_kwargs=pl_trainer_kwargs,
-                
+            )                
             ## fit model
             # try:
-            # print(scaled_series['train'])
-            # print(scaled_series['val'])
-            model.fit(scaled_series['train'],
-                future_covariates=scaled_future_covariates['train'],
-                past_covariates=scaled_past_covariates['train'],
-                val_series=scaled_series['val'],
-                val_future_covariates=scaled_future_covariates['val'],
-                val_past_covariates=scaled_past_covariates['val'],
-                verbose=True)
+            # print(series_transformed['train'])
+            # print(series_transformed['val'])
+            model.fit(series_transformed['train'],
+                future_covariates=future_covariates_transformed['train'],
+                past_covariates=past_covariates_transformed['train'],
+                val_series=series_transformed['val'],
+                val_future_covariates=future_covariates_transformed['val'],
+                val_past_covariates=past_covariates_transformed['val'])
+            
+            logs_path = f"./darts_logs/{mlrun.info.run_id}/"
+            model_type = "pl"
+            # TODO: Implement this step without tensorboard (fix utils.py: get_training_progress_by_tag)
+            # log_curves(tensorboard_event_folder=f"./darts_logs/{mlrun.info.run_id}/logs", output_dir='training_curves')
 
-            # TODO: Package Models as python functions for MLflow (see RiskML and https://mlflow.org/docs/0.5.0/models.html#python-function-python-function)
-            print('\nStoring torch model to MLflow...')
-            logging.info('\nStoring torch model to MLflow...')
-            model_dir_list = os.listdir(f"./.darts/checkpoints/{mlrun.info.run_id}")
-            best_model_name = [fname for fname in model_dir_list if "model_best" in fname][0]
-            best_model_path = f"./.darts/checkpoints/{mlrun.info.run_id}/{best_model_name}"
-            mlflow.log_artifact(best_model_path, f"checkpoints")
-            log_curves(tensorboard_event_folder=f"./.darts/runs/{mlrun.info.run_id}", 
-            output_dir='training_curves')
-
-            # TODO: Implement early stopping without keyboard interupt ?? (consider tags as well)
-            # except KeyboardInterrupt:
-            #     # TODO: Package Models as python functions for MLflow (see RiskML and https://mlflow.org/docs/0.5.0/models.html#python-function-python-function)
-            #     model_dir_list = os.listdir(f"./.darts/checkpoints/{mlrun.info.run_id}")
-            #     best_model_name = [fname for fname in model_dir_list if "model_best" in fname][0]
-            #     best_model_path = f"./.darts/checkpoints/{mlrun.info.run_id}/{best_model_name}"
-            #     mlflow.log_artifact(best_model_path, f"checkpoints")
-            #     log_curves(tensorboard_event_folder=f"./.darts/runs/{mlrun.info.run_id}", 
-            #     output_dir='training_curves')
-            #     mlflow.log_param("status", "forced_stop")                
-        
         # LightGBM and RandomForest
         elif darts_model in ['LightGBM', 'RandomForest']:
 
@@ -342,12 +343,12 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             logging.info(f'\nTraining {darts_model}...')
 
             model.fit(
-                series=scaled_series['train'],
-                # val_series=scaled_series['val'],
-                future_covariates=scaled_future_covariates['train'],
-                past_covariates=scaled_past_covariates['train'], 
-                # val_future_covariates=scaled_future_covariates['val'],
-                # val_past_covariates=scaled_past_covariates['val']
+                series=series_transformed['train'],
+                # val_series=series_transformed['val'],
+                future_covariates=future_covariates_transformed['train'],
+                past_covariates=past_covariates_transformed['train'], 
+                # val_future_covariates=future_covariates_transformed['val'],
+                # val_past_covariates=past_covariates_transformed['val']
                 )
 
             print('\nStoring the model as pkl to MLflow...')
@@ -355,79 +356,114 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             forest_dir = tempfile.mkdtemp()
 
             pickle.dump(model, open(
-                f"{forest_dir}/model_best_{darts_model}.pkl", "wb"))
-            mlflow.log_artifacts(forest_dir, "checkpoints")
-        
-        # ARIMA
-        elif darts_model == 'AutoARIMA':
-            hparams_to_log={}
-            print("\nEmploying AutoARIMA - Ignoring hyperparameters")
-            logging.info("\nEmploying AutoARIMA - Ignoring hyperparameters")
-            model = AutoARIMA(random_state=0, information_criterion='bic')
-            model.fit(scaled_series['train'].append(scaled_series['val']), future_covariates=future_covariates)
-            # hparams = model.get_params()
-            # print(model.summary())
+                f"{forest_dir}/_model.pkl", "wb"))
+            
+            logs_path = forest_dir 
+            model_type = "pkl"
 
-            print("\nStoring the model as pkl...")
-            logging.info("\nStoring the model as pkl...")
-            arima_dir = tempfile.mkdtemp()
-
-            pickle.dump(model, open(
-                f"{arima_dir}/model_best_arima.pkl", "wb"))
-            mlflow.log_artifacts(arima_dir, "checkpoints")
-
-
-            # hyperparameters = {k: eval(v) for (k, v) in hyperparameters.items()}
-            # model = ARIMA().gridsearch(
-            #     parameters=hyperparameters, 
-            #     series=series_split['train'].append(series_split['val']),
-            #     past_covariates=past_covariates,
-            #     future_covariates=future_covariates,
-            #     forecast_horizon=hyperparameters[forecast_horizon],
-            #     stride=hyperparameters[forecast_horizon],
-            #     start= cut_date_val,
-            #     last_points_only=False,
-            #     metric=mape_darts,
-            #     n_jobs=-1,
-            #     verbose=True
-            #     )
-
-        # Save scaled features and scalers locally and then to mlflow server
-        print("\nDatasets and scalers are being uploaded to MLflow...")
-        logging.info("\nDatasets and scalers are being uploaded to MLflow...")
-        mlflow.log_artifacts(scalers_dir, "scalers")
-        mlflow.log_artifacts(features_dir, "features")
-        print("\nDatasets uploaded. ...")
-        logging.info("\nDatasets uploaded. ...")
-
+        ######################
         # Log hyperparameters
         mlflow.log_params(hparams_to_log)
+
+        ######################
+        # Log artifacts
+        ## Move scaler in logs path
+        if scale:
+            source_dir = scalers_dir
+            target_dir = logs_path
+            file_names = os.listdir(source_dir)
+            for file_name in file_names:
+                shutil.move(os.path.join(source_dir, file_name), 
+                target_dir)
+        
+        ## Create and Move model info in logs path
+        model_info_dict = {
+            "darts_forecasting_model":  model.__class__.__name__,
+            "run_id": mlrun.info.run_id
+            }
+        with open('model_info.yml', mode='w') as outfile:
+            yaml.dump(
+                model_info_dict,
+                outfile,
+                default_flow_style=False)
+        shutil.move('model_info.yml', target_dir)
+
+        ## Rename logs path to get rid of run name
+        if model_type == 'pkl':
+            logs_path_new = logs_path.replace(
+            forest_dir.split('/')[-1], mlrun.info.run_id)
+            os.rename(logs_path, logs_path_new)
+        elif model_type == 'pl':
+            logs_path_new = logs_path
+
+        ## Log MLflow model
+        if model_type == 'pl':
+            mlflow.pyfunc.log_model(mlflow_model_root_dir,
+                                    loader_module="inference_pl",
+                                    data_path=logs_path_new)
+        elif model_type == 'pkl':
+            mlflow.pyfunc.log_model(mlflow_model_root_dir,
+                                    loader_module="inference_pkl",
+                                    data_path=logs_path_new)
+
+        ## Clean logs_path: Now it is necessary to avoid conflicts
+        shutil.rmtree(logs_path_new)
+
+        print("\nArtifacts uploaded.")
+        logging.info("\nArtifacts uploaded.")
+        
+        ######################
         # Set tags
+        print("\nArtifacts are being uploaded to MLflow...")
+        logging.info("\nArtifacts are being uploaded to MLflow...")
+        mlflow.log_artifacts(features_dir, "features")
+
+        if scale:
+            # mlflow.log_artifacts(scalers_dir, f"{mlflow_model_path}/scalers")
+            mlflow.set_tag(
+                'scaler_uri', 
+                f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_series.pkl')
+        else:
+            mlflow.set_tag('scaler_uri', 'mlflow_artifact_uri')
+
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "training")
+        mlflow.set_tag("model_type", model_type)
 
-        client = mlflow.tracking.MlflowClient()
-        model_dir_list = client.list_artifacts(run_id=mlrun.info.run_id, path='checkpoints')
-        src_path = [fileinfo.path for fileinfo in model_dir_list if 'model_best' in fileinfo.path][0]
-        mlflow.set_tag('model_uri', mlflow.get_artifact_uri(src_path))
+        mlflow.set_tag("darts_forecasting_model", 
+            model.__class__.__name__)
 
-        mlflow.set_tag('series_uri', f'{mlrun.info.artifact_uri}/features/series.csv')
+        mlflow.set_tag('series_uri', 
+            f'{mlrun.info.artifact_uri}/features/series.csv')
 
-        # check if future_covariates exist
         if future_covariates is not None:
-            mlflow.set_tag('future_covariates_uri', f'{mlrun.info.artifact_uri}/features/future_covariates_transformed.csv')
+            mlflow.set_tag(
+                'future_covariates_uri', 
+                f'{mlrun.info.artifact_uri}/features/future_covariates_transformed.csv')
         else:
-            mlflow.set_tag('future_covariates_uri', 'mlflow_artifact_uri')
+            mlflow.set_tag(
+                'future_covariates_uri', 
+                'mlflow_artifact_uri')
 
-        # check if past_covariates exist
         if past_covariates is not None:
-            mlflow.set_tag('past_covariates_uri', f'{mlrun.info.artifact_uri}/features/past_covariates_transformed.csv')
+            mlflow.set_tag(
+                'past_covariates_uri', 
+                f'{mlrun.info.artifact_uri}/features/past_covariates_transformed.csv')
         else:
-            mlflow.set_tag('past_covariates_uri', 'mlflow_artifact_uri')
+            mlflow.set_tag('past_covariates_uri', 
+                'mlflow_artifact_uri')
 
-        mlflow.set_tag('scaler_uri', f'{mlrun.info.artifact_uri}/scalers/scaler_series.pkl')
-        mlflow.set_tag('setup_uri', f'{mlrun.info.artifact_uri}/features/split_info.yml')
+        mlflow.set_tag(
+            'setup_uri', 
+            f'{mlrun.info.artifact_uri}/features/split_info.yml')
         
+        # model_uri
+        mlflow.set_tag('model_uri', mlflow.get_artifact_uri(
+            f"{mlflow_model_root_dir}/data/{mlrun.info.run_id}"))
+        # inference_model_uri
+        mlflow.set_tag('inference_model_uri', mlflow.get_artifact_uri(
+            f"{mlflow_model_root_dir}"))
+
         return
 
 if __name__ =='__main__':

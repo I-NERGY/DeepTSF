@@ -5,17 +5,13 @@ trains a darts model, and evaluates the model.
 
 import pretty_errors
 from darts.dataprocessing.transformers import Scaler
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, LightGBMModel, RandomForest, TFTModel
-import pandas as pd
-import matplotlib.pyplot as plt
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, LightGBMModel, RandomForest, TFTModel, TCNModel
 import mlflow
 import click
 import os
-from utils import ConfigParser, download_online_file
-from utils import log_curves
 import pretty_errors
-from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
-import tempfile
+from utils import download_online_file
+# from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
 import pretty_errors
 import click
 import os
@@ -24,13 +20,13 @@ from mlflow.utils import mlflow_tags
 from mlflow.entities import RunStatus
 from mlflow.utils.logging_utils import eprint
 from mlflow.tracking.fluent import _get_experiment_id
-from utils import truth_checker
+from utils import truth_checker, load_yaml_as_dict, download_online_file
 
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
-os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
+# os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 
@@ -126,6 +122,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
               type=click.Choice(
                   ['NBEATS',
                    'RNN',
+                   'TCN',
                    'BlockRNN',
                    'TFT',
                    'LightGBM',
@@ -159,10 +156,10 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
               )
 @click.option("--device",
               type=click.Choice(
-                  ['cuda', 
+                  ['gpu', 
                    'cpu']),
               multiple=False,
-              default='cuda',
+              default='gpu',
               )
 # eval
 @click.option("--forecast-horizon",
@@ -175,15 +172,21 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
               type=str,
               default="false",
               help="Whether to retrain model during backtesting")
-# Settings
 @click.option("--ignore-previous-runs",
               type=str,
               default="true",
               help="Whether to ignore previous step runs while running the pipeline")
+@click.option("--scale",
+              type=str,
+              default="true",
+              help="Whether to scale the target series")
+@click.option("--scale-covs",
+              type=str,
+              default="true",
+              help="Whether to scale the covariates")
 def workflow(series_csv, series_uri, year_range, resolution, time_covs, 
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
-             forecast_horizon, stride, retrain,
-             ignore_previous_runs):
+             forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -224,7 +227,9 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
             "cut_date_val": cut_date_val, 
             "cut_date_test": cut_date_test,
             "test_end_date": test_end_date,
-            "device": device
+            "device": device,
+            "scale": scale,
+            "scale_covs": scale_covs
             } 
         train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 
@@ -238,6 +243,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 pass
 
         train_model_uri = train_run.data.tags["model_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_model_type = train_run.data.tags["model_type"]
         train_series_uri = train_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
         train_future_covariates_uri = train_run.data.tags["future_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
         train_past_covariates_uri = train_run.data.tags["past_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
@@ -245,13 +251,21 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
         train_setup_uri = train_run.data.tags["setup_uri"].replace("s3:/", S3_ENDPOINT_URL)
 
         # 4. Evaluation
+        ## load setup file
+        setup_file = download_online_file(
+            train_setup_uri, "setup.yml")
+        setup = load_yaml_as_dict(setup_file)
+        print(f"\nSplit info: {setup} \n")
+
         eval_params = {
             "series_uri": train_series_uri, 
             "future_covs_uri": train_future_covariates_uri,
             "past_covs_uri": train_past_covariates_uri,
             "scaler_uri": train_scaler_uri,
-            "setup_uri": train_setup_uri,
+            "cut_date_test": setup['test_start'],
+            "test_end_date": setup['test_end'],
             "model_uri": train_model_uri,
+            "model_type": train_model_type,
             "forecast_horizon": forecast_horizon,
             "stride": stride,
             "retrain": retrain
