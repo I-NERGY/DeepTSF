@@ -1,16 +1,9 @@
 from sys import version_info
 import cloudpickle
 from utils import load_model, load_scaler
-import click
-import os
-import mlflow, darts
-import logging
+import darts, mlflow, torch, pretty_errors
 
-# get environment variables
-from dotenv import load_dotenv
-load_dotenv()
-MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
-S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
+
 
 PYTHON_VERSION = "{major}.{minor}.{micro}".format(major=version_info.major,
                                                   minor=version_info.minor,
@@ -24,15 +17,14 @@ mlflow_serve_conda_env = {
         {
             'pip': [
                 'cloudpickle=={}'.format(cloudpickle.__version__),
-                'logging=={}'.format(logging.__version__),
-                'mlflow=={}'.format(mlflow.__version__),
                 'darts=={}'.format(darts.__version__),
-                'click=={}'.format(click.__version__),
-                'python-dotenv',
+                'torch=={}'.format(torch.__version__),
+                'mlflow=={}'.format(mlflow.__version__),
+                'pretty-errors=={}'.format(pretty_errors.__version__),
             ],
         },
     ],
-    'name': 'darts_infer_env'
+    'name': 'darts_infer_pl_env'
 }
 
 
@@ -72,7 +64,8 @@ class _MLflowPLDartsModelWrapper:
             series=history,
             future_covariates=future_covariates,
             past_covariates=past_covariates,
-            batch_size=batch_size)
+            batch_size=batch_size,
+            num_loader_workers=-1)
 
         # Untransform
         if self.transformer is not None:

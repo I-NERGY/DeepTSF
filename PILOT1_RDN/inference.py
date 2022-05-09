@@ -35,6 +35,9 @@ S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
               type=str,
               default="1")
 def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, future_covariates_uri, past_covariates_uri, roll_size, batch_size):
+    """This is the main function for predicting MLflow pyfunc models. The inputs are csv file uris (online or local) and integers. 
+    The csv files are dowloaded and the converted to darts.TimeSeries and finally given to the loaded models and for prediction according to their 
+    specification"""
     # Parse arguments
     batch_size = int(batch_size)
     roll_size = int(roll_size)
