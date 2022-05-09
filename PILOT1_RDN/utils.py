@@ -1,31 +1,16 @@
 
 import pretty_errors
-import yaml
 import os
 # import tensorflow as tf
 # from tensorflow.python.summary.summary_iterator import summary_iterator
 # import seaborn as sns
-import matplotlib.pyplot as plt
-import logging
-import pandas as pd
 import mlflow
-import torch
-import darts
-import pickle
-import requests
-import tempfile
-import yaml
-import boto3
-import sys
-import numpy as np
-from darts.models.forecasting.gradient_boosted_model import LightGBMModel
-from darts.models.forecasting.random_forest import RandomForest
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
 
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 
 class ConfigParser:
     def __init__(self, config_file_path=f'{cur_dir}/config.yml'):
+        import yaml
         with open(config_file_path, "r") as ymlfile:
             self.config = yaml.safe_load(ymlfile)
             # self.mlflow_tracking_uri = self.config['mlflow_settings']['mlflow_tracking_uri']
@@ -34,6 +19,7 @@ class ConfigParser:
         return self.config['hyperparameters'][hyperparams_entrypoint]
 
 def download_file_from_s3_bucket(object_name, dst_filename, dst_dir=None, bucketName='mlflow-bucket'):
+    import boto3, tempfile
     if dst_dir is None:
         dst_dir = tempfile.mkdtemp()
     else:
@@ -46,6 +32,7 @@ def download_file_from_s3_bucket(object_name, dst_filename, dst_dir=None, bucket
     return local_path
 
 def load_yaml_as_dict(filepath):
+    import yaml
     with open(filepath, 'r') as stream:
         try:
             parsed_yaml = yaml.safe_load(stream)
@@ -55,10 +42,13 @@ def load_yaml_as_dict(filepath):
             return
 
 def load_local_pkl_as_object(local_path):
+    import pickle
     pkl_object = pickle.load(open(local_path, "rb"))
     return pkl_object
 
 def download_online_file(url, dst_filename, dst_dir=None):
+    import sys, tempfile, requests
+
     if dst_dir is None:
         dst_dir = tempfile.mkdtemp()
     else:
@@ -82,6 +72,11 @@ def load_pkl_model_from_server(model_uri):
     return best_model
 
 def load_local_pl_model(model_root_dir):
+    
+    from darts.models.forecasting.gradient_boosted_model import LightGBMModel
+    from darts.models.forecasting.random_forest import RandomForest
+    from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
+    
     print("\nLoading local PL model...")
     model_info_dict = load_yaml_as_dict(
         os.path.join(model_root_dir, 'model_info.yml'))
@@ -90,11 +85,16 @@ def load_local_pl_model(model_root_dir):
         "darts_forecasting_model"]
 
     model = eval(darts_forecasting_model)
+    model_root_dir = model_root_dir.replace('/', os.path.sep)
+    print(model_root_dir)
     best_model = model.load_from_checkpoint(model_root_dir, best=True)
     return best_model
 
 
 def load_pl_model_from_server(model_root_dir):
+
+    import tempfile
+
     print("\nLoading remote PL model...")
     client = mlflow.tracking.MlflowClient()
     print(model_root_dir)
@@ -104,7 +104,6 @@ def load_pl_model_from_server(model_root_dir):
     local_dir = tempfile.mkdtemp()
     client.download_artifacts(
         run_id=model_run_id, path=mlflow_relative_model_root_dir, dst_path=local_dir)
-    
     best_model = load_local_pl_model(os.path.join(local_dir, mlflow_relative_model_root_dir))
     return best_model
 
@@ -122,6 +121,8 @@ def load_model(model_uri, mode="remote", model_type="pl"):
 
 def load_scaler(scaler_uri=None, mode="remote"):
     
+    import tempfile
+
     if scaler_uri is None:
         print("\nNo scaler loaded.")
         return None
@@ -165,12 +166,18 @@ def load_artifacts(run_id, src_path, dst_path):
     client.download_artifacts(run_id=run_id, path=src_path, dst_path=dst_path)
 
 def load_local_model_as_torch(local_path):
+    import torch
     device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
     model = torch.load(local_path, map_location=device)
     model.device = device
     return model
 
 def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Date', last_date=None):
+
+    import logging, darts
+    import numpy as np
+    import pandas as pd
+    
     try:
         covariates = darts.TimeSeries.from_csv(
             local_path, time_col=time_col, 
@@ -186,53 +193,6 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             f"\nBad {name} file. The model won't include {name}...")
         covariates = None
     return covariates
-
-class MlflowArtifactDownloader():
-    def __init__(self, run_id=None, uri=None):
-        self.run_id = run_id
-
-    def load_model_artifact_as_torch(self, checkpoints_dir="checkpoints", 
-        keyword_to_search_in_best_model="model_best"):
-
-        client = mlflow.tracking.MlflowClient()
-        model_dir_list = client.list_artifacts(run_id=self.run_id, path=checkpoints_dir)
-        src_path = [fileinfo.path for fileinfo in model_dir_list if 
-            keyword_to_search_in_best_model in fileinfo.path][0]
-
-        tmpdir = tempfile.mkdtemp()
-        load_artifacts(self.run_id, src_path=src_path, dst_path=tmpdir)
-        local_path = os.path.join(tmpdir, src_path.replace('/', os.path.sep))
-        
-        device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-        model = torch.load(local_path, map_location=device)
-        model.device = device
-        return model
-
-    def load_csv_artifact_as_darts(self, time_col="Date", 
-        parent_dir="features", fname="test.csv"):
-
-        # ideally needs tmpfiles but does not work in venv
-        
-        src_path = "/".join([parent_dir, fname])
-        tmpdir = tempfile.mkdtemp()
-        load_artifacts(self.run_id, src_path=src_path, dst_path=tmpdir)
-        local_path = os.path.join(tmpdir, src_path.replace('/', os.path.sep))
-
-        darts_ts = darts.TimeSeries.from_csv(local_path, time_col=time_col, dtype=np.float32)
-
-        return darts_ts
-
-    def load_pkl_artifact_as_object(self, parent_dir="scalers", fname="scaler_series.pkl"):
-
-        # ideally needs tmpfiles but does not work in venv
-        
-        src_path = "/".join([parent_dir, fname])
-        tmpdir = tempfile.mkdtemp()
-        load_artifacts(self.run_id, src_path=src_path, dst_path=tmpdir)
-        local_path = os.path.join(tmpdir, src_path)
-
-        pkl_object = pickle.load(open(local_path, "rb"))
-        return pkl_object
 
 #TODO: Fix it. It does not get any progress any more
 # def get_training_progress_by_tag(fn, tag):
