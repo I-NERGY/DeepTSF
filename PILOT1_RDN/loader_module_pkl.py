@@ -66,7 +66,7 @@ class _MLflowPKLDartsModelWrapper:
             future_covariates=future_covariates,
             past_covariates=past_covariates,
             batch_size=batch_size,
-            num_loader_workers=-1)
+            num_loader_workers=2)
 
         # Untransform
         if self.transformer is not None:

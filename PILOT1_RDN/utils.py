@@ -85,9 +85,12 @@ def load_local_pl_model(model_root_dir):
         "darts_forecasting_model"]
 
     model = eval(darts_forecasting_model)
+    
     model_root_dir = model_root_dir.replace('/', os.path.sep)
     print(model_root_dir)
+    
     best_model = model.load_from_checkpoint(model_root_dir, best=True)
+
     return best_model
 
 

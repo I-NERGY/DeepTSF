@@ -1,7 +1,7 @@
 from sys import version_info
 import cloudpickle
 from utils import load_model, load_scaler
-import darts, mlflow, torch, pretty_errors
+import darts, mlflow, torch, pretty_errors, shutil
 
 
 
@@ -65,7 +65,7 @@ class _MLflowPLDartsModelWrapper:
             future_covariates=future_covariates,
             past_covariates=past_covariates,
             batch_size=batch_size,
-            num_loader_workers=-1)
+            num_loader_workers=2)
 
         # Untransform
         if self.transformer is not None:
@@ -78,8 +78,7 @@ def _load_pyfunc(model_file):
     """
     Load PyFunc implementation. Called by ``pyfunc.load_pyfunc``.
     """
-    ## load model from MLflow or local folder
-    
+    # load model from MLflow or local folder
     print(f"Inside _load_pyfunc: {model_file}")
     model = load_model(model_uri=model_file, mode="local", model_type="pl")
     scaler = load_scaler(scaler_uri=f"{model_file}/scaler_series.pkl", mode="local")
