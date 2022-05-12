@@ -311,7 +311,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 val_series=series_transformed['val'],
                 val_future_covariates=future_covariates_transformed['val'],
                 val_past_covariates=past_covariates_transformed['val'],
-                num_loader_workers=-1)
+                num_loader_workers=4)
             
             logs_path = f"./darts_logs/{mlrun.info.run_id}/"
             model_type = "pl"
@@ -397,14 +397,20 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         elif model_type == 'pl':
             logs_path_new = logs_path
 
-        ## Log MLflow model
+        ## Put necessary code into the directory
+        shutil.copy("utils.py", logs_path_new)
+        shutil.copy("inference.py", logs_path_new)
+        
+        ## Log MLflow model and code
         if model_type == 'pl':
+            shutil.copy("loader_module_pl.py", logs_path_new)
             mlflow.pyfunc.log_model(mlflow_model_root_dir,
-                                    loader_module="inference_pl",
+                                    loader_module="loader_module_pl",
                                     data_path=logs_path_new)
         elif model_type == 'pkl':
+            shutil.copy("loader_module_pkl.py", logs_path_new)
             mlflow.pyfunc.log_model(mlflow_model_root_dir,
-                                    loader_module="inference_pkl",
+                                    loader_module="loader_module_pkl",
                                     data_path=logs_path_new)
 
         ## Clean logs_path: Now it is necessary to avoid conflicts
