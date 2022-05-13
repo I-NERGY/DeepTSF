@@ -396,28 +396,23 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             os.rename(logs_path, logs_path_new)
         elif model_type == 'pl':
             logs_path_new = logs_path
-
-        ## Put necessary code into the directory
-        shutil.copy("utils.py", logs_path_new)
-        shutil.copy("inference.py", logs_path_new)
         
         ## Log MLflow model and code
         if model_type == 'pl':
             shutil.copy("loader_module_pl.py", logs_path_new)
             mlflow.pyfunc.log_model(mlflow_model_root_dir,
                                     loader_module="loader_module_pl",
-                                    data_path=logs_path_new)
+                                    data_path=logs_path_new,
+                                    code_path=['./utils.py', './inference.py', 'loader_module_pl.py'])
         elif model_type == 'pkl':
             shutil.copy("loader_module_pkl.py", logs_path_new)
             mlflow.pyfunc.log_model(mlflow_model_root_dir,
                                     loader_module="loader_module_pkl",
-                                    data_path=logs_path_new)
+                                    data_path=logs_path_new,
+                                    code_path=['./utils.py', './inference.py', 'loader_module_pkl.py'])
 
         ## Clean logs_path: Now it is necessary to avoid conflicts
         shutil.rmtree(logs_path_new)
-
-        print("\nArtifacts uploaded.")
-        logging.info("\nArtifacts uploaded.")
         
         ######################
         # Set tags
@@ -470,13 +465,15 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         # inference_model_uri
         mlflow.set_tag('pyfunc_model_folder', mlflow.get_artifact_uri(
             f"{mlflow_model_root_dir}"))
-
+            
+        print("\nArtifacts uploaded.")
+        logging.info("\nArtifacts uploaded.")
         return
 
 if __name__ =='__main__':
     print("\n=========== TRAINING =============")
     logging.info("\n=========== TRAINING =============")
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+    mlflow.tracking.MlflowClient(tracking_uri=MLFLOW_TRACKING_URI)
     print("Current tracking uri: {}".format(mlflow.get_tracking_uri()))
     logging.info("Current tracking uri: {}".format(mlflow.get_tracking_uri()))
     train()
