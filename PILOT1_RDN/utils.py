@@ -46,7 +46,7 @@ def load_local_pkl_as_object(local_path):
     pkl_object = pickle.load(open(local_path, "rb"))
     return pkl_object
 
-def download_online_file(url, dst_filename, dst_dir=None):
+def download_online_file(url, dst_filename=None, dst_dir=None):
     import sys, tempfile, requests
 
     if dst_dir is None:
@@ -58,6 +58,8 @@ def download_online_file(url, dst_filename, dst_dir=None):
         raise Exception(f"\nResponse is not 200\nProblem downloading: {url}")
         sys.exit()
     url_content = req.content
+    if dst_filename is None:
+        dst_filename = url.split('/')[-1]
     filepath = os.path.join(dst_dir, dst_filename)
     file = open(filepath, 'wb')
     file.write(url_content)
@@ -67,6 +69,10 @@ def download_online_file(url, dst_filename, dst_dir=None):
 
 def download_mlflow_file(url, dst_dir=None):
     import tempfile
+    from dotenv import load_dotenv
+    load_dotenv()
+    S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
+
     if dst_dir is None:
         dst_dir = tempfile.mkdtemp()
     else:
