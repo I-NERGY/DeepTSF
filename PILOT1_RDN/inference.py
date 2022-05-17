@@ -1,4 +1,4 @@
-from utils import none_checker, load_local_csv_as_darts_timeseries, download_online_file
+from utils import none_checker, load_local_csv_as_darts_timeseries, download_mlflow_file
 import click
 import os
 import mlflow
@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 @click.command()
 @click.option("--pyfunc-model-folder",
@@ -45,12 +46,10 @@ def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, f
 
     with mlflow.start_run(run_name='inference') as mlrun:
 
-        # in case of remote series uri
-        if 's3://mlflow-bucket/' in series_uri:
-            series_uri = series_uri.replace("s3:/", S3_ENDPOINT_URL)
-            download_file_path = download_online_file(
-                series_uri, dst_filename="load.csv")
-            series_uri = download_file_path
+        # in case of remote series uri -> download it locally
+        if 'runs:/' in series_uri or 's3://mlflow-bucket/' in series_uri: 
+            series_uri = download_mlflow_file(series_uri)
+
         series = load_local_csv_as_darts_timeseries(
             local_path=series_uri,
             name='series',
@@ -76,12 +75,13 @@ def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, f
             "past_covariates": past_covariates,
             "batch_size": batch_size,
         }
-        print("\nPyfunc model prediction...")
 
         # Load model as a PyFuncModel.
+        print("\nLoading pyfunc model...")
         loaded_model = mlflow.pyfunc.load_model(pyfunc_model_folder)
 
         # Predict on a Pandas DataFrame.
+        print("\nPyfunc model prediction...")
         predictions = loaded_model.predict(input)
         print(predictions)
 
@@ -95,5 +95,4 @@ def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, f
 if __name__ == '__main__':
     print("\n=========== INFERENCE =============")
     logging.info("\n=========== INFERENCE =============")
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
     MLflowDartsModelPredict()
