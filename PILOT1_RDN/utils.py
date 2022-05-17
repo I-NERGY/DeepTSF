@@ -46,7 +46,7 @@ def load_local_pkl_as_object(local_path):
     pkl_object = pickle.load(open(local_path, "rb"))
     return pkl_object
 
-def download_online_file(url, dst_filename, dst_dir=None):
+def download_online_file(url, dst_filename=None, dst_dir=None):
     import sys, tempfile, requests
 
     if dst_dir is None:
@@ -58,11 +58,35 @@ def download_online_file(url, dst_filename, dst_dir=None):
         raise Exception(f"\nResponse is not 200\nProblem downloading: {url}")
         sys.exit()
     url_content = req.content
+    if dst_filename is None:
+        dst_filename = url.split('/')[-1]
     filepath = os.path.join(dst_dir, dst_filename)
     file = open(filepath, 'wb')
     file.write(url_content)
     file.close()
     return filepath
+
+
+def download_mlflow_file(url, dst_dir=None):
+    import tempfile
+    from dotenv import load_dotenv
+    load_dotenv()
+    S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
+
+    if dst_dir is None:
+        dst_dir = tempfile.mkdtemp()
+    else:
+        os.makedirs(dst_dir, exist_ok=True)
+    if 's3://mlflow-bucket/' in url:
+        url = url.replace("s3:/", S3_ENDPOINT_URL)
+        local_path = download_online_file(
+            url, dst_dir=dst_dir)
+    elif 'runs:/' in url:
+        client = mlflow.tracking.MlflowClient()
+        run_id = url.split('/')[1]
+        mlflow_path = '/'.join(url.split('/')[3:])
+        local_path = client.download_artifacts(run_id, mlflow_path, dst_dir)
+    return local_path
 
 def load_pkl_model_from_server(model_uri):
     print("\nLoading remote PKL model...")
@@ -86,8 +110,9 @@ def load_local_pl_model(model_root_dir):
 
     model = eval(darts_forecasting_model)
     
-    model_root_dir = model_root_dir.replace('/', os.path.sep)
-    print(model_root_dir)
+    # model_root_dir = model_root_dir.replace('/', os.path.sep)
+    
+    print(f"Loading model from local directory:{model_root_dir}")
     
     best_model = model.load_from_checkpoint(model_root_dir, best=True)
 
