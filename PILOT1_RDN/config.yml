@@ -390,6 +390,21 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 1
     batch_size: 1024
+
+  testnbeats:
+    input_chunk_length: 672
+    output_chunk_length: 96
+    num_stacks: 25
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 128
+    expansion_coefficient_dim: 5
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 2048
+
 # Generally speaking, for a receptive field with no holes, the kernel size k has to be at least as big as the dilation base b.
   tcn0_4:
     input_chunk_length: 384

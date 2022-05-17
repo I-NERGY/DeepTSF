@@ -313,7 +313,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 val_past_covariates=past_covariates_transformed['val'],
                 num_loader_workers=4)
             
-            logs_path = f"./darts_logs/{mlrun.info.run_id}/"
+            logs_path = f"./darts_logs/{mlrun.info.run_id}"
             model_type = "pl"
             # TODO: Implement this step without tensorboard (fix utils.py: get_training_progress_by_tag)
             # log_curves(tensorboard_event_folder=f"./darts_logs/{mlrun.info.run_id}/logs", output_dir='training_curves')
@@ -377,7 +377,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 shutil.move(os.path.join(source_dir, file_name), 
                 target_dir)
         
-        ## Create and Move model info in logs path
+        ## Create and move model info in logs path
         model_info_dict = {
             "darts_forecasting_model":  model.__class__.__name__,
             "run_id": mlrun.info.run_id
@@ -399,17 +399,15 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         
         ## Log MLflow model and code
         if model_type == 'pl':
-            shutil.copy("loader_module_pl.py", logs_path_new)
             mlflow.pyfunc.log_model(mlflow_model_root_dir,
                                     loader_module="loader_module_pl",
                                     data_path=logs_path_new,
-                                    code_path=['./utils.py', './inference.py', 'loader_module_pl.py'])
+                                    code_path=['utils.py', 'inference.py', 'loader_module_pl.py'])
         elif model_type == 'pkl':
-            shutil.copy("loader_module_pkl.py", logs_path_new)
             mlflow.pyfunc.log_model(mlflow_model_root_dir,
                                     loader_module="loader_module_pkl",
                                     data_path=logs_path_new,
-                                    code_path=['./utils.py', './inference.py', 'loader_module_pkl.py'])
+                                    code_path=['utils.py', 'inference.py', 'loader_module_pkl.py'])
 
         ## Clean logs_path: Now it is necessary to avoid conflicts
         shutil.rmtree(logs_path_new)
