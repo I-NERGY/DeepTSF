@@ -64,6 +64,24 @@ def download_online_file(url, dst_filename, dst_dir=None):
     file.close()
     return filepath
 
+
+def download_mlflow_file(url, dst_dir=None):
+    import tempfile
+    if dst_dir is None:
+        dst_dir = tempfile.mkdtemp()
+    else:
+        os.makedirs(dst_dir, exist_ok=True)
+    if 's3://mlflow-bucket/' in url:
+        url = url.replace("s3:/", S3_ENDPOINT_URL)
+        local_path = download_online_file(
+            url, dst_dir=dst_dir)
+    elif 'runs:/' in url:
+        client = mlflow.tracking.MlflowClient()
+        run_id = url.split('/')[1]
+        mlflow_path = '/'.join(url.split('/')[3:])
+        local_path = client.download_artifacts(run_id, mlflow_path, dst_dir)
+    return local_path
+
 def load_pkl_model_from_server(model_uri):
     print("\nLoading remote PKL model...")
     model_path = download_online_file(f'{model_uri}/_model.pkl', '_model.pkl')
