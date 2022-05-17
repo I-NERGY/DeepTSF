@@ -19,7 +19,7 @@ mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
               default="s3://mlflow-bucket/2/33d85746285c42a7b3ef403eb2f5c95f/artifacts/pyfunc_model")
 @click.option("--forecast-horizon",
               type=str,
-              default="96")
+              default="960")
 @click.option("--series-uri",
               type=str,
               default="ENG/series.csv")
