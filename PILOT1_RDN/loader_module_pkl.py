@@ -1,10 +1,10 @@
 import cloudpickle
 from sys import version_info
+import os
 from utils import load_model, load_scaler
 import darts
 import mlflow
 import torch
-import pretty_errors
 
 PYTHON_VERSION = "{major}.{minor}.{micro}".format(major=version_info.major,
                                                   minor=version_info.minor,
@@ -21,7 +21,6 @@ mlflow_serve_conda_env = {
                 'darts=={}'.format(darts.__version__),
                 'torch=={}'.format(torch.__version__),
                 'mlflow=={}'.format(mlflow.__version__),
-                'pretty-errors=={}'.format(pretty_errors.__version__),
             ],
         },
     ],
@@ -80,6 +79,10 @@ def _load_pyfunc(model_file):
     Load PyFunc implementation. Called by ``pyfunc.load_pyfunc``.
     """
     ## load model from MLflow or local folder
+    print(f"Local path inside _load_pyfunc: {model_file}")
+    model_file = model_file.replace('/', os.path.sep)
+    model_file = model_file.replace('\', os.path.sep)
+    print(f"Local path altered for loading: {model_file}")
     
     print(f"Inside _load_pyfunc: {model_file}")
     model = load_model(model_uri=f'{model_file}/_model.pkl', mode="local", model_type="pkl")
