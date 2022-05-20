@@ -1,7 +1,6 @@
 import click
 import os
 import mlflow
-import darts
 import logging
 import tempfile
 
@@ -38,10 +37,6 @@ def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, f
     """This is the main function for predicting MLflow pyfunc models. The inputs are csv file uris (online or local) and integers. 
     The csv files are dowloaded and the converted to darts.TimeSeries and finally given to the loaded models and for prediction according to their 
     specification"""
-    # Parse arguments
-    batch_size = int(batch_size)
-    roll_size = int(roll_size)
-    forecast_horizon = int(forecast_horizon)
 
     with mlflow.start_run(run_name='inference') as mlrun:
 
@@ -63,10 +58,10 @@ def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, f
         predictions = loaded_model.predict(input)
         print(predictions)
 
+        # Store CSV of predictions: first locally and then to MLflow server
         infertmpdir = tempfile.mkdtemp()
         predictions.to_csv(os.path.join(infertmpdir, 'predictions.csv'))
         mlflow.log_artifacts(infertmpdir)
-
 
 #TODO: Input should be newly ingested time series data passing through the load_raw data step and the etl step. How can this be done?
 # Maybe I need a second pipeline (inference pipeline) that goes like that: load_raw_data -> etl -> inference for a specific registered MLflow model"""

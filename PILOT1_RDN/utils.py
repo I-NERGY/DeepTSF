@@ -242,6 +242,11 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
 def parse_uri_prediction_input(model_input: dict, model) -> dict:
 
     series_uri = model_input['series_uri']
+
+    # str to int
+    batch_size = int(batch_size)
+    roll_size = int(roll_size)
+    forecast_horizon = int(forecast_horizon)
     
     ## Horizon
     n = int(model_input["n"]) if model_input["n"] is not None else model.output_chunk_length
