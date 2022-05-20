@@ -286,7 +286,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
 
     # TODO: Also implement for local files -> Done?
     ## load model from MLflow
-    model = load_model(model_uri, mode, model_type)
+    model = load_model(model_uri, mode)
     scaler = load_scaler(scaler_uri=none_checker(scaler_uri), mode=mode)
 
     if scaler is not None:
