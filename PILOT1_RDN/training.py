@@ -279,9 +279,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         print("\nTraining model...")
         logging.info("\nTraining model...")
         pl_trainer_kwargs = {"callbacks": [my_stopper],
-                             "accelerator": device,
-                             "gpus": 1,
-                             "auto_select_gpus": True,
+                             "accelerator": 'auto',
+                            #  "gpus": 1,
+                            #  "auto_select_gpus": True,
                              "log_every_n_steps": 10}
 
         ## choose architecture
@@ -310,8 +310,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 past_covariates=past_covariates_transformed['train'],
                 val_series=series_transformed['val'],
                 val_future_covariates=future_covariates_transformed['val'],
-                val_past_covariates=past_covariates_transformed['val'],
-                num_loader_workers=4)
+                val_past_covariates=past_covariates_transformed['val'])
             
             logs_path = f"./darts_logs/{mlrun.info.run_id}"
             model_type = "pl"
@@ -398,16 +397,16 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             logs_path_new = logs_path
         
         ## Log MLflow model and code
-        if model_type == 'pl':
-            mlflow.pyfunc.log_model(mlflow_model_root_dir,
-                                    loader_module="loader_module_pl",
-                                    data_path=logs_path_new,
-                                    code_path=['utils.py', 'inference.py', 'loader_module_pl.py'])
-        elif model_type == 'pkl':
-            mlflow.pyfunc.log_model(mlflow_model_root_dir,
-                                    loader_module="loader_module_pkl",
-                                    data_path=logs_path_new,
-                                    code_path=['utils.py', 'inference.py', 'loader_module_pkl.py'])
+        # if model_type == 'pl':
+        mlflow.pyfunc.log_model(mlflow_model_root_dir,
+                                loader_module="darts_flavor",
+                                data_path=logs_path_new,
+                                code_path=['utils.py', 'inference.py', 'darts_flavor.py'])
+        # elif model_type == 'pkl':
+        #     mlflow.pyfunc.log_model(mlflow_model_root_dir,
+        #                             loader_module="loader_module_pkl",
+        #                             data_path=logs_path_new,
+        #                             code_path=['utils.py', 'inference.py', 'loader_module_pkl.py'])
 
         ## Clean logs_path: Now it is necessary to avoid conflicts
         shutil.rmtree(logs_path_new)
