@@ -77,15 +77,18 @@ def download_mlflow_file(url, dst_dir=None):
         dst_dir = tempfile.mkdtemp()
     else:
         os.makedirs(dst_dir, exist_ok=True)
-    if 's3://mlflow-bucket/' in url:
+    if url.startswith('s3://mlflow-bucket/'):
         url = url.replace("s3:/", S3_ENDPOINT_URL)
         local_path = download_online_file(
             url, dst_dir=dst_dir)
-    elif 'runs:/' in url:
+    elif url.startswith('runs:/'):
         client = mlflow.tracking.MlflowClient()
         run_id = url.split('/')[1]
         mlflow_path = '/'.join(url.split('/')[3:])
         local_path = client.download_artifacts(run_id, mlflow_path, dst_dir)
+    elif url.startswith('http'):
+        local_path = download_online_file(
+            url, dst_dir=dst_dir)   
     return local_path
 
 def load_pkl_model_from_server(model_uri):
@@ -118,7 +121,6 @@ def load_local_pl_model(model_root_dir):
 
     return best_model
 
-
 def load_pl_model_from_server(model_root_dir):
 
     import tempfile
@@ -135,15 +137,30 @@ def load_pl_model_from_server(model_root_dir):
     best_model = load_local_pl_model(os.path.join(local_dir, mlflow_relative_model_root_dir))
     return best_model
 
-def load_model(model_uri, mode="remote", model_type="pl"):
+def load_model(model_root_dir, mode="remote"):
+
+    # Get model type as tag of model's run
+    import mlflow
+    print(model_root_dir)
+    client = mlflow.tracking.MlflowClient()
+    if mode == 'remote':
+        run_id = model_root_dir.split('/')[-1]
+    else:
+        run_id = model_root_dir.split(os.path.sep)[-1]
+    model_run = client.get_run(run_id)
+    model_type = model_run.data.tags.get('model_type')
+
+    # Load accordingly
     if mode == "remote" and model_type == "pl":
-        model = load_pl_model_from_server(model_root_dir=model_uri)
+        model = load_pl_model_from_server(model_root_dir=model_root_dir)
     elif mode == "remote" and model_type == "pkl":
-        model = load_pkl_model_from_server(model_uri)
+        model = load_pkl_model_from_server(model_root_dir)
     elif mode == "local" and model_type == 'pl':
-        model = load_local_pl_model(model_root_dir=model_uri)
+        model = load_local_pl_model(model_root_dir=model_root_dir)
     else:
         print("\nLoading local PKL model...")
+        # pkl loads the exact model file so:
+        model_uri = os.path.join(model_root_dir, '_model.pkl')
         model = load_local_pkl_as_object(model_uri)
     return model
 
@@ -222,6 +239,50 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
         covariates = None
     return covariates
 
+def parse_uri_prediction_input(model_input: dict, model) -> dict:
+
+    series_uri = model_input['series_uri']
+    
+    ## Horizon
+    n = int(model_input["n"]) if model_input["n"] is not None else model.output_chunk_length
+    roll_size = int(model_input["roll_size"]) if model_input["roll_size"] is not None else model.output_chunk_length
+    
+    ## TODO: future and past covariates (load and transform to darts)
+    past_covariates_uri = model_input["past_covariates_uri"]
+    future_covariates_uri = model_input["future_covariates_uri"]
+
+    batch_size = int(model_input["batch_size"]) if model_input["batch_size"] is not None else 1
+
+    if 'runs:/' in series_uri or 's3://mlflow-bucket/' in series_uri or series_uri.startswith('http'):
+        print('\nDownloading remote file of recent time series history...')
+        series_uri = download_mlflow_file(series_uri)
+
+    history = load_local_csv_as_darts_timeseries(
+        local_path=series_uri,
+        name='series',
+        time_col='Date',
+        last_date=None)
+
+    if none_checker(future_covariates_uri) is not None:
+        future_covariates = darts.TimeSeries.from_csv(
+            future_covariates_uri, time_col='Date')
+    else:
+        future_covariates = None
+
+    if none_checker(past_covariates_uri) is not None:
+        past_covariates = darts.TimeSeries.from_csv(
+            past_covariates_uri, time_col='Date')
+    else:
+        past_covariates = None
+    
+    return {
+        "n": n,
+        "history": history,
+        "roll_size": roll_size,
+        "future_covariates": future_covariates,
+        "past_covariates": past_covariates,
+        "batch_size": batch_size,
+    }
 #TODO: Fix it. It does not get any progress any more
 # def get_training_progress_by_tag(fn, tag):
 #     # assert(os.path.isdir(output_dir))
