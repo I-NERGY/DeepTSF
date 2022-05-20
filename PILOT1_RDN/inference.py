@@ -1,4 +1,3 @@
-from utils import none_checker, load_local_csv_as_darts_timeseries, download_mlflow_file
 import click
 import os
 import mlflow
@@ -46,33 +45,12 @@ def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, f
 
     with mlflow.start_run(run_name='inference') as mlrun:
 
-        # in case of remote series uri -> download it locally
-        if 'runs:/' in series_uri or 's3://mlflow-bucket/' in series_uri: 
-            series_uri = download_mlflow_file(series_uri)
-
-        series = load_local_csv_as_darts_timeseries(
-            local_path=series_uri,
-            name='series',
-            time_col='Date',
-            last_date=None)
-
-        if none_checker(future_covariates_uri) is not None:
-            future_covariates = darts.TimeSeries.from_csv(
-                future_covariates_uri, time_col='Date')
-        else:
-            future_covariates = None
-        if none_checker(past_covariates_uri) is not None:
-            past_covariates = darts.TimeSeries.from_csv(
-                past_covariates_uri, time_col='Date')
-        else:
-            past_covariates = None
-
         input = {
             "n": forecast_horizon,
-            "history": series,
+            "series_uri": series_uri,
             "roll_size": roll_size,
-            "future_covariates": future_covariates,
-            "past_covariates": past_covariates,
+            "future_covariates_uri": future_covariates_uri,
+            "past_covariates_uri": past_covariates_uri,
             "batch_size": batch_size,
         }
 
