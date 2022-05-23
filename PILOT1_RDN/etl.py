@@ -248,7 +248,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
                         delimiter=',', 
                         header=0, 
                         index_col=0, 
-                        parse_dates=True)
+                        parse_dates=True,
+                        dayfirst = True)
 
         # ts.to_csv(f'{tmpdir}/0_loaded.csv')
 
