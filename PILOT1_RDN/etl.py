@@ -210,7 +210,13 @@ def get_time_covariates(series, country_code='PT'):
     type=click.Choice(["None", "PT"]),
     help="Optionally add time covariates to the timeseries. [Options: None or Country Code based on the Python 'holidays' package]"
 )
-def etl(series_csv, series_uri, year_range, resolution, time_covs):
+@click.option(
+    "--day-first",
+    type=str,
+    default="true",
+    help="Whether the date has the day before the month")
+
+def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
     # Also check if current transformations are ok
@@ -224,6 +230,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
 
     # Time col check
     time_covs = none_checker(time_covs)
+
+    # Day first check
+    day_first = truth_checker(day_first)
 
     # Year range handling
     if "-" in year_range:
@@ -245,15 +254,11 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
         logging.info("\nLoading source dataset..")
 
         ts = pd.read_csv(series_csv,
-                        sep=None,
-                        engine='python',
+                        delimiter=',',
                         header=0,
-                        names=['Date', 'Load'],
-                        usecols=[0,1],
                         index_col=0,
                         parse_dates=True,
-                        dayfirst = True)
-        # ts.to_csv(f'{tmpdir}/0_loaded.csv')
+                        dayfirst=day_first)
 
         # temporal filtering
         print("\nTemporal filtering...")
