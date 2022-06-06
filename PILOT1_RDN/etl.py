@@ -3,6 +3,9 @@ from utils import none_checker
 import os
 from os import times
 from utils import download_online_file
+from utils import truth_checker
+from exceptions import DatesNotInOrder
+from exceptions import WrongColumnNames
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 import darts
 from darts.utils.timeseries_generation import holidays_timeseries
@@ -178,6 +181,23 @@ def get_time_covariates(series, country_code='PT'):
 
     return covariates
 
+def read_and_validate_input(series_csv, day_first):
+    """
+    Validates the input after read_csv is called and
+    throws apropriate exception if it detects an error
+    """
+    ts = pd.read_csv(series_csv,
+                    delimiter=',',
+                    header=0,
+                    index_col=0,
+                    parse_dates=True,
+                    dayfirst=day_first)
+    if not ts.index.sort_values().equals(ts.index):
+        raise DatesNotInOrder()
+    elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
+        raise WrongColumnNames(list(ts.columns) + [ts.index.name])
+    return ts
+
 @click.command(
     help="Given a timeseries CSV file (see load_raw_data), resamples it, "
          "drops duplicates converts it to darts and optionally creates "
@@ -253,12 +273,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
         print("\nLoading source dataset..")
         logging.info("\nLoading source dataset..")
 
-        ts = pd.read_csv(series_csv,
-                        delimiter=',',
-                        header=0,
-                        index_col=0,
-                        parse_dates=True,
-                        dayfirst=day_first)
+        ts = read_and_validate_input(series_csv, day_first)
 
         # temporal filtering
         print("\nTemporal filtering...")
