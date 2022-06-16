@@ -204,7 +204,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
         # 1.Load Data
         git_commit = active_run.data.tags.get(mlflow_tags.MLFLOW_GIT_COMMIT)
 
-        load_raw_data_params = {"series_csv": series_csv, "series_uri": series_uri}
+        load_raw_data_params = {"series_csv": series_csv, "series_uri": series_uri, "day_first": day_first}
         load_raw_data_run = _get_or_run("load_raw_data", load_raw_data_params, git_commit, ignore_previous_runs)
         # series_uri = f"{load_raw_data_run.info.artifact_uri}/raw_data/series.csv" \
         #                 .replace("s3:/", S3_ENDPOINT_URL)
