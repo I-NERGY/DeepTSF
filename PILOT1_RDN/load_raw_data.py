@@ -10,6 +10,7 @@ from utils import ConfigParser
 import logging
 import pandas as pd
 import csv
+from datetime import datetime
 from utils import download_online_file
 import shutil
 import pretty_errors
@@ -37,6 +38,11 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         The path to the local file of the series to be validated
     day_first
         Whether to read the csv assuming day comes before the month
+
+    Returns
+    -------
+    pandas.DataFrame
+        The resulting dataframe from series_csv
     """
     ts = pd.read_csv(series_csv,
                     delimiter=',',
@@ -48,6 +54,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         raise DatesNotInOrder()
     elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
         raise WrongColumnNames(list(ts.columns) + [ts.index.name])
+    return ts
 
 @click.command(
     help="Downloads the RDN series and saves it as an mlflow artifact "
@@ -84,7 +91,7 @@ def load_raw_data(series_csv, series_uri, day_first):
 
         print(f'Validating timeseries on local file: {series_csv}')
         logging.info(f'Validating timeseries on local file: {series_csv}')
-        read_and_validate_input(series_csv, day_first)
+        ts = read_and_validate_input(series_csv, day_first)
 
         local_path = local_path.replace("'", "") if "'" in local_path else local_path
         series_filename = os.path.join(*local_path, fname)
@@ -97,6 +104,8 @@ def load_raw_data(series_csv, series_uri, day_first):
         ## TODO: Read from APi
 
         # set mlflow tags for next steps
+        mlflow.set_tag("dataset_start", datetime.strftime(ts.index[0], "%Y%m%d"))
+        mlflow.set_tag("dataset_end", datetime.strftime(ts.index[-1], "%Y%m%d"))
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "load_raw_data")
         mlflow.set_tag('dataset_uri', f'{mlrun.info.artifact_uri}/raw_data/{fname}')
