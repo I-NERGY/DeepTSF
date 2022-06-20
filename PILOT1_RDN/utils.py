@@ -17,6 +17,9 @@ class ConfigParser:
 
     def read_hyperparameters(self, hyperparams_entrypoint):
         return self.config['hyperparameters'][hyperparams_entrypoint]
+    
+    def read_entrypoints(self):
+        return self.config['hyperparameters']
 
 def download_file_from_s3_bucket(object_name, dst_filename, dst_dir=None, bucketName='mlflow-bucket'):
     import boto3, tempfile
