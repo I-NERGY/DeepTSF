@@ -10,11 +10,14 @@ from utils import ConfigParser
 import logging
 import pandas as pd
 import csv
+from datetime import datetime
 from utils import download_online_file
 import shutil
 import pretty_errors
 import uuid
-
+from exceptions import DatesNotInOrder
+from exceptions import WrongColumnNames
+from utils import truth_checker
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
@@ -23,32 +26,73 @@ load_dotenv()
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
+def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
+                            day_first: str = "true"):
+    """
+    Validates the input after read_csv is called and
+    throws apropriate exception if it detects an error
+
+    Parameters
+    ----------
+    series_csv
+        The path to the local file of the series to be validated
+    day_first
+        Whether to read the csv assuming day comes before the month
+
+    Returns
+    -------
+    pandas.DataFrame
+        The resulting dataframe from series_csv
+    """
+    ts = pd.read_csv(series_csv,
+                    delimiter=',',
+                    header=0,
+                    index_col=0,
+                    parse_dates=True,
+                    dayfirst=day_first)
+    if not ts.index.sort_values().equals(ts.index):
+        raise DatesNotInOrder()
+    elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
+        raise WrongColumnNames(list(ts.columns) + [ts.index.name])
+    return ts
+
 @click.command(
     help="Downloads the RDN series and saves it as an mlflow artifact "
     "called 'load_x_y.csv'."
     )
 # TODO: Update that to accept url as input instead of local file
-@click.option("--series-csv", 
-    type=str, 
+@click.option("--series-csv",
+    type=str,
     default="../../RDN/Load_Data/2009-2019-global-load.csv",
     help="Local time series csv file"
     )
-@click.option("--series-uri", 
+@click.option("--series-uri",
     default="online_artifact",
     help="Remote time series csv file. If set, it overwrites the local value."
     )
-def load_raw_data(series_csv, series_uri):
+@click.option("--day-first",
+    type=str,
+    default="true",
+    help="Whether the date has the day before the month")
+
+def load_raw_data(series_csv, series_uri, day_first):
 
     if series_uri != "online_artifact":
         download_file_path = download_online_file(series_uri, dst_filename="series.csv")
         series_csv = download_file_path
-    
+
     series_csv = series_csv.replace('/', os.path.sep)
     fname = series_csv.split(os.path.sep)[-1]
     local_path = series_csv.split(os.path.sep)[:-1]
-    
+
+    day_first = truth_checker(day_first)
+
     with mlflow.start_run(run_name='load_data', nested=True) as mlrun:
-        
+
+        print(f'Validating timeseries on local file: {series_csv}')
+        logging.info(f'Validating timeseries on local file: {series_csv}')
+        ts = read_and_validate_input(series_csv, day_first)
+
         local_path = local_path.replace("'", "") if "'" in local_path else local_path
         series_filename = os.path.join(*local_path, fname)
         # series = pd.read_csv(series_filename,  index_col=0, parse_dates=True, squeeze=True)
@@ -60,6 +104,8 @@ def load_raw_data(series_csv, series_uri):
         ## TODO: Read from APi
 
         # set mlflow tags for next steps
+        mlflow.set_tag("dataset_start", datetime.strftime(ts.index[0], "%Y%m%d"))
+        mlflow.set_tag("dataset_end", datetime.strftime(ts.index[-1], "%Y%m%d"))
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "load_raw_data")
         mlflow.set_tag('dataset_uri', f'{mlrun.info.artifact_uri}/raw_data/{fname}')
