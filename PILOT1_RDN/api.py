@@ -1,11 +1,13 @@
 from distutils.log import error
 from enum import Enum
-from fastapi import File, UploadFile, FastAPI
+from fastapi import FastAPI, UploadFile, File, HTTPException
 import pandas as pd
 import mlflow
 from utils import ConfigParser
 import tempfile
 import os
+from load_raw_data import read_and_validate_input
+from exceptions import DatesNotInOrder, WrongColumnNames
 
 # allows automated type check with pydantic
 class ModelName(str, Enum):
@@ -30,7 +32,7 @@ class ResolutionMinutes(int, Enum):
 
     @staticmethod
     def dict():
-        return {"resolution": list(map(lambda c: c.value, ModelName))}
+        return {"resolution": list(map(lambda c: c.value, ResolutionMinutes))}
 
 class DateLimits(int, Enum):
     """This function will read the uploaded csv before running the pipeline and will decide which are the allowed values
@@ -46,18 +48,39 @@ app = FastAPI()
 # <api>.<http_operation>.(<route>)
 @app.get("/")
 async def root():
-    return {"message": "I-NERGY Load Forecasting API"}
+    return {"message": "Congratulations! Your API is working as expected. Now head over to http://localhost:8000/docs"}
 
 @app.get("/models/get_model_names")
 async def get_model_names():
     return ModelName.dict()
 
-@app.get("/models/{model_name}/hparams")
-async def get_model_hparams():
-    return ModelName.dict()
+# @app.get("/models/{model_name}/hparams")
+# async def get_model_hparams():
+#     return ModelName.dict()
 
-@app.post('/uploadfile/')
-async def create_upload_file(file: UploadFile = File(...), experiment_name: str = None):
+
+# Validate
+@app.post('upload/validateCSVfile/')
+async def validate_csv_file(fname: str, day_first: bool):
+    params = {
+        "series_csv": fname,  # get from create_upload_csv_file()
+        "day_first": day_first # get from ui (tickbox or radio button or smth...), allowed values: true or false, default: false
+    }
+
+    fileExtension = fname.split(".")[-1].lower() == "csv"
+    if not fileExtension:
+        raise HTTPException(
+            status_code=415, detail="Unsupported file type provided. Please upload CSV file)
+    try:
+        read_and_validate_input(fname, day_first)
+    except DatesNotInOrder:
+        return {"message": "There was an error validating the file. Dates are not in order",
+                "fname": fname}
+    except WrongColumnNames:
+        return {"message": "There was an error validating the file. Please reupload CSV with 2 columns with names: 'Date', 'Load'"}
+
+@app.post('/upload/uploadCSVfile/')
+async def create_upload_csv_file(file: UploadFile = File(...)):
     try:
         # write locally
         local_dir = tempfile.mkdtemp()
@@ -69,34 +92,22 @@ async def create_upload_file(file: UploadFile = File(...), experiment_name: str 
         return {"message": "There was an error uploading the file"}
     finally:
         await file.close()
+    return {"message": "There was an error uploading the file",
+            "fname": fname}
 
-    # Validate 
-    params = {
-        "series_uri": "online_artifact",
-        "series_csv": fname
-    }
+    # if load_raw_data_run.info.status == "FAILED":
+    #     return {"message": "Successfully uploaded file. However validation failed. Check file format!",
+    #             "validator_run_id": mlflow.tracking.MlflowClient().get_run(load_raw_data_run.run_id),
+    #             "experiment_name": experiment_name}
 
-    load_raw_data_run = mlflow.run(
-        uri=".",
-        entry_point="load_raw_data",
-        parameters=params,
-        env_manager="local",
-        experiment_name=experiment_name
-    )
-
-    if load_raw_data_run.info.status == "FAILED":
-        return {"message": "Successfully uploaded file. However validation failed. Check file format!",
-                "validator_run_id": mlflow.tracking.MlflowClient().get_run(load_raw_data_run.run_id),
-                "experiment_name": experiment_name}
-
-    elif load_raw_data_run.info.status == "FINISHED":
-        return {"message": f"Successfuly uploaded and validated {file.filename}",
-                "validator_run_id": mlflow.tracking.MlflowClient().get_run(load_raw_data_run.run_id),
-                "experiment_name": experiment_name,
-                "series_uri": load_raw_data_run.data.tags['dataset_uri'],
-                "dataset_start": load_raw_data_run.data.tags['dataset_start'],
-                "dataset_end": load_raw_data_run.data.tags['dataset_end']
-                }
+    # elif load_raw_data_run.info.status == "FINISHED":
+    #     return {"message": f"Successfuly uploaded and validated {file.filename}",
+    #             "validator_run_id": mlflow.tracking.MlflowClient().get_run(load_raw_data_run.run_id),
+    #             "experiment_name": experiment_name,
+    #             "series_uri": load_raw_data_run.data.tags['dataset_uri'],
+    #             "dataset_start": load_raw_data_run.data.tags['dataset_start'],
+    #             "dataset_end": load_raw_data_run.data.tags['dataset_end']
+    #             }
 
 @app.get('/experimentation_pipeline/training/hyperparameter_entrypoints/')
 async def get_experimentation_pipeline_hparam_entrypoints():
