@@ -1,10 +1,3 @@
-# mlflow_settings:
-#   # mlflow_tracking_uri: http://131.154.97.48:5000
-#   # mlflow_s3_endpoint_url: http://147.102.6.64:9000
-#   # minio_settings:
-#   #     aws_access_key_id: accessminio
-#   #     aws_secret_access_key: secretminio
-
 hyperparameters:
 
   test:
@@ -159,6 +152,20 @@ hyperparameters:
   #   learning_rate: 0.001
   #   # likelihood: Gaussian
   #   batch_size: 1024
+
+  lstm_example:
+    model: LSTM
+    n_rnn_layers: 2
+    hidden_dim:  64 #128
+    n_epochs: 100
+    input_chunk_length: 672
+    training_length: 672
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    # likelihood: Gaussian
+    batch_size: 1024
 
   lstm1_7:
     model: LSTM
