@@ -586,7 +586,6 @@ hyperparameters:
     future_covs_as_tuple: true
     random_state: 0
 
-
   rf_w:
     lags: 672
     lags_past_covariates: null
