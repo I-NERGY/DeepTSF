@@ -9,6 +9,7 @@ import os
 from load_raw_data import read_and_validate_input
 from exceptions import DatesNotInOrder, WrongColumnNames
 from datetime import datetime
+from fastapi.middleware.cors import CORSMiddleware
 
 # allows automated type check with pydantic
 class ModelName(str, Enum):
@@ -45,6 +46,14 @@ class DateLimits(int, Enum):
         return {"resolution": list(map(lambda c: c.value, ModelName))}
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # <api>.<http_operation>.(<route>)
 @app.get("/")
