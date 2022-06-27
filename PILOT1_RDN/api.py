@@ -118,7 +118,7 @@ async def validate_csv_file(fname: str, day_first: bool):
     return {"message": "Validation successful",
             "fname": fname,
             "dataset_start": datetime.strftime(ts.index[0], "%Y%m%d"),
-            "dataset_end": datetime.strftime(ts.index[0], "%Y%m%d")
+            "dataset_end": datetime.strftime(ts.index[-1], "%Y%m%d")
             }
 
 @app.get('/experimentation_pipeline/training/hyperparameter_entrypoints/')
