@@ -45,11 +45,12 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         The resulting dataframe from series_csv
     """
     ts = pd.read_csv(series_csv,
-                    delimiter=',',
-                    header=0,
-                    index_col=0,
-                    parse_dates=True,
-                    dayfirst=day_first)
+                     sep=None,
+                     header=0,
+                     index_col=0,
+                     parse_dates=True,
+                     dayfirst=day_first,
+                     engine='python')
     if not ts.index.sort_values().equals(ts.index):
         raise DatesNotInOrder()
     elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
