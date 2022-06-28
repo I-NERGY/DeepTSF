@@ -66,6 +66,7 @@ async def get_model_names():
 
 @app.post('/upload/uploadCSVfile/')
 async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True)):
+    # Loading
     print("Uploading file...")
     try:
         # write locally
@@ -79,12 +80,8 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
     finally:
         await file.close()
 
+    # Validation
     print("Validating file...")
-    params = {
-        "fname": fname,  # get from create_upload_csv_file()
-        # get from ui (tickbox or radio button or smth...), allowed values: true or false, default: false
-        "day_first": day_first
-    }
     fileExtension = fname.split(".")[-1].lower() == "csv"
     if not fileExtension:
         raise HTTPException(
