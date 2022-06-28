@@ -1,9 +1,9 @@
 from distutils.log import error
 from enum import Enum
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 import pandas as pd
 import mlflow
-from utils import ConfigParser
+from utils import ConfigParser, truth_checker
 import tempfile
 import os
 from load_raw_data import read_and_validate_input
@@ -65,7 +65,8 @@ async def get_model_names():
     return ModelName.dict()
 
 @app.post('/upload/uploadCSVfile/')
-async def create_upload_csv_file(file: UploadFile = File(...)):
+async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True)):
+    print("Uploading file...")
     try:
         # write locally
         local_dir = tempfile.mkdtemp()
@@ -77,33 +78,13 @@ async def create_upload_csv_file(file: UploadFile = File(...)):
         return {"message": "There was an error uploading the file"}
     finally:
         await file.close()
-    return {"message": "Upload successful",
-            "fname": fname}
 
-    # if load_raw_data_run.info.status == "FAILED":
-    #     return {"message": "Successfully uploaded file. However validation failed. Check file format!",
-    #             "validator_run_id": mlflow.tracking.MlflowClient().get_run(load_raw_data_run.run_id),
-    #             "experiment_name": experiment_name}
-
-    # elif load_raw_data_run.info.status == "FINISHED":
-    #     return {"message": f"Successfuly uploaded and validated {file.filename}",
-    #             "validator_run_id": mlflow.tracking.MlflowClient().get_run(load_raw_data_run.run_id),
-    #             "experiment_name": experiment_name,
-    #             "series_uri": load_raw_data_run.data.tags['dataset_uri'],
-    #             "dataset_start": load_raw_data_run.data.tags['dataset_start'],
-    #             "dataset_end": load_raw_data_run.data.tags['dataset_end']
-    #             }
-
-# Validate right after upload
-@app.post('/upload/validateCSVfile/')
-async def validate_csv_file(fname: str, day_first: bool):
-    #TODO: korbakis while uploading ask the user if day_first or month first (default: dayfirst=False)
+    print("Validating file...")
     params = {
-        "series_csv": fname,  # get from create_upload_csv_file()
+        "fname": fname,  # get from create_upload_csv_file()
         # get from ui (tickbox or radio button or smth...), allowed values: true or false, default: false
         "day_first": day_first
     }
-
     fileExtension = fname.split(".")[-1].lower() == "csv"
     if not fileExtension:
         raise HTTPException(
