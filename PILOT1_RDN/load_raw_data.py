@@ -100,6 +100,8 @@ def load_raw_data(series_csv, series_uri, day_first):
         # darts_series = darts.TimeSeries.from_series(series, freq=f'{timestep}min')
         print(f'\nUploading timeseries to MLflow server: {series_filename}')
         logging.info(f'\nUploading timeseries to MLflow server: {series_filename}')
+        
+        ts.to_csv(series_filename, index=False)
         mlflow.log_artifact(series_filename, "raw_data")
 
         ## TODO: Read from APi
@@ -108,6 +110,7 @@ def load_raw_data(series_csv, series_uri, day_first):
         mlflow.set_tag("dataset_start", datetime.strftime(ts.index[0], "%Y%m%d"))
         mlflow.set_tag("dataset_end", datetime.strftime(ts.index[-1], "%Y%m%d"))
         mlflow.set_tag("run_id", mlrun.info.run_id)
+        
         mlflow.set_tag("stage", "load_raw_data")
         mlflow.set_tag('dataset_uri', f'{mlrun.info.artifact_uri}/raw_data/{fname}')
 
