@@ -140,8 +140,8 @@ async def run_experimentation_pipeline(parameters: dict):
         "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
         "test_end_date": parameters["test_end_date"],  # input: user | type: str | example: "20220101" | Choose from calendar, should be > cut_date_test and <= dataset_end, defaults to dataset_end
         "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
-        "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24)
-        "hyperparms_entrypoint": parameters["hyperameters"], # input: user | type: str | example: "nbeats0_2" | get values from config.yaml headers
+        "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
+        "hyperparams_entrypoint": parameters["hyperameters"], # input: user | type: str | example: "nbeats0_2" | get values from config.yaml headers
         "ignore_previous_runs": parameters["ignore_previous_runs"], # input: user | type: str | example: "true" | allowed values "true" or "false", defaults to false)
     }
 
