@@ -18,6 +18,8 @@ import uuid
 from exceptions import DatesNotInOrder
 from exceptions import WrongColumnNames
 from utils import truth_checker
+import tempfile
+
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
@@ -101,8 +103,10 @@ def load_raw_data(series_csv, series_uri, day_first):
         print(f'\nUploading timeseries to MLflow server: {series_filename}')
         logging.info(f'\nUploading timeseries to MLflow server: {series_filename}')
         
-        ts.to_csv(series_filename, index=False)
-        mlflow.log_artifact(series_filename, "raw_data")
+        tmpdir = tempfile.mkdtemp()
+        ts_filename = os.path.join(tmpdir, fname)
+        ts.to_csv(ts_filename, index=True)
+        mlflow.log_artifact(ts_filename, "raw_data")
 
         ## TODO: Read from APi
 

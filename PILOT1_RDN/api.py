@@ -10,21 +10,26 @@ from load_raw_data import read_and_validate_input
 from exceptions import DatesNotInOrder, WrongColumnNames
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware
+from mlflow.tracking import MlflowClient
 
 # allows automated type check with pydantic
-class ModelName(str, Enum):
-    nbeats = "nbeats"
-    tcn = "tcn"
-    rnn = "rnn"
-    lgbm = "lightgbm"
+#class ModelName(str, Enum):
 
-    @staticmethod
-    def list():
-        return list(map(lambda c: c.value, ModelName))
+models = [
+    {"model_name": "NBEATS", "search_term": "nbeats"},
+    {"model_name": "TCN", "search_term": "tcn"},
+    {"model_name": "BlockRNN", "search_term": "blocklstm"},
+    {"model_name": "LightGBM", "search_term": "lgbm"},
+    {"model_name": "RandomForest", "search_term": "rf"}
+    ]
+
+   # @staticmethod
+   # def list():
+   #     return list(map(lambda c: c.value, ModelName))
     
-    @staticmethod
-    def dict():
-        return {"models": list(map(lambda c: c.value, ModelName))}
+#   @staticmethod
+#   def dict():
+#        return self.models
 
 class ResolutionMinutes(int, Enum):
     a = 5
@@ -62,7 +67,8 @@ async def root():
 
 @app.get("/models/get_model_names")
 async def get_model_names():
-    return ModelName.dict()
+    return models
+    #return ModelName.dict()
 
 @app.post('/upload/uploadCSVfile/')
 async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True)):
@@ -95,8 +101,8 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
         return {"message": "There was an error validating the file. Please reupload CSV with 2 columns with names: 'Date', 'Load'"}
     return {"message": "Validation successful",
             "fname": fname,
-            "dataset_start": datetime.strftime(ts.index[0], "%Y%m%d"),
-            "dataset_end": datetime.strftime(ts.index[-1], "%Y%m%d")
+            "dataset_start": datetime.strftime(ts.index[0], "%Y-%m-%d"),
+            "dataset_end": datetime.strftime(ts.index[-1], "%Y-%m-%d")
             }
 
 @app.get('/experimentation_pipeline/training/hyperparameter_entrypoints/')
@@ -107,11 +113,19 @@ async def get_experimentation_pipeline_hparam_entrypoints():
 async def get_resolutions():
     return ResolutionMinutes.dict()
 
+@app.get('/get_mlflow_tracking_uri')
+async def get_mlflow_tracking_uri():
+    return mlflow.tracking.get_tracking_uri()
+
+@app.get('/experimentation_pipeline/get_user_params)
+def get_user_params(parameters: dict):
+
+
 @app.post('/experimentation_pipeline/run_all')
 async def run_experimentation_pipeline(parameters: dict):
     #TODO: korbakis how can you obtain these data?
     params = {
-        "series_uri": parameters["series_uri"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
+        "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
         "experiment_name": parameters["experiment_name"], # input: user | type: str | example: ml_experiment
         "resolution": parameters["resolution"], # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
         "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
@@ -119,9 +133,13 @@ async def run_experimentation_pipeline(parameters: dict):
         "test_end_date": parameters["test_end_date"],  # input: user | type: str | example: "20220101" | Choose from calendar, should be > cut_date_test and <= dataset_end, defaults to dataset_end
         "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
         "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
-        "hyperparams_entrypoint": parameters["hyperameters"], # input: user | type: str | example: "nbeats0_2" | get values from config.yaml headers
+        "hyperparams_entrypoint": parameters["hyperparams_entrypoint"], # input: user | type: str | example: "nbeats0_2" | get values from config.yaml headers
         "ignore_previous_runs": parameters["ignore_previous_runs"], # input: user | type: str | example: "true" | allowed values "true" or "false", defaults to false)
-    }
+     }
+
+    # TODO: generalize for all countries
+    if parameters["model"] == "NBEATS":
+        params["time_covs"] = "PT"
 
     pipeline_run = mlflow.run(
         uri=".",
@@ -132,8 +150,12 @@ async def run_experimentation_pipeline(parameters: dict):
         )
 
     # for now send them to MLflow to check their metrics.
-    return {"parent_run_id": mlflow.tracking.MlflowClient().get_run(pipeline_run.run_id),
-            "mlflow_tracking_uri": mlflow.tracking.get_tracking_uri()}
+    return {"message": "Experimentation pipeline successful"
+            "parent_run_id": mlflow.tracking.MlflowClient().get_run(pipeline_run.run_id),
+            "mlflow_tracking_uri": mlflow.tracking.get_tracking_uri(),
+	    "experiment_name": parameters["experiment_name"],
+            "experiment_id": MlflowClient().get_experiment_by_name(parameters["experiment_name"]).experiment_id
+	   }
 
 # # find child runs of father run
 # query = "tags.mlflow.parentRunId = '{}'".format(parent_run.info.run_id)
