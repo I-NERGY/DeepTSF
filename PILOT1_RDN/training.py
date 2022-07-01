@@ -222,6 +222,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         logging.info(
              f"\nTrain / Test split: Validation set starts: {cut_date_val} - Test set starts: {cut_date_test} - Test set end: {test_end_date}")
 
+        print(series)
         ## series
         series_split = split_dataset(
             series,
