@@ -8,7 +8,7 @@ import tempfile
 import os
 from load_raw_data import read_and_validate_input
 from exceptions import DatesNotInOrder, WrongColumnNames
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
 
@@ -102,6 +102,7 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
     return {"message": "Validation successful",
             "fname": fname,
             "dataset_start": datetime.strftime(ts.index[0], "%Y-%m-%d"),
+            "allowed_validation_start": datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d"),
             "dataset_end": datetime.strftime(ts.index[-1], "%Y-%m-%d")
             }
 
@@ -117,13 +118,8 @@ async def get_resolutions():
 async def get_mlflow_tracking_uri():
     return mlflow.tracking.get_tracking_uri()
 
-@app.get('/experimentation_pipeline/get_user_params)
-def get_user_params(parameters: dict):
-
-
 @app.post('/experimentation_pipeline/run_all')
 async def run_experimentation_pipeline(parameters: dict):
-    #TODO: korbakis how can you obtain these data?
     params = {
         "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
         "experiment_name": parameters["experiment_name"], # input: user | type: str | example: ml_experiment
@@ -141,16 +137,25 @@ async def run_experimentation_pipeline(parameters: dict):
     if parameters["model"] == "NBEATS":
         params["time_covs"] = "PT"
 
-    pipeline_run = mlflow.run(
-        uri=".",
-        entry_point="exp_pipeline",
-        parameters=params,
-        env_manager="local",
-        experiment_name=parameters["experiment_name"]
-        )
-
+    try: 
+        pipeline_run = mlflow.projects.run(
+            uri=".",
+            entry_point="exp_pipeline",
+            parameters=params,
+            env_manager="local",
+            experiment_name=parameters["experiment_name"]
+            )
+    except Exception as e:
+        return {"message": "Experimentation pipeline failed",
+                "status": "Failed",
+                # "parent_run_id": mlflow.tracking.MlflowClient().get_run(pipeline_run.run_id),
+                "mlflow_tracking_uri": mlflow.tracking.get_tracking_uri(),
+                "experiment_name": parameters["experiment_name"],
+                "experiment_id": MlflowClient().get_experiment_by_name(parameters["experiment_name"]).experiment_id
+           }
     # for now send them to MLflow to check their metrics.
-    return {"message": "Experimentation pipeline successful"
+    return {"message": "Experimentation pipeline successful",
+            "status": "Success",
             "parent_run_id": mlflow.tracking.MlflowClient().get_run(pipeline_run.run_id),
             "mlflow_tracking_uri": mlflow.tracking.get_tracking_uri(),
 	    "experiment_name": parameters["experiment_name"],
