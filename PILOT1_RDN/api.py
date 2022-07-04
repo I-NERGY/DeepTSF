@@ -122,7 +122,6 @@ async def get_mlflow_tracking_uri():
 async def run_experimentation_pipeline(parameters: dict):
     params = {
         "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
-        "experiment_name": parameters["experiment_name"], # input: user | type: str | example: ml_experiment
         "resolution": parameters["resolution"], # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
         "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
         "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
@@ -133,6 +132,8 @@ async def run_experimentation_pipeline(parameters: dict):
         "ignore_previous_runs": parameters["ignore_previous_runs"], # input: user | type: str | example: "true" | allowed values "true" or "false", defaults to false)
      }
 
+    experiment_name = parameters["experiment_name"] # user | str
+
     # TODO: generalize for all countries
     if parameters["model"] == "NBEATS":
         params["time_covs"] = "PT"
@@ -140,26 +141,26 @@ async def run_experimentation_pipeline(parameters: dict):
     try: 
         pipeline_run = mlflow.projects.run(
             uri=".",
+            experiment_name=experiment_name,
             entry_point="exp_pipeline",
             parameters=params,
-            env_manager="local",
-            experiment_name=parameters["experiment_name"]
+            env_manager="local"
             )
     except Exception as e:
         return {"message": "Experimentation pipeline failed",
                 "status": "Failed",
                 # "parent_run_id": mlflow.tracking.MlflowClient().get_run(pipeline_run.run_id),
                 "mlflow_tracking_uri": mlflow.tracking.get_tracking_uri(),
-                "experiment_name": parameters["experiment_name"],
-                "experiment_id": MlflowClient().get_experiment_by_name(parameters["experiment_name"]).experiment_id
+                "experiment_name": experiment_name,
+                "experiment_id": MlflowClient().get_experiment_by_name(experiment_name).experiment_id
            }
     # for now send them to MLflow to check their metrics.
     return {"message": "Experimentation pipeline successful",
             "status": "Success",
             "parent_run_id": mlflow.tracking.MlflowClient().get_run(pipeline_run.run_id),
             "mlflow_tracking_uri": mlflow.tracking.get_tracking_uri(),
-	    "experiment_name": parameters["experiment_name"],
-            "experiment_id": MlflowClient().get_experiment_by_name(parameters["experiment_name"]).experiment_id
+	    "experiment_name": experiment_name,
+            "experiment_id": MlflowClient().get_experiment_by_name(experiment_name).experiment_id
 	   }
 
 # # find child runs of father run
