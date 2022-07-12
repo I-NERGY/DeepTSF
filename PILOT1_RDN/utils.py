@@ -249,7 +249,7 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
     # str to int
     batch_size = int(model_input["batch_size"])
     roll_size = int(model_input["roll_size"])
-    forecast_horizon = int(model_input["forecast_horizon"])
+    forecast_horizon = int(model_input["n"])
     
     ## Horizon
     n = int(model_input["n"]) if model_input["n"] is not None else model.output_chunk_length
