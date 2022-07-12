@@ -4,8 +4,7 @@ import cloudpickle
 from utils import load_model, load_scaler, parse_uri_prediction_input
 import darts, mlflow, torch
 import numpy as np
-
-
+import pretty_errors
 
 PYTHON_VERSION = "{major}.{minor}.{micro}".format(major=version_info.major,
                                                   minor=version_info.minor,
@@ -83,6 +82,3 @@ def _load_pyfunc(model_folder):
     scaler = load_scaler(scaler_uri=f"{model_folder}/scaler_series.pkl", mode="local")
 
     return _MLflowPLDartsModelWrapper(model, scaler)
-
-
-

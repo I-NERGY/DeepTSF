@@ -3,6 +3,7 @@ import os
 import mlflow
 import logging
 import tempfile
+import pretty_errors
 
 # get environment variables
 from dotenv import load_dotenv
