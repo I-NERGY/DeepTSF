@@ -89,7 +89,7 @@ def download_mlflow_file(url, dst_dir=None):
         run_id = url.split('/')[1]
         mlflow_path = '/'.join(url.split('/')[3:])
         local_path = client.download_artifacts(run_id, mlflow_path, dst_dir)
-    elif url.startswith('http'):
+    elif url.startswith('http://'):
         local_path = download_online_file(
             url, dst_dir=dst_dir)   
     return local_path
@@ -247,9 +247,9 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
     series_uri = model_input['series_uri']
 
     # str to int
-    batch_size = int(batch_size)
-    roll_size = int(roll_size)
-    forecast_horizon = int(forecast_horizon)
+    batch_size = int(model_input["batch_size"])
+    roll_size = int(model_input["roll_size"])
+    forecast_horizon = int(model_input["forecast_horizon"])
     
     ## Horizon
     n = int(model_input["n"]) if model_input["n"] is not None else model.output_chunk_length
@@ -261,7 +261,7 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
 
     batch_size = int(model_input["batch_size"]) if model_input["batch_size"] is not None else 1
 
-    if 'runs:/' in series_uri or 's3://mlflow-bucket/' in series_uri or series_uri.startswith('http'):
+    if 'runs:/' in series_uri or 's3://mlflow-bucket/' in series_uri or series_uri.startswith('http://'):
         print('\nDownloading remote file of recent time series history...')
         series_uri = download_mlflow_file(series_uri)
 
