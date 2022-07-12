@@ -31,12 +31,10 @@ def isholiday(x, holiday_list):
         return True
     return False
 
-
 def isweekend(x):
     if x == 6 or x == 0:
         return True
     return False
-
 
 def create_calendar(timeseries, timestep_minutes, holiday_list, local_timezone):
 
@@ -196,7 +194,7 @@ def get_time_covariates(series, country_code='PT'):
     help="Remote timeseries csv file.  If set, it overwrites the local value."
 )
 @click.option('--year-range',
-    default="2009-2019",
+    default="None",
     type=str,
     help='The year range to include in the dataset.'
 )
@@ -235,7 +233,19 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
     # Day first check
     day_first = truth_checker(day_first)
 
+    print("\nLoading source dataset..")
+    logging.info("\nLoading source dataset..")
+
+    ts = pd.read_csv(series_csv,
+                     delimiter=',',
+                     header=0,
+                     index_col=0,
+                     parse_dates=True,
+                     dayfirst=day_first)
+
     # Year range handling
+    if none_checker(year_range) is None:
+        year_range = f"{ts.index[0].year}-{ts.index[-1].year}"
     if "-" in year_range:
         year_range = year_range.split("-")
     if isinstance(year_range, list):
@@ -251,15 +261,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
     tmpdir = tempfile.mkdtemp()
 
     with mlflow.start_run(run_name='etl', nested=True) as mlrun:
-        print("\nLoading source dataset..")
-        logging.info("\nLoading source dataset..")
-
-        ts = pd.read_csv(series_csv,
-                        delimiter=',',
-                        header=0,
-                        index_col=0,
-                        parse_dates=True,
-                        dayfirst=day_first)
 
         # temporal filtering
         print("\nTemporal filtering...")
