@@ -23,29 +23,9 @@ models = [
     {"model_name": "RandomForest", "search_term": "rf"}
     ]
 
-   # @staticmethod
-   # def list():
-   #     return list(map(lambda c: c.value, ModelName))
-    
-#   @staticmethod
-#   def dict():
-#        return self.models
-
-class ResolutionMinutes(int, Enum):
-    a = 5
-    b = 15
-    c = 30
-    d = 60
-
-    @staticmethod
-    def dict():
-        return {"resolution": list(map(lambda c: c.value, ResolutionMinutes))}
-
 class DateLimits(int, Enum):
     """This function will read the uploaded csv before running the pipeline and will decide which are the allowed values
     for: validation_start_date < test_start_date < test_end_date """
-
-
     @staticmethod
     def dict():
         return {"resolution": list(map(lambda c: c.value, ModelName))}
@@ -68,9 +48,8 @@ async def root():
 @app.get("/models/get_model_names")
 async def get_model_names():
     return models
-    #return ModelName.dict()
 
-@app.post('/upload/uploadCSVfile/')
+@app.post('/upload/uploadCSVfile')
 async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True)):
     # Loading
     print("Uploading file...")
@@ -99,20 +78,33 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
                 "fname": fname}
     except WrongColumnNames:
         return {"message": "There was an error validating the file. Please reupload CSV with 2 columns with names: 'Date', 'Load'"}
+
+    resolution_minutes = int((ts.index[1] - ts.index[0]).total_seconds() // 60)
+    if resolution_minutes < 1 and resolution_minutes > 180:
+       return {"message": "Dataset resolution should be between 1 and 180 minutes"}
+
+    resolutions = []
+    for m in range(1, 181):
+        if resolution_minutes == m:
+            resolutions = [{"value": str(resolution_minutes), "display_value": str(resolution_minutes) + "(Current)"}]
+        if resolution_minutes < m and m % 5 == 0: 
+            resolutions.append({k: v for (k,v) in zip(["value", "display_value"],[str(m), str(m)])})
+    
     return {"message": "Validation successful",
             "fname": fname,
             "dataset_start": datetime.strftime(ts.index[0], "%Y-%m-%d"),
             "allowed_validation_start": datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d"),
-            "dataset_end": datetime.strftime(ts.index[-1], "%Y-%m-%d")
+            "dataset_end": datetime.strftime(ts.index[-1], "%Y-%m-%d"),
+            "allowed_resolutions": resolutions
             }
 
-@app.get('/experimentation_pipeline/training/hyperparameter_entrypoints/')
+@app.get('/experimentation_pipeline/training/hyperparameter_entrypoints')
 async def get_experimentation_pipeline_hparam_entrypoints():
     return ConfigParser().read_entrypoints()
 
-@app.get('/experimentation_pipeline/etl/get_resolutions/')
-async def get_resolutions():
-    return ResolutionMinutes.dict()
+#@app.get('/experimentation_pipeline/etl/get_resolutions/')
+#async def get_resolutions():
+#    return ResolutionMinutes.dict()
 
 @app.get('/get_mlflow_tracking_uri')
 async def get_mlflow_tracking_uri():
