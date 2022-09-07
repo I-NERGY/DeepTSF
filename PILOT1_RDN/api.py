@@ -30,31 +30,10 @@ metrics = [
     {"metric_name": "mae", "search_term": "mae"},
     {"metric_name": "rmse", "search_term": "rmse"},
     {"metric_name": "smape", "search_term": "smape"}
-]
-
-   # @staticmethod
-   # def list():
-   #     return list(map(lambda c: c.value, ModelName))
-    
-#   @staticmethod
-#   def dict():
-#        return self.models
-
-class ResolutionMinutes(int, Enum):
-    a = 5
-    b = 15
-    c = 30
-    d = 60
-
-    @staticmethod
-    def dict():
-        return {"resolution": list(map(lambda c: c.value, ResolutionMinutes))}
 
 class DateLimits(int, Enum):
     """This function will read the uploaded csv before running the pipeline and will decide which are the allowed values
     for: validation_start_date < test_start_date < test_end_date """
-
-
     @staticmethod
     def dict():
         return {"resolution": list(map(lambda c: c.value, ModelName))}
@@ -78,11 +57,11 @@ async def root():
 async def get_model_names():
     return models
 
-@app.get("/metrics/get_metric_names")
+@ app.get("/metrics/get_metric_names")
 async def get_metric_names():
     return models
 
-@app.post('/upload/uploadCSVfile/')
+@app.post('/upload/uploadCSVfile')
 async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True)):
     # Loading
     print("Uploading file...")
@@ -111,20 +90,33 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
                 "fname": fname}
     except WrongColumnNames:
         return {"message": "There was an error validating the file. Please reupload CSV with 2 columns with names: 'Date', 'Load'"}
+
+    resolution_minutes = int((ts.index[1] - ts.index[0]).total_seconds() // 60)
+    if resolution_minutes < 1 and resolution_minutes > 180:
+       return {"message": "Dataset resolution should be between 1 and 180 minutes"}
+
+    resolutions = []
+    for m in range(1, 181):
+        if resolution_minutes == m:
+            resolutions = [{"value": str(resolution_minutes), "display_value": str(resolution_minutes) + "(Current)"}]
+        if resolution_minutes < m and m % 5 == 0: 
+            resolutions.append({k: v for (k,v) in zip(["value", "display_value"],[str(m), str(m)])})
+    
     return {"message": "Validation successful",
             "fname": fname,
             "dataset_start": datetime.strftime(ts.index[0], "%Y-%m-%d"),
             "allowed_validation_start": datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d"),
-            "dataset_end": datetime.strftime(ts.index[-1], "%Y-%m-%d")
+            "dataset_end": datetime.strftime(ts.index[-1], "%Y-%m-%d"),
+            "allowed_resolutions": resolutions
             }
 
-@app.get('/experimentation_pipeline/training/hyperparameter_entrypoints/')
+@app.get('/experimentation_pipeline/training/hyperparameter_entrypoints')
 async def get_experimentation_pipeline_hparam_entrypoints():
     return ConfigParser().read_entrypoints()
 
-@app.get('/experimentation_pipeline/etl/get_resolutions/')
-async def get_resolutions():
-    return ResolutionMinutes.dict()
+#@app.get('/experimentation_pipeline/etl/get_resolutions/')
+#async def get_resolutions():
+#    return ResolutionMinutes.dict()
 
 @app.get('/get_mlflow_tracking_uri')
 async def get_mlflow_tracking_uri():
@@ -171,7 +163,7 @@ async def run_experimentation_pipeline(parameters: dict):
             "status": "Success",
             "parent_run_id": mlflow.tracking.MlflowClient().get_run(pipeline_run.run_id),
             "mlflow_tracking_uri": mlflow.tracking.get_tracking_uri(),
-	        "experiment_name": experiment_name,
+	    "experiment_name": experiment_name,
             "experiment_id": MlflowClient().get_experiment_by_name(experiment_name).experiment_id
 	   }
 
@@ -179,40 +171,34 @@ async def run_experimentation_pipeline(parameters: dict):
 async def get_list_of_mlflow_experiments(experiment_name: str):
     client = MlflowClient()
     experiments = client.list_experiments()
-    experiment_names = [client.list_experiments()[i].name 
-        for i in range(len(experiments))]
-    experiment_ids = [client.list_experiments()[i].experiment_id 
-        for i in range(len(experiments))]
+    experiment_names = [client.list_experiments()[i].name
+                        for i in range(len(experiments))]
+    experiment_ids = [client.list_experiments()[i].experiment_id
+                      for i in range(len(experiments))]
+    experiments = dict(zip(experiment_names, experiment_ids))
+
     return [
-        {"experiment_name": i, "experiment_id": j} 
-        for i in experiment_names for j in experiment_ids]
-    ]
-        # "message": "Experiments returned as dictionary",
-        #     "status": "Success", 
-        #     "response": dict(zip(
-        #         [client.list_experiments()[i].name 
-        #         for i in range(len(experiments))], 
-        #         [client.list_experiments()[i].experiment_id
-        #         for i in range(len(experiments))]
-        #         ))
-        #     }
+        {"experiment_name": key, "experiment_id": experimenst[key]}
+        for key in experiments.keys()
+        ]
 
 @app.get('results/get_best_run_id_by_mlflow_experiment')
 async def get_best_run_id_by_mlflow_experiment(experiment_id: str, metric='mape'):
-    df = mlflow.search_runs([experiment_id], order_by=[f"metrics.{metric} DESC"])
-    best_run_id = df.loc[0, 'run_id']
+    df= mlflow.search_runs([experiment_id], order_by=[f"metrics.{metric} DESC"])
+    best_run_id= df.loc[0, 'run_id']
     return best_run_id
 
 @app.get('results/get_forecast_vs_actual')
 async def get_forecast_vs_actual(run_id: str):
-    forecast_df = pd.read_csv(load_artifacts(run_id, 
-        "eval_results/predictions.csv"))
-    actual_df = pd.read_csv(load_artifacts(
+    forecast_df = pd.read_csv(load_artifacts(
+        run_id, "eval_results/predictions.csv"))
+    actual_df= pd.read_csv(load_artifacts(
         run_id, "eval_results/test.csv"))
     print(forecast_df)
     print(actual_df)
-    return best_run_id
-
+    return {"forecast": forecast_df.to_dict('split'), 
+            "actual":  actual_df.to_dict('split')
+            }
 
 @app.get('results/get_metric_list')
 async def get_forecast_vs_actual(run_id: str):
@@ -221,7 +207,7 @@ async def get_forecast_vs_actual(run_id: str):
     return metrix
 
 
-# # find child runs of father run
-# query = "tags.mlflow.parentRunId = '{}'".format(parent_run.info.run_id)
-# results = mlflow.search_runs(filter_string=query)
-# graph_dict = {'labels':[], 'data':[]}
+    # # find child runs of father run
+    # query = "tags.mlflow.parentRunId = '{}'".format(parent_run.info.run_id)
+    # results = mlflow.search_runs(filter_string=query)
+    # graph_dict = {'labels':[], 'data':[]}
