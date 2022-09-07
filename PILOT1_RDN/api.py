@@ -11,6 +11,7 @@ from exceptions import DatesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
+from utils import load_artifacts
 
 # allows automated type check with pydantic
 #class ModelName(str, Enum):
@@ -22,6 +23,14 @@ models = [
     {"model_name": "LightGBM", "search_term": "lgbm"},
     {"model_name": "RandomForest", "search_term": "rf"}
     ]
+
+metrics = [
+    {"metric_name": "mape", "search_term": "mape"},
+    {"metric_name": "mase", "search_term": "mase"},
+    {"metric_name": "mae", "search_term": "mae"},
+    {"metric_name": "rmse", "search_term": "rmse"},
+    {"metric_name": "smape", "search_term": "smape"}
+]
 
    # @staticmethod
    # def list():
@@ -68,7 +77,10 @@ async def root():
 @app.get("/models/get_model_names")
 async def get_model_names():
     return models
-    #return ModelName.dict()
+
+@app.get("/metrics/get_metric_names")
+async def get_metric_names():
+    return models
 
 @app.post('/upload/uploadCSVfile/')
 async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True)):
@@ -159,10 +171,57 @@ async def run_experimentation_pipeline(parameters: dict):
             "status": "Success",
             "parent_run_id": mlflow.tracking.MlflowClient().get_run(pipeline_run.run_id),
             "mlflow_tracking_uri": mlflow.tracking.get_tracking_uri(),
-	    "experiment_name": experiment_name,
+	        "experiment_name": experiment_name,
             "experiment_id": MlflowClient().get_experiment_by_name(experiment_name).experiment_id
 	   }
+
+@app.get('results/get_list_of_experiments')
+async def get_list_of_mlflow_experiments(experiment_name: str):
+    client = MlflowClient()
+    experiments = client.list_experiments()
+    experiment_names = [client.list_experiments()[i].name 
+        for i in range(len(experiments))]
+    experiment_ids = [client.list_experiments()[i].experiment_id 
+        for i in range(len(experiments))]
+    return [
+        {"experiment_name": i, "experiment_id": j} 
+        for i in experiment_names for j in experiment_ids]
+    ]
+        # "message": "Experiments returned as dictionary",
+        #     "status": "Success", 
+        #     "response": dict(zip(
+        #         [client.list_experiments()[i].name 
+        #         for i in range(len(experiments))], 
+        #         [client.list_experiments()[i].experiment_id
+        #         for i in range(len(experiments))]
+        #         ))
+        #     }
+
+@app.get('results/get_best_run_id_by_mlflow_experiment')
+async def get_best_run_id_by_mlflow_experiment(experiment_id: str, metric='mape'):
+    df = mlflow.search_runs([experiment_id], order_by=[f"metrics.{metric} DESC"])
+    best_run_id = df.loc[0, 'run_id']
+    return best_run_id
+
+@app.get('results/get_forecast_vs_actual')
+async def get_forecast_vs_actual(run_id: str):
+    forecast_df = pd.read_csv(load_artifacts(run_id, 
+        "eval_results/predictions.csv"))
+    actual_df = pd.read_csv(load_artifacts(
+        run_id, "eval_results/test.csv"))
+    print(forecast_df)
+    print(actual_df)
+    return best_run_id
+
+
+@app.get('results/get_metric_list')
+async def get_forecast_vs_actual(run_id: str):
+    metrix = client.get_run(run_id).data.metrics
+    print(metrix)
+    return metrix
+
 
 # # find child runs of father run
 # query = "tags.mlflow.parentRunId = '{}'".format(parent_run.info.run_id)
 # results = mlflow.search_runs(filter_string=query)
+# graph_dict = {'labels':[], 'data':[]}

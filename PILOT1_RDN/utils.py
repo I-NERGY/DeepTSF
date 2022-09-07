@@ -140,19 +140,24 @@ def load_pl_model_from_server(model_root_dir):
     best_model = load_local_pl_model(os.path.join(local_dir, mlflow_relative_model_root_dir))
     return best_model
 
+
 def load_model(model_root_dir, mode="remote"):
 
     # Get model type as tag of model's run
     import mlflow
     print(model_root_dir)
-    client = mlflow.tracking.MlflowClient()
+    
     if mode == 'remote':
+        client = mlflow.tracking.MlflowClient()
         run_id = model_root_dir.split('/')[-1]
+        model_run = client.get_run(run_id)
+        model_type = model_run.data.tags.get('model_type')
     else:
-        run_id = model_root_dir.split(os.path.sep)[-1]
-    model_run = client.get_run(run_id)
-    model_type = model_run.data.tags.get('model_type')
-
+        if "_model.pth.tar" in os.listdir(model_root_dir):
+            model_type = 'pl'
+        else:
+            model_type = "pkl"
+            
     # Load accordingly
     if mode == "remote" and model_type == "pl":
         model = load_pl_model_from_server(model_root_dir=model_root_dir)
@@ -209,9 +214,14 @@ def none_checker(argument):
         return argument
 
 def load_artifacts(run_id, src_path, dst_path):
-    os.makedirs(dst_path, exist_ok=True)
+    if dst_path is None:
+        dst_dir = tempfile.mkdtemp()
+    else:
+        dst_dir = os.path.sep.join(dst_path.split("/")[-1])
+        os.makedirs(dst_dir, exist_ok=True)
+    fname = src_path.split("/")[-1]
     client = mlflow.tracking.MlflowClient()
-    client.download_artifacts(run_id=run_id, path=src_path, dst_path=dst_path)
+    client.download_artifacts(dst_dir, run_id=run_id, path=src_path, dst_path="/".join([dst_dir, fname])
 
 def load_local_model_as_torch(local_path):
     import torch
