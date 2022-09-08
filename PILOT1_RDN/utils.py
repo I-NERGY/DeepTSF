@@ -221,7 +221,7 @@ def load_artifacts(run_id, src_path, dst_path):
         os.makedirs(dst_dir, exist_ok=True)
     fname = src_path.split("/")[-1]
     client = mlflow.tracking.MlflowClient()
-    client.download_artifacts(dst_dir, run_id=run_id, path=src_path, dst_path="/".join([dst_dir, fname])
+    client.download_artifacts(dst_dir, run_id=run_id, path=src_path, dst_path="/".join([dst_dir, fname]))
 
 def load_local_model_as_torch(local_path):
     import torch
