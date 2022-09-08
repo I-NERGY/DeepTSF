@@ -29,7 +29,7 @@ metrics = [
     {"metric_name": "mase", "search_term": "mase"},
     {"metric_name": "mae", "search_term": "mae"},
     {"metric_name": "rmse", "search_term": "rmse"},
-    {"metric_name": "smape", "search_term": "smape"}
+    {"metric_name": "smape", "search_term": "smape"}]
 
 class DateLimits(int, Enum):
     """This function will read the uploaded csv before running the pipeline and will decide which are the allowed values
@@ -59,7 +59,7 @@ async def get_model_names():
 
 @ app.get("/metrics/get_metric_names")
 async def get_metric_names():
-    return models
+    return metrics
 
 @app.post('/upload/uploadCSVfile')
 async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True)):
@@ -167,8 +167,8 @@ async def run_experimentation_pipeline(parameters: dict):
             "experiment_id": MlflowClient().get_experiment_by_name(experiment_name).experiment_id
 	   }
 
-@app.get('results/get_list_of_experiments')
-async def get_list_of_mlflow_experiments(experiment_name: str):
+@app.get('/results/get_list_of_experiments')
+async def get_list_of_mlflow_experiments():
     client = MlflowClient()
     experiments = client.list_experiments()
     experiment_names = [client.list_experiments()[i].name
@@ -176,19 +176,19 @@ async def get_list_of_mlflow_experiments(experiment_name: str):
     experiment_ids = [client.list_experiments()[i].experiment_id
                       for i in range(len(experiments))]
     experiments = dict(zip(experiment_names, experiment_ids))
-
-    return [
-        {"experiment_name": key, "experiment_id": experimenst[key]}
+    experiments_response = [
+        {"experiment_name": key, "experiment_id": experiments[key]}
         for key in experiments.keys()
-        ]
+        ] 
+    return experiments_response
 
-@app.get('results/get_best_run_id_by_mlflow_experiment')
-async def get_best_run_id_by_mlflow_experiment(experiment_id: str, metric='mape'):
-    df= mlflow.search_runs([experiment_id], order_by=[f"metrics.{metric} DESC"])
-    best_run_id= df.loc[0, 'run_id']
+@app.get('/results/get_best_run_id_by_mlflow_experiment/{experiment_id}/{metric}')
+async def get_best_run_id_by_mlflow_experiment(experiment_id: str, metric: str = 'mape'):
+    df = mlflow.search_runs([experiment_id], order_by=[f"metrics.{metric} ASC"])
+    best_run_id = df.loc[0, 'run_id']
     return best_run_id
 
-@app.get('results/get_forecast_vs_actual')
+@app.get('/results/get_forecast_vs_actual/{run_id}')
 async def get_forecast_vs_actual(run_id: str):
     forecast_df = pd.read_csv(load_artifacts(
         run_id, "eval_results/predictions.csv"))
@@ -200,11 +200,13 @@ async def get_forecast_vs_actual(run_id: str):
             "actual":  actual_df.to_dict('split')
             }
 
-@app.get('results/get_metric_list')
-async def get_forecast_vs_actual(run_id: str):
+@app.get('/results/get_metric_list/{run_id}')
+async def get_metric_list(run_id: str):
+    client = MlflowClient()
     metrix = client.get_run(run_id).data.metrics
-    print(metrix)
-    return metrix
+    metrix_response = {"labels":[i for i in metrix.keys()], "data": [i for i in metrix.values()]}
+    print(metrix_response)
+    return metrix_response
 
 
     # # find child runs of father run
