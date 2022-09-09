@@ -65,7 +65,7 @@ entry_points:
       series_csv: {type: str, default: ../../RDN/Load_Data/2009-2021-global-load.csv}
       series_uri: {type: str, default: online_artifact}
       resolution: {type: str, default: 15}
-      year_range: {type: str, default: 2009-2019}
+      year_range: {type: str, default: None}
       time_covs: {type: str, default: PT}
       hyperparams_entrypoint: {type: str, default: LSTM1}
       cut_date_val: {type: str, default: 20180101}

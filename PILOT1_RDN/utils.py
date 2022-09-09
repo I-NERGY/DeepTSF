@@ -213,15 +213,17 @@ def none_checker(argument):
     else:
         return argument
 
-def load_artifacts(run_id, src_path, dst_path):
+def load_artifacts(run_id, src_path, dst_path=None):
+    import tempfile
+    import os
+    import mlflow
     if dst_path is None:
         dst_dir = tempfile.mkdtemp()
     else:
         dst_dir = os.path.sep.join(dst_path.split("/")[-1])
         os.makedirs(dst_dir, exist_ok=True)
     fname = src_path.split("/")[-1]
-    client = mlflow.tracking.MlflowClient()
-    client.download_artifacts(dst_dir, run_id=run_id, path=src_path, dst_path="/".join([dst_dir, fname]))
+    return mlflow.artifacts.download_artifacts(artifact_path=src_path, dst_path="/".join([dst_dir, fname]), run_id=run_id)
 
 def load_local_model_as_torch(local_path):
     import torch
