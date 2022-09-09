@@ -190,22 +190,27 @@ async def get_best_run_id_by_mlflow_experiment(experiment_id: str, metric: str =
 
 @app.get('/results/get_forecast_vs_actual/{run_id}')
 async def get_forecast_vs_actual(run_id: str):
-    forecast_df = pd.read_csv(load_artifacts(
-        run_id, "eval_results/predictions.csv"))
-    actual_df= pd.read_csv(load_artifacts(
-        run_id, "eval_results/test.csv"))
-    print(forecast_df)
-    print(actual_df)
-    return {"forecast": forecast_df.to_dict('split'), 
-            "actual":  actual_df.to_dict('split')
-            }
+    forecast = load_artifacts(
+        run_id=run_id, src_path="eval_results/predictions.csv")
+    forecast_df = pd.read_csv(forecast, index_col=0).iloc[-2000:-1000]
+    actual = load_artifacts(
+        run_id=run_id, src_path="eval_results/test.csv")
+    actual_df = pd.read_csv(actual, index_col=0)[-2000:-1000]
+    forecast_response = forecast_df.to_dict('split')
+    actual_response = actual_df.to_dict('split')
+    # unlist
+    actual_response["data"] = [i[0] for i in actual_response["data"]]
+    forecast_response["data"] = [i[0] for i in forecast_response["data"]]
+    response = {"forecast": forecast_response,
+                "actual":  actual_response}
+    print(response)
+    return response
 
 @app.get('/results/get_metric_list/{run_id}')
 async def get_metric_list(run_id: str):
     client = MlflowClient()
     metrix = client.get_run(run_id).data.metrics
     metrix_response = {"labels":[i for i in metrix.keys()], "data": [i for i in metrix.values()]}
-    print(metrix_response)
     return metrix_response
 
 
