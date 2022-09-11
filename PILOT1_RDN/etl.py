@@ -69,6 +69,11 @@ def create_calendar(timeseries, timestep_minutes, holiday_list, local_timezone):
 
     calendar['holiday'] = calendar['datetime'].apply(
         lambda x: isholiday(x.date(), holiday_list))
+
+    WNweekday = calendar['datetime'].apply(
+        lambda x: x.weekday() if not isholiday(x.date(), holiday_list) else 5 if x.weekday() == 4 else 6)
+    calendar['WN'] = WNweekday + calendar['hour']/24 + calendar['minute']/(24*60)
+
     return calendar
 
 
@@ -235,6 +240,146 @@ def remove_outliers(ts: pd.DataFrame,
 
     return res.asfreq('1H'), a
 
+def impute(ts: pd.DataFrame,
+           holidays,
+           max_thhr: int = 48,
+           a: float = 0.3,
+           WNcutoff: float = 1/(24 * 60),
+           Ycutoff: int = 3,
+           YDcutoff: int = 30,
+           debug: bool = False):
+    """
+    Reads the input dataframe and imputes the timeseries using a weighted average of historical data
+    and simple interpolation. The weights of each method are exponentially dependent on the distance
+    to the nearest non NaN value. More specifficaly, with increasing distance, the weight of
+    simple interpolation decreases, and the weight of the historical data increases. If there is
+    a consecutive subseries of NaNs longer than max_thhr, then it is not imputed and returned with NaN
+    values.
+
+    Parameters
+    ----------
+    ts
+        The pandas.DataFrame to be processed
+    holidays
+        The holidays of the country this timeseries belongs to
+    max_thhr
+        If there is a consecutive subseries of NaNs longer than max_thhr,
+        then it is not imputed and returned with NaN values
+    a
+        The weight that shows how quickly simple interpolation's weight decreases as
+        the distacne to the nearest non NaN value increases
+    WNcutoff
+        Historical data will only take into account dates that have at most WNcutoff distance
+        from the current null value's WN(Week Number)
+    Ycutoff
+        Historical data will only take into account dates that have at most Ycutoff distance
+        from the current null value's year
+    YDcutoff
+        Historical data will only take into account dates that have at most YDcutoff distance
+        from the current null value's yearday
+    debug
+        If true it will print helpfull intermediate results
+
+    Returns
+    -------
+    pandas.DataFrame
+        The imputed dataframe
+    """
+
+    #Returning calendar of the country ts belongs to
+    calendar = create_calendar(ts, 60, holidays, timezone("UTC"))
+    calendar.index = calendar["datetime"]
+
+    imputed_values = ts[ts["Load"].isnull()]
+
+    #null_dates: Series with all null dates to be imputed
+    null_dates = imputed_values.index
+
+
+    if debug:
+        for date in null_dates:
+            print(date)
+
+    #isnull: An array which stores whether each value is null or not
+    isnull = ts["Load"].isnull().values
+
+    #d: List with distances to the nearest non null value
+    d = [len(null_dates) for _ in range(len(null_dates))]
+
+    #leave_nan: List with all the values to be left NaN because there are
+    #more that max_thhr consecutive ones
+    leave_nan = [False for _ in range(len(null_dates))]
+
+    #Calculating the distances to the nearest non null value that is earlier in the series
+    count = 1
+    for i in range(len(null_dates)):
+        d[i] = min(d[i], count)
+        if i < len(null_dates) - 1:
+            if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(hours=1):
+                count += 1
+            else:
+                count = 1
+
+    #Calculating the distances to the nearest non null value that is later in the series
+    count = 1
+    for i in range(len(null_dates)-1, -1, -1):
+        d[i] = min(d[i], count)
+        if i > 0:
+            if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(hours=1):
+                count += 1
+            else:
+                count = 1
+
+    #If d[i] >= max_thhr // 2, that means we have a consecutive subseries of NaNs longer than max_thhr.
+    #We mark this subseries so that it does not get imputed
+    for i in range(len(null_dates)):
+        if d[i] == max_thhr // 2:
+            for ii in range(max(0, i - max_thhr // 2 + 1), min(i + max_thhr // 2, len(null_dates))):
+                leave_nan[ii] = True
+        elif d[i] > max_thhr // 2:
+            leave_nan[i] = True
+
+    #This is the interpolated version of the time series
+    ts_interpolatied = ts.interpolate(inplace=False)
+
+    #We copy the time series so that we don't change it while iterating
+    res = ts.copy()
+
+    for i, null_date in enumerate(null_dates):
+        if leave_nan[i]: continue
+
+        #WN: Day of the week + hour/24 + minute/(24*60). Holidays are handled as
+        #either Saturdays(if the real day is a Friday) or Sundays(in every other case)
+        currWN = calendar.loc[null_date]['WN']
+        currYN = calendar.loc[null_date]['yearday']
+        currY = calendar.loc[null_date]['year']
+
+        #weight of interpolated series, decreases as distance to nearest known value increases
+        w = np.e ** (-a * d[i])
+
+        #Historical value is calculated as the mean of values that have at most WNcutoff distance to the current null value's
+        #WN, Ycutoff distance to its year, and YDcutoff distance to its yearday
+        historical = ts[(~isnull) & ((calendar['WN'] - currWN < WNcutoff) & (calendar['WN'] - currWN > -WNcutoff) &\
+                                    (calendar['year'] - currY < Ycutoff) & (calendar['year'] - currY > -Ycutoff) &\
+                                    (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < YDcutoff) |\
+                                    ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < YDcutoff)))]["Load"]
+
+        if debug: print("~~~~~~Date~~~~~~~",null_date, "~~~~~~~Dates summed~~~~~~~~~~",historical,sep="\n")
+
+        historical = historical.mean()
+
+        #imputed value is calculated as a wheighted average of the histrorical value and the value from intrepolation
+        res.loc[null_date] = w * ts_interpolatied.loc[null_date] + (1 - w) * historical
+
+        imputed_values.loc[null_date] = res.loc[null_date]
+
+        if debug:
+            print(res.loc[null_date])
+
+    return res, imputed_values
+
+
+
 @click.command(
     help="Given a timeseries CSV file (see load_raw_data), resamples it, "
          "drops duplicates converts it to darts and optionally creates "
@@ -346,9 +491,20 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
         print("\nPerfrorming Outlier Detection...")
         logging.info("\nPerfrorming Outlier Detection...")
 
-        ts_res, removed = remove_outliers(ts_res,
-                                          country,
-                                          std_dev)
+        ts_res, removed = remove_outliers(ts=ts_res,
+                                          name=country,
+                                          std_dev=std_dev)
+
+        print("\nPerfrorming Imputation of the Dataset...")
+        logging.info("\nPerfrorming Imputation of the Dataset...")
+
+        ts_res, imputed_values = impute(ts=ts_res,
+                                        holidays=country_holidays,
+                                        max_thhr=max_thhr,
+                                        a=a,
+                                        WNcutoff=WNcutoff,
+                                        Ycutoff=Ycutoff,
+                                        YDcutoff=YDcutoff)
 
         print("\nCreating darts data frame...")
         logging.info("\nCreating darts data frame...")
@@ -387,6 +543,10 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
         print("\nStoring removed values from outlier detection as csv locally...")
         logging.info("\nStoring removed values from outlier detection as csv...")
         removed.to_csv(f'{tmpdir}/removed.csv')
+
+        print("\nStoring imputed dates and their values as csv locally...")
+        logging.info("\nStoring imputed dates and their values as csv locally...")
+        imputed_values.to_csv(f'{tmpdir}/removed.csv')
 
         print("\nStoring datasets locally...")
         logging.info("\nStoring datasets...")
