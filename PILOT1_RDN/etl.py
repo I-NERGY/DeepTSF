@@ -130,7 +130,6 @@ def add_cyclical_time_features(calendar):
 
     return calendar
 
-
 def get_time_covariates(series, country_code='PT'):
     """ Do it the darts way"""
 
@@ -177,6 +176,65 @@ def get_time_covariates(series, country_code='PT'):
 
     return covariates
 
+def remove_outliers(ts: pd.DataFrame,
+                    name: str = "Portugal",
+                    std_dev: float = 4.5,
+                    print_removed: bool = False):
+    """
+    Reads the input dataframe and replaces its outliers with NaNs by removing
+    values that are more than std_dev standard deviations away from their 1 month
+    mean or both. This function works with datasets that have NaN values.
+
+    Parameters
+    ----------
+    ts
+        The pandas.DataFrame to be processed
+    name
+        The name of the country to be displayed on the plots
+    std_dev
+        The number to be multiplied with the standard deviation of
+        each 1 month  period of the dataframe. The result is then used as
+        a cut-off value as described above
+    print_removed
+        If true it will print the removed values
+
+    Returns
+    -------
+    pandas.DataFrame
+        The original dataframe with its outliers values replaced with NaNs
+    """
+
+    #Dates with NaN values are removed from the dataframe
+    ts = ts.dropna()
+    #Removing all non postive values
+    a = ts.loc[ts["Load"] <= 0]
+    #Calculating monthly mean and standard deviation and removing values
+    #that are more than std_dev standard deviations away from the mean
+    mean_per_month = ts.groupby(lambda x: x.month).mean().to_numpy()
+    mean = ts.index.to_series().apply(lambda x: mean_per_month[x.month - 1])
+    std_per_month = ts.groupby(lambda x: x.month).std().to_numpy()
+    std = ts.index.to_series().apply(lambda x: std_per_month[x.month - 1])
+    a = pd.concat([a, ts.loc[-std_dev * std + mean > ts['Load']]])
+    a = pd.concat([a, ts.loc[ts['Load'] > std_dev * std + mean]])
+
+    #Plotting Removed values and new series
+    a = a.sort_values(by='Date')
+    a = a[~a.index.duplicated(keep='first')]
+    if print_removed: print(f"Removed from {name}", a)
+    fig, ax = plt.subplots(figsize=(8,5))
+    ax.plot(ts.index, ts['Load'], color='black', label = f'Load of {name}')
+    ax.scatter(a.index, a['Load'], color='blue', label = 'Removed Outliers')
+    plt.legend()
+    mlflow.log_figure(fig, 'removed_outliers.png')
+
+    res = ts.drop(index=a.index)
+    fig, ax = plt.subplots(figsize=(8,5))
+    ax.plot(res.index, res['Load'], color='black', label = f'Load of {name}')
+    plt.legend()
+    mlflow.log_figure(fig, 'new_series.png')
+
+    return res.asfreq('1H'), a
+
 @click.command(
     help="Given a timeseries CSV file (see load_raw_data), resamples it, "
          "drops duplicates converts it to darts and optionally creates "
@@ -203,14 +261,12 @@ def get_time_covariates(series, country_code='PT'):
     type=str,
     help="The resolution of the dataset in minutes."
 )
-@click.option(
-    "--time-covs",
+@click.option("--time-covs",
     default="PT",
     type=click.Choice(["None", "PT"]),
     help="Optionally add time covariates to the timeseries. [Options: None or Country Code based on the Python 'holidays' package]"
 )
-@click.option(
-    "--day-first",
+@click.option("--day-first",
     type=str,
     default="true",
     help="Whether the date has the day before the month")
@@ -287,6 +343,13 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
 
         # ts_res.to_csv(f'{tmpdir}/3_dropped_duplicates.csv')
 
+        print("\nPerfrorming Outlier Detection...")
+        logging.info("\nPerfrorming Outlier Detection...")
+
+        ts_res, removed = remove_outliers(ts_res,
+                                          country,
+                                          std_dev)
+
         print("\nCreating darts data frame...")
         logging.info("\nCreating darts data frame...")
 
@@ -320,6 +383,10 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
         print("\nCreating local folder to store the datasets as csv...")
         logging.info("\nCreating local folder to store the datasets as csv...")
         ts_res_darts.to_csv(f'{tmpdir}/series.csv')
+
+        print("\nStoring removed values from outlier detection as csv locally...")
+        logging.info("\nStoring removed values from outlier detection as csv...")
+        removed.to_csv(f'{tmpdir}/removed.csv')
 
         print("\nStoring datasets locally...")
         logging.info("\nStoring datasets...")
