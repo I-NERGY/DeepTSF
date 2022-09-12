@@ -85,7 +85,8 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
             print("Found existing run for entrypoint=%s and parameters=%s" % (entrypoint, parameters))
             return existing_run
     print("Launching new run for entrypoint=%s and parameters=%s" % (entrypoint, parameters))
-    submitted_run = mlflow.run(".", entrypoint, parameters=parameters, env_manager="local")
+    #env_manager="local"?
+    submitted_run = mlflow.run(".", entrypoint, parameters=parameters, use_conda=False)
     return mlflow.tracking.MlflowClient().get_run(submitted_run.run_id)
 
 
@@ -194,46 +195,46 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
               help="The country this dataset belongs to")
 
 @click.option("--std-dev",
-              type=float,
-              default=4.5,
+              type=str,
+              default="4.5",
               help="The number to be multiplied with the standard deviation of \
                     each 1 month  period of the dataframe. The result is then used as \
                     a cut-off value as described above")
 
 @click.option("--max-thr",
-              type=int,
-              default=48,
-              help="If there is a consecutive subseries of NaNs longer than max_thhr, \
+              type=str,
+              default="48",
+              help="If there is a consecutive subseries of NaNs longer than max_thr, \
                     then it is not imputed and returned with NaN values")
 
 @click.option("--a",
-              type=float,
-              default=0.3,
+              type=str,
+              default="0.3",
               help="The weight that shows how quickly simple interpolation's weight decreases as \
                     the distacne to the nearest non NaN value increases")
 
-@click.option("--WNcutoff",
-              type=float,
-              default=1/(24 * 60),
-              help="Historical data will only take into account dates that have at most WNcutoff distance \
+@click.option("--wncutoff",
+              type=str,
+              default="0.000694",
+              help="Historical data will only take into account dates that have at most wncutoff distance \
                     from the current null value's WN(Week Number)")
 
-@click.option("--Ycutoff",
-             type=int,
-             default=3,
-             help="Historical data will only take into account dates that have at most Ycutoff distance \
+@click.option("--ycutoff",
+             type=str,
+             default="3",
+             help="Historical data will only take into account dates that have at most ycutoff distance \
                    from the current null value's year")
 
-@click.option("--YDcutoff",
-             type=int,
-             default=30,
-             help="Historical data will only take into account dates that have at most YDcutoff distance \
+@click.option("--ydcutoff",
+             type=str,
+             default="30",
+             help="Historical data will only take into account dates that have at most ydcutoff distance \
                    from the current null value's yearday")
 
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
-             country, std_dev, max_thhr, a, WNcutoff, Ycutoff, YDcutoff):
+             country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -260,12 +261,12 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                       "day_first": day_first,
                       "country": country,
                       "std_dev": std_dev,
-                      "max_thhr": max_thhr,
+                      "max_thr": max_thr,
                       "a": a,
-                      "WNcutoff": WNcutoff,
-                      "Ycutoff": Ycutoff,
-                      "YDcutoff": YDcutoff}
-                      
+                      "wncutoff": wncutoff,
+                      "ycutoff": ycutoff,
+                      "ydcutoff": ydcutoff}
+
         etl_run = _get_or_run("etl", etl_params, git_commit, ignore_previous_runs)
 
         etl_series_uri =  etl_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
