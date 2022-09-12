@@ -18,3 +18,10 @@ class WrongColumnNames(Exception):
         super().__init__(self.message)
     def __str__(self):
         return f'Column names provided: {self.columns}. {self.message}'
+
+class CountryDoesNotExist(Exception):
+    """
+    Exception raised if the country specified does not exist/have holidays.
+    """
+    def __init__(self):
+        super().__init__("The country specified does not exist/have holidays")
