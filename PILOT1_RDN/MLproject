@@ -21,8 +21,15 @@ entry_points:
       year_range: {type: str, default: None}
       time_covs: {type: str, default: PT}
       day_first: {type: str, default: "true"}
+      country: {type: str, default: "Portugal"}
+      std-dev: {type: float, default: 4.5}
+      max-thr: {type: int, default: 48}
+      a: {type: float, default: 0.3}
+      WNcutoff: {type: float, default: 1/(24 * 60)}
+      Ycutoff: {type: int, default: 3}
+      YDcutoff: {type: int, default: 30}
     command: |
-      python etl.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --day-first {day_first}
+    python etl.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thhr} --a {a} --WNcutoff {WNcutoff} --Ycutoff {Ycutoff} --YDcutoff {YDcutoff}
 
   train:
     parameters:
@@ -80,8 +87,15 @@ entry_points:
       scale: {type: str, default: "true"}
       scale_covs: {type: str, default: "true"}
       day_first: {type: str, default: "true"}
+      country: {type: str, default: "Portugal"}
+      std-dev: {type: float, default: 4.5}
+      max-thr: {type: int, default: 48}
+      a: {type: float, default: 0.3}
+      WNcutoff: {type: float, default: 1/(24 * 60)}
+      Ycutoff: {type: int, default: 3}
+      YDcutoff: {type: int, default: 30}
     command: |
-      python experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first}
+      python experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thhr} --a {a} --WNcutoff {WNcutoff} --Ycutoff {Ycutoff} --YDcutoff {YDcutoff}
 
   inference:
     parameters:

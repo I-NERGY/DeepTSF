@@ -17,6 +17,7 @@ import shutil
 import logging
 from darts.dataprocessing.transformers import MissingValuesFiller
 import tempfile
+from exceptions import CountryDoesNotExist
 
 # get environment variables
 from dotenv import load_dotenv
@@ -184,6 +185,7 @@ def get_time_covariates(series, country_code='PT'):
 def remove_outliers(ts: pd.DataFrame,
                     name: str = "Portugal",
                     std_dev: float = 4.5,
+                    resolution: str = "15",
                     print_removed: bool = False):
     """
     Reads the input dataframe and replaces its outliers with NaNs by removing
@@ -200,6 +202,8 @@ def remove_outliers(ts: pd.DataFrame,
         The number to be multiplied with the standard deviation of
         each 1 month  period of the dataframe. The result is then used as
         a cut-off value as described above
+    resolution
+        The resolution of the dataset
     print_removed
         If true it will print the removed values
 
@@ -238,7 +242,7 @@ def remove_outliers(ts: pd.DataFrame,
     plt.legend()
     mlflow.log_figure(fig, 'new_series.png')
 
-    return res.asfreq('1H'), a
+    return res.asfreq(resolution+'min'), a
 
 def impute(ts: pd.DataFrame,
            holidays,
@@ -247,6 +251,7 @@ def impute(ts: pd.DataFrame,
            WNcutoff: float = 1/(24 * 60),
            Ycutoff: int = 3,
            YDcutoff: int = 30,
+           resolution: str = "15",
            debug: bool = False):
     """
     Reads the input dataframe and imputes the timeseries using a weighted average of historical data
@@ -277,6 +282,8 @@ def impute(ts: pd.DataFrame,
     YDcutoff
         Historical data will only take into account dates that have at most YDcutoff distance
         from the current null value's yearday
+    resolution
+        The resolution of the dataset
     debug
         If true it will print helpfull intermediate results
 
@@ -287,7 +294,7 @@ def impute(ts: pd.DataFrame,
     """
 
     #Returning calendar of the country ts belongs to
-    calendar = create_calendar(ts, 60, holidays, timezone("UTC"))
+    calendar = create_calendar(ts, int(resolution), holidays, timezone("UTC"))
     calendar.index = calendar["datetime"]
 
     imputed_values = ts[ts["Load"].isnull()]
@@ -315,7 +322,7 @@ def impute(ts: pd.DataFrame,
     for i in range(len(null_dates)):
         d[i] = min(d[i], count)
         if i < len(null_dates) - 1:
-            if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(hours=1):
+            if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(minutes=int(resolution)):
                 count += 1
             else:
                 count = 1
@@ -325,7 +332,7 @@ def impute(ts: pd.DataFrame,
     for i in range(len(null_dates)-1, -1, -1):
         d[i] = min(d[i], count)
         if i > 0:
-            if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(hours=1):
+            if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(minutes=int(resolution)):
                 count += 1
             else:
                 count = 1
@@ -416,7 +423,49 @@ def impute(ts: pd.DataFrame,
     default="true",
     help="Whether the date has the day before the month")
 
-def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
+@click.option("--country",
+    type=str,
+    default="Portugal",
+    help="The country this dataset belongs to")
+
+@click.option("--std-dev",
+    type=float,
+    default=4.5,
+    help="The number to be multiplied with the standard deviation of \
+          each 1 month  period of the dataframe. The result is then used as \
+          a cut-off value as described above")
+
+@click.option("--max-thr",
+    type=int,
+    default=48,
+    help="If there is a consecutive subseries of NaNs longer than max_thhr, \
+          then it is not imputed and returned with NaN values")
+
+@click.option("--a",
+    type=float,
+    default=0.3,
+    help="The weight that shows how quickly simple interpolation's weight decreases as \
+          the distacne to the nearest non NaN value increases")
+
+@click.option("--WNcutoff",
+    type=float,
+    default=1/(24 * 60),
+    help="Historical data will only take into account dates that have at most WNcutoff distance \
+          from the current null value's WN(Week Number)")
+
+@click.option("--Ycutoff",
+    type=int,
+    default=3,
+    help="Historical data will only take into account dates that have at most Ycutoff distance \
+          from the current null value's year")
+
+@click.option("--YDcutoff",
+    type=int,
+    default=30,
+    help="Historical data will only take into account dates that have at most YDcutoff distance \
+          from the current null value's yearday")
+
+def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, country, std_dev, max_thhr, a, WNcutoff, Ycutoff, YDcutoff):
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
     # Also check if current transformations are ok
@@ -494,6 +543,12 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
         ts_res, removed = remove_outliers(ts=ts_res,
                                           name=country,
                                           std_dev=std_dev)
+        #holidays_: The holidays of country
+        try:
+            code = compile(f"holidays.{country}()", "<string>", "eval")
+            country_holidays = eval(code)
+        except:
+            raise CountryDoesNotExist()
 
         print("\nPerfrorming Imputation of the Dataset...")
         logging.info("\nPerfrorming Imputation of the Dataset...")
@@ -526,6 +581,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
         # ts_res_darts.to_csv(f'{tmpdir}/5_filled_na.csv')
 
         # time variables creation
+
+        #TODO: Make training happen withot outlier detection
         if time_covs is not None:
             print("\nCreating time covariates dataset...")
             logging.info("\nCreating time covariates dataset...")
