@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
 from utils import load_artifacts
+import psutil, nvsmi
 
 # allows automated type check with pydantic
 #class ModelName(str, Enum):
@@ -185,17 +186,20 @@ async def get_list_of_mlflow_experiments():
 @app.get('/results/get_best_run_id_by_mlflow_experiment/{experiment_id}/{metric}')
 async def get_best_run_id_by_mlflow_experiment(experiment_id: str, metric: str = 'mape'):
     df = mlflow.search_runs([experiment_id], order_by=[f"metrics.{metric} ASC"])
-    best_run_id = df.loc[0, 'run_id']
-    return best_run_id
+    if df.empty:
+        raise HTTPException(status_code=404, detail="No run has any metrics")
+    else:
+       best_run_id = df.loc[0, 'run_id']
+       return best_run_id
 
-@app.get('/results/get_forecast_vs_actual/{run_id}')
-async def get_forecast_vs_actual(run_id: str):
+@app.get('/results/get_forecast_vs_actual/{run_id}/n_samples/{n}')
+async def get_forecast_vs_actual(run_id: str, n: int):
     forecast = load_artifacts(
         run_id=run_id, src_path="eval_results/predictions.csv")
-    forecast_df = pd.read_csv(forecast, index_col=0).iloc[-2000:-1000]
+    forecast_df = pd.read_csv(forecast, index_col=0).iloc[-n:]
     actual = load_artifacts(
         run_id=run_id, src_path="eval_results/test.csv")
-    actual_df = pd.read_csv(actual, index_col=0)[-2000:-1000]
+    actual_df = pd.read_csv(actual, index_col=0)[-n:]
     forecast_response = forecast_df.to_dict('split')
     actual_response = actual_df.to_dict('split')
     # unlist
@@ -213,8 +217,44 @@ async def get_metric_list(run_id: str):
     metrix_response = {"labels":[i for i in metrix.keys()], "data": [i for i in metrix.values()]}
     return metrix_response
 
+@app.get('/system_monitoring/get_cpu_usage')
+async def get_cpu_usage():
+    cpu_count_logical = psutil.cpu_count()
+    cpu_count = psutil.cpu_count(logical=False)
+    cpu_usage = psutil.cpu_percent(percpu=True)
+    cpu_percentage_response = {'labels': [f'CPU {i}' for i in range(1, len(cpu_usage)+1)], 'data': cpu_usage}
+    response = {'barchart_1': cpu_percentage_response,
+                'text_1': cpu_count,
+                'text_2': cpu_count_logical}
+    return response
 
-    # # find child runs of father run
-    # query = "tags.mlflow.parentRunId = '{}'".format(parent_run.info.run_id)
-    # results = mlflow.search_runs(filter_string=query)
-    # graph_dict = {'labels':[], 'data':[]}
+@app.get('/system_monitoring/get_memory_usage')
+async def get_memory_usage():
+    virtual_memory = psutil.virtual_memory()
+    swap_memory = psutil.swap_memory()
+    swap_memory_response = {
+        'title': 'Swap memory usage (Mbytes)',
+        'low': swap_memory.used // 1024**2,
+        'high': swap_memory.total // 1024**2}
+    virtual_memory_response = {
+        'title': 'Virtual memory usage (Mbytes)',
+        'low': virtual_memory.used // 1024**2,
+        'high': virtual_memory.total // 1024**2}
+    response = {
+        'progressbar_1': virtual_memory_response,
+        'progressbar_2': swap_memory_response}
+    print(response)
+    return response
+
+@app.get('/system_monitoring/get_gpu_usage')
+async def get_gpu_usage():
+    gpus_stats = nvsmi.get_available_gpus()
+    response = {}
+    for gpu_stats in gpus_stats:
+        response[gpu_stats.id] = {
+           "progressbar_1": {'title': "GPU utilization (%)", 'percent': gpu_stats.gpu_util}, 
+           "progressbar_2": {'title': "GPU memory utilization (Mbytes)",
+                            'low':  gpu_stats.mem_used,
+                            'high':  gpu_stats.mem_total}}
+    print(response)  
+    return response
