@@ -85,8 +85,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
             print("Found existing run for entrypoint=%s and parameters=%s" % (entrypoint, parameters))
             return existing_run
     print("Launching new run for entrypoint=%s and parameters=%s" % (entrypoint, parameters))
-    #env_manager="local"?
-    submitted_run = mlflow.run(".", entrypoint, parameters=parameters, use_conda=False)
+    submitted_run = mlflow.run(".", entrypoint, parameters=parameters, env_manager="local")
     return mlflow.tracking.MlflowClient().get_run(submitted_run.run_id)
 
 

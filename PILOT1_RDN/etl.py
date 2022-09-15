@@ -358,8 +358,6 @@ def impute(ts: pd.DataFrame,
     for i, null_date in enumerate(null_dates):
         if leave_nan[i]: continue
 
-        print(null_date)
-
         #WN: Day of the week + hour/24 + minute/(24*60). Holidays are handled as
         #either Saturdays(if the real day is a Friday) or Sundays(in every other case)
         currWN = calendar.loc[null_date]['WN']
