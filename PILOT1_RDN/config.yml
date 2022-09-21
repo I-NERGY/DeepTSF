@@ -406,7 +406,7 @@ hyperparameters:
     dilation_base: 2
     weight_norm: True
     dropout: 0
-    n_epochs: 1
+    n_epochs: 2
     random_state: 0
     nr_epochs_val_period: 1
     batch_size: 1024
