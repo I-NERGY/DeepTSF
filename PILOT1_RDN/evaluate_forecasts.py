@@ -27,7 +27,8 @@ import mlflow
 import shutil
 from preprocessing import split_dataset
 import tempfile
-
+import random
+import shap
 
 # get environment variables
 from dotenv import load_dotenv
@@ -187,7 +188,7 @@ def backtester(model,
 
     return {"metrics": metrics, "eval_plot": plt, "backtest_series": backtest_series}
 
-def build_shap_dataset(size, train, test, input_chunk_length, output_chunk_length):
+def build_shap_dataset(size, train, test, input_chunk_length, output_chunk_length, past_covs=None, future_covs=None):
 
     data = []
     background = []
@@ -243,12 +244,16 @@ def build_shap_dataset(size, train, test, input_chunk_length, output_chunk_lengt
 def predict(x, n_past_covs, n_future_covs, input_chunk_length, output_chunk_length, model, scaler_list, scale=True):
     res = []
     for sample in x:
-        index = [datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(input_chunk_length)]
-        index_future = [datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(input_chunk_length + output_chunk_length)]
+    #    print(sample)
+        index = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(input_chunk_length)]
+        index_future = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(input_chunk_length + output_chunk_length)]
+        sample = np.array(sample, dtype=np.float32)
         data = sample[:input_chunk_length]
         ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Load"]))
+    #    print(ts.dtype)
         if scale:
             ts = scaler_list[0].transform(ts)
+    #    print(ts)
         past_covs = None
         future_covs = None
         for i in range(input_chunk_length, input_chunk_length*(n_past_covs+1), input_chunk_length):
@@ -278,7 +283,7 @@ def predict(x, n_past_covs, n_future_covs, input_chunk_length, output_chunk_leng
                     future_covs = future_covs.stack(scaler_list[scale_index].transform(temp))
                 else:
                     future_covs = future_covs.stack(temp)
-
+    #    print("asdssd", past_covs, future_covs)
         ts = model.predict(output_chunk_length, ts, past_covariates=past_covs, future_covariates=future_covs)
         if scale:
             res.append(scaler_list[0].inverse_transform(ts).univariate_values())
@@ -289,12 +294,18 @@ def predict(x, n_past_covs, n_future_covs, input_chunk_length, output_chunk_leng
     return np.array(res)
 #lambda x: model_rnn.predict(TimeSeries.from_dataframe(pd.DataFrame(index=(x[-1] + pd.offsets.DateOffset(hours=i) for i in range(96)), data=x[:-1])))
 
-def call_shap(n_past_covs, n_future_covs, input_chunk_length, output_chunk_length, model, scaler_list, scale):
+def call_shap(n_past_covs, n_future_covs, input_chunk_length, output_chunk_length, model, scaler_list, scale, background, data):
     shap.initjs()
     explainer = shap.KernelExplainer(lambda x : predict(x, n_past_covs, n_future_covs, input_chunk_length, output_chunk_length, model, scaler_list, scale), background)
     shap_values = explainer.shap_values(data, nsamples="auto", normalize=False)
-    fig = shap.force_plot(explainer.expected_value[0],shap_values[0][0,:], data.iloc[0,:], show=False)
-    mlflow.log_figure(fig, 'force_plot.png')
+    fig = shap.force_plot(explainer.expected_value[0],shap_values[0][0,:], data.iloc[0,:],  matplotlib = True, show = False)
+    mlflow.log_figure(fig, 'force_plot_0_sample.png')
+    shap.summary_plot(shap_values[0], data, show=False)
+    fig = plt.gcf()
+    mlflow.log_figure(fig, 'summary_plot_all_samples.png')
+    shap.summary_plot(shap_values[0], data, plot_type='bar', show=False)
+    fig = plt.gcf()
+    mlflow.log_figure(fig, 'summary_plot_bar_graph.png')
 
 @click.command()
 @click.option("--mode",
@@ -353,7 +364,23 @@ def call_shap(n_past_covs, n_future_covs, input_chunk_length, output_chunk_lengt
 @click.option("--retrain",
               type=str,
               default="false")
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain):
+
+@click.option("--input-chunk-length",
+             type=str,
+             default="None",
+             help="input_chunk_length of model. Is not None only if evaluating a global forecasting model")
+
+@click.option("--size",
+             type=str,
+             default="10",
+             help="Size of shap dataset in samples")
+
+@click.option("--analyze-with-shap",
+             type=str,
+             default="False",
+             help="Whether to do SHAP analysis on the model. Only global forecasting models are supported")
+
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, size, analyze_with_shap):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -362,10 +389,15 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     forecast_horizon = int(forecast_horizon)
     stride = int(forecast_horizon) if stride is None else int(stride)
     retrain = truth_checker(retrain)
+    analyze_with_shap = truth_checker(analyze_with_shap)
 
     future_covariates_uri = none_checker(future_covs_uri)
     past_covariates_uri = none_checker(past_covs_uri)
-
+    try:
+        size = int(size)
+    except:
+        size = float(size)
+    input_chunk_length = int(input_chunk_length)
     # Load model / datasets / scalers from Mlflow server
 
     ## load series from MLflow
@@ -431,20 +463,23 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                 future_covariates=future_covariates,
                                 past_covariates=past_covariates,
                                 path_to_save_backtest=evaltmpdir)
+        if analyze_with_shap:
+            data, background = build_shap_dataset(size=size,
+                                                train=series_split['train'],
+                                                test=series_split['val'],
+                                                input_chunk_length=input_chunk_length,
+                                                output_chunk_length=forecast_horizon)
 
-        data, background = build_shap_dataset(size=1,####
-                           train=series_split['train'],
-                           test=series_split['val'],
-                           input_chunk_length=96,#####
-                           output_chunk_length=forecast_horizon)
-
-        call_shap(0,####
-                  0, ####
-                  96, ####
-                  input_chunk_length=forecast_horizon,
-                  model=model,
-                  scaler_list=[scaler],
-                  scale=True)####
+        #print(data, background)
+            call_shap(n_past_covs=0 if past_covariates == None else past_covariates.n_components,
+                    n_future_covs=0 if future_covariates == None else future_covariates.n_components,
+                    input_chunk_length=input_chunk_length,
+                    output_chunk_length=forecast_horizon,
+                    model=model,
+                    scaler_list=[scaler],
+                    scale=(scaler is not None),
+                    background=background,
+                    data=data)
 
         series_split['test'].to_csv(
             os.path.join(evaltmpdir, "test.csv"))

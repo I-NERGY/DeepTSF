@@ -230,10 +230,20 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
              help="Historical data will only take into account dates that have at most ydcutoff distance \
                    from the current null value's yearday")
 
+@click.option("--shap-data-size",
+             type=str,
+             default="10",
+             help="Size of shap dataset in samples")
+
+@click.option("--analyze-with-shap",
+             type=str,
+             default="False",
+             help="Whether to do SHAP analysis on the model. Only global forecasting models are supported")
+
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
-             country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff):
+             country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -324,8 +334,15 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
             "model_type": train_model_type,
             "forecast_horizon": forecast_horizon,
             "stride": stride,
-            "retrain": retrain
+            "retrain": retrain,
+            "input_chunk_length" : None,
+            "size" : shap_data_size,
+            "analyze_with_shap" : analyze_with_shap
             }
+
+        if "input_chunk_length" in train_run.data.params:
+            eval_params["input_chunk_length"] = train_run.data.params["input_chunk_length"]
+
         eval_run = _get_or_run("eval", eval_params, git_commit)
 
         # Log eval metrics to father run for consistency and clear results
