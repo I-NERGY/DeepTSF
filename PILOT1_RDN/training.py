@@ -20,6 +20,30 @@ import tempfile
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import shutil
 
+# Inference requirements to be stored with the darts flavor !!
+from sys import version_info
+import torch, cloudpickle, darts
+PYTHON_VERSION = "{major}.{minor}.{micro}".format(major=version_info.major,
+                                                  minor=version_info.minor,
+                                                  micro=version_info.micro)
+mlflow_serve_conda_env = {
+    'channels': ['defaults'],
+    'dependencies': [
+        'python={}'.format(PYTHON_VERSION),
+        'pip',
+        {
+            'pip': [
+                'cloudpickle=={}'.format(cloudpickle.__version__),
+                'darts=={}'.format(darts.__version__),
+                'pretty_errors=={}'.format(pretty_errors.__version__),
+                'torch=={}'.format(torch.__version__),
+                'mlflow=={}'.format(mlflow.__version__)
+            ],
+        },
+    ],
+    'name': 'darts_infer_pl_env'
+}
+
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
@@ -71,9 +95,7 @@ my_stopper = EarlyStopping(
                    'BlockRNN',
                    'TFT',
                    'LightGBM',
-                   'RandomForest',
-                   'Naive',
-                   'AutoARIMA']),
+                   'RandomForest']),
               multiple=False,
               default='RNN',
               help="The base architecture of the model to be trained"
@@ -402,7 +424,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         mlflow.pyfunc.log_model(mlflow_model_root_dir,
                                 loader_module="darts_flavor",
                                 data_path=logs_path_new,
-                                code_path=['utils.py', 'inference.py', 'darts_flavor.py'])
+                                code_path=['utils.py', 'inference.py', 'darts_flavor.py'],
+                                conda_env=mlflow_serve_conda_env)
         # elif model_type == 'pkl':
         #     mlflow.pyfunc.log_model(mlflow_model_root_dir,
         #                             loader_module="loader_module_pkl",
