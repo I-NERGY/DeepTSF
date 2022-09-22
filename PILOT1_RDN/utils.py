@@ -1,12 +1,14 @@
 
+from dotenv import load_dotenv
+import tempfile
 import pretty_errors
 import os
-# import tensorflow as tf
-# from tensorflow.python.summary.summary_iterator import summary_iterator
-# import seaborn as sns
 import mlflow
 
 cur_dir = os.path.dirname(os.path.realpath(__file__))
+
+load_dotenv()
+
 
 class ConfigParser:
     def __init__(self, config_file_path=f'{cur_dir}/config.yml'):
@@ -17,22 +19,26 @@ class ConfigParser:
 
     def read_hyperparameters(self, hyperparams_entrypoint):
         return self.config['hyperparameters'][hyperparams_entrypoint]
-    
+
     def read_entrypoints(self):
         return self.config['hyperparameters']
 
+
 def download_file_from_s3_bucket(object_name, dst_filename, dst_dir=None, bucketName='mlflow-bucket'):
-    import boto3, tempfile
+    import boto3
+    import tempfile
     if dst_dir is None:
         dst_dir = tempfile.mkdtemp()
     else:
         os.makedirs(dst_dir, exist_ok=True)
     os.makedirs(dst_dir, exist_ok=True)
-    s3_resource = boto3.resource('s3', aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
+    s3_resource = boto3.resource(
+        's3', aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
     bucket = s3_resource.Bucket(bucketName)
     local_path = os.path.join(dst_dir, dst_filename)
     bucket.download_file(object_name, local_path)
     return local_path
+
 
 def load_yaml_as_dict(filepath):
     import yaml
@@ -44,13 +50,17 @@ def load_yaml_as_dict(filepath):
             print(exc)
             return
 
+
 def load_local_pkl_as_object(local_path):
     import pickle
     pkl_object = pickle.load(open(local_path, "rb"))
     return pkl_object
 
+
 def download_online_file(url, dst_filename=None, dst_dir=None):
-    import sys, tempfile, requests
+    import sys
+    import tempfile
+    import requests
 
     if dst_dir is None:
         dst_dir = tempfile.mkdtemp()
@@ -71,9 +81,6 @@ def download_online_file(url, dst_filename=None, dst_dir=None):
 
 
 def download_mlflow_file(url, dst_dir=None):
-    import tempfile
-    from dotenv import load_dotenv
-    load_dotenv()
     S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 
     if dst_dir is None:
@@ -91,22 +98,24 @@ def download_mlflow_file(url, dst_dir=None):
         local_path = client.download_artifacts(run_id, mlflow_path, dst_dir)
     elif url.startswith('http://'):
         local_path = download_online_file(
-            url, dst_dir=dst_dir)   
+            url, dst_dir=dst_dir)
     return local_path
+
 
 def load_pkl_model_from_server(model_uri):
     print("\nLoading remote PKL model...")
-    model_path = download_online_file(f'{model_uri}/_model.pkl', '_model.pkl')
+    model_path = download_mlflow_file(f'{model_uri}/_model.pkl')
     print(model_path)
     best_model = load_local_pkl_as_object(model_path)
     return best_model
 
+
 def load_local_pl_model(model_root_dir):
-    
+
     from darts.models.forecasting.gradient_boosted_model import LightGBMModel
     from darts.models.forecasting.random_forest import RandomForest
     from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
-    
+
     print("\nLoading local PL model...")
     model_info_dict = load_yaml_as_dict(
         os.path.join(model_root_dir, 'model_info.yml'))
@@ -115,14 +124,15 @@ def load_local_pl_model(model_root_dir):
         "darts_forecasting_model"]
 
     model = eval(darts_forecasting_model)
-    
+
     # model_root_dir = model_root_dir.replace('/', os.path.sep)
-    
+
     print(f"Loading model from local directory:{model_root_dir}")
-    
+
     best_model = model.load_from_checkpoint(model_root_dir, best=True)
 
     return best_model
+
 
 def load_pl_model_from_server(model_root_dir):
 
@@ -133,11 +143,12 @@ def load_pl_model_from_server(model_root_dir):
     print(model_root_dir)
     model_run_id = model_root_dir.split("/")[5]
     mlflow_relative_model_root_dir = model_root_dir.split("/artifacts/")[1]
-    
+
     local_dir = tempfile.mkdtemp()
     client.download_artifacts(
         run_id=model_run_id, path=mlflow_relative_model_root_dir, dst_path=local_dir)
-    best_model = load_local_pl_model(os.path.join(local_dir, mlflow_relative_model_root_dir))
+    best_model = load_local_pl_model(os.path.join(
+        local_dir, mlflow_relative_model_root_dir))
     return best_model
 
 
@@ -146,7 +157,7 @@ def load_model(model_root_dir, mode="remote"):
     # Get model type as tag of model's run
     import mlflow
     print(model_root_dir)
-    
+
     if mode == 'remote':
         client = mlflow.tracking.MlflowClient()
         run_id = model_root_dir.split('/')[-1]
@@ -157,7 +168,7 @@ def load_model(model_root_dir, mode="remote"):
             model_type = 'pl'
         else:
             model_type = "pkl"
-            
+
     # Load accordingly
     if mode == "remote" and model_type == "pl":
         model = load_pl_model_from_server(model_root_dir=model_root_dir)
@@ -172,8 +183,9 @@ def load_model(model_root_dir, mode="remote"):
         model = load_local_pkl_as_object(model_uri)
     return model
 
+
 def load_scaler(scaler_uri=None, mode="remote"):
-    
+
     import tempfile
 
     if scaler_uri is None:
@@ -181,20 +193,22 @@ def load_scaler(scaler_uri=None, mode="remote"):
         return None
 
     if mode == "remote":
-        run_id = scaler_uri.split("/")[5]
+        run_id = scaler_uri.split("/")[-2]
         mlflow_filepath = scaler_uri.split("/artifacts/")[1]
 
         client = mlflow.tracking.MlflowClient()
         local_dir = tempfile.mkdtemp()
-
+        print("Scaler: ", scaler_uri)
+        print("Run: ", run_id)
         client.download_artifacts(
-            run_id=run_id, 
+            run_id=run_id,
             path=mlflow_filepath,
             dst_path=local_dir
-            )
+        )
         # scaler_path = download_online_file(
         #     scaler_uri, "scaler.pkl") if mode == 'remote' else scaler_uri
-        scaler = load_local_pkl_as_object(os.path.join(local_dir, mlflow_filepath))
+        scaler = load_local_pkl_as_object(
+            os.path.join(local_dir, mlflow_filepath))
     else:
         scaler = load_local_pkl_as_object(scaler_uri)
     return scaler
@@ -204,6 +218,7 @@ def truth_checker(argument):
     """ Returns True if string has specific truth values else False"""
     return argument.lower() in ['true', '1', 't', 'y', 'yes', 'yeah', 'on']
 
+
 def none_checker(argument):
     """ Returns True if string has specific truth values else False"""
     if argument is None:
@@ -212,6 +227,7 @@ def none_checker(argument):
         return None
     else:
         return argument
+
 
 def load_artifacts(run_id, src_path, dst_path=None):
     import tempfile
@@ -225,23 +241,27 @@ def load_artifacts(run_id, src_path, dst_path=None):
     fname = src_path.split("/")[-1]
     return mlflow.artifacts.download_artifacts(artifact_path=src_path, dst_path="/".join([dst_dir, fname]), run_id=run_id)
 
+
 def load_local_model_as_torch(local_path):
     import torch
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    device = torch.device(
+        'cuda') if torch.cuda.is_available() else torch.device('cpu')
     model = torch.load(local_path, map_location=device)
     model.device = device
     return model
 
+
 def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Date', last_date=None):
 
-    import logging, darts
+    import logging
+    import darts
     import numpy as np
     import pandas as pd
-    
+
     try:
         covariates = darts.TimeSeries.from_csv(
-            local_path, time_col=time_col, 
-            fill_missing_dates=True, 
+            local_path, time_col=time_col,
+            fill_missing_dates=True,
             freq=None)
         covariates = covariates.astype(np.float32)
         if last_date is not None:
@@ -254,6 +274,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
         covariates = None
     return covariates
 
+
 def parse_uri_prediction_input(model_input: dict, model) -> dict:
 
     series_uri = model_input['series_uri']
@@ -262,16 +283,19 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
     batch_size = int(model_input["batch_size"])
     roll_size = int(model_input["roll_size"])
     forecast_horizon = int(model_input["n"])
-    
+
     ## Horizon
-    n = int(model_input["n"]) if model_input["n"] is not None else model.output_chunk_length
-    roll_size = int(model_input["roll_size"]) if model_input["roll_size"] is not None else model.output_chunk_length
-    
+    n = int(
+        model_input["n"]) if model_input["n"] is not None else model.output_chunk_length
+    roll_size = int(
+        model_input["roll_size"]) if model_input["roll_size"] is not None else model.output_chunk_length
+
     ## TODO: future and past covariates (load and transform to darts)
     past_covariates_uri = model_input["past_covariates_uri"]
     future_covariates_uri = model_input["future_covariates_uri"]
 
-    batch_size = int(model_input["batch_size"]) if model_input["batch_size"] is not None else 1
+    batch_size = int(model_input["batch_size"]
+                     ) if model_input["batch_size"] is not None else 1
 
     if 'runs:/' in series_uri or 's3://mlflow-bucket/' in series_uri or series_uri.startswith('http://'):
         print('\nDownloading remote file of recent time series history...')
@@ -294,7 +318,7 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
             past_covariates_uri, time_col='Date')
     else:
         past_covariates = None
-    
+
     return {
         "n": n,
         "history": history,
@@ -308,7 +332,7 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
 #     # assert(os.path.isdir(output_dir))
 
 #     image_str = tf.compat.v1.placeholder(tf.string)
-    
+
 #     im_tf = tf.image.decode_image(image_str)
 
 #     sess = tf.compat.v1.InteractiveSession()
@@ -335,10 +359,10 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
     #     print(
     #         "Searching for term 'events.out.tfevents.' in logs folder to extract tensorboard file...\n")
     # tensorboard_folder_list = os.listdir(tensorboard_event_folder)
-    # event_file_name = [fname for fname in tensorboard_folder_list if 
+    # event_file_name = [fname for fname in tensorboard_folder_list if
     #     "events.out.tfevents." in fname][0]
     # tensorboard_event_file = os.path.join(tensorboard_event_folder, event_file_name)
-    
+
     # # test for get_training_progress_by_tag
     # print(tensorboard_event_file)
 
@@ -350,21 +374,21 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
     # # get metrix and store locally
     # training_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/loss_total'))
     # training_loss.to_csv(os.path.join(output_dir, 'training_loss.csv'))
-    
+
     # # testget_training_progress_by_tag
     # print(training_loss)
-    
+
     # ## consider here nr_epoch_val_period
     # validation_loss = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'validation/loss_total'))
 
     # # test for get_training_progress_by_tag
     # print(validation_loss)
     # print(validation_loss.__dict__)
-    
+
     # validation_loss["Epoch"] = (validation_loss["Epoch"] * int(len(training_loss) / len(validation_loss)) + 1).astype(int)
     # validation_loss.to_csv(os.path.join(output_dir, 'validation_loss.csv'))
 
-    # learning_rate = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/learning_rate'))    
+    # learning_rate = pd.DataFrame(get_training_progress_by_tag(tensorboard_event_file, 'training/learning_rate'))
     # learning_rate.to_csv(os.path.join(output_dir, 'learning_rate.csv'))
 
     # sns.lineplot(x="Epoch", y="Value", data=training_loss, label="Training")
@@ -389,7 +413,3 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
     # shutil.rmtree(output_dir)
 
     # return
-    
-
-
-
