@@ -188,7 +188,61 @@ def backtester(model,
 
     return {"metrics": metrics, "eval_plot": plt, "backtest_series": backtest_series}
 
-def build_shap_dataset(size, train, test, input_chunk_length, output_chunk_length, past_covs=None, future_covs=None):
+def build_shap_dataset(size: Union[int, float] = 100,
+                       train: darts.TimeSeries,
+                       test: darts.TimeSeries,
+                       input_chunk_length: int,
+                       output_chunk_length: int,
+                       past_covs: darts.TimeSeries = None,
+                       future_covs: darts.TimeSeries = None):
+    """
+    Produces the dataset to be fed to SHAP's explainer. It chooses a subset of
+    the validation dataset and it returns a dataframe of these samples along
+    with their corresponding covariates if needed by the model. Suports only
+    Global Forecasting Models.
+
+    Parameters
+    ----------
+    size
+        The number of samples to be produced. If it is a float, it represents
+        the proportion of possible samples of the validation dataset to be
+        chosen. If it is an int, it represents the absolute numbe of samples to
+        be produced.
+    train
+        The training dataset of the model. It is needed to set the background samples
+        of the explainer.
+    test
+        The validation dataset of the model.
+    input_chunk_length
+        The length of each sample of the dataset. Also, the input_chunk_length of the model.
+    output_chunk_length
+        The output_chunk_length of the model
+    past_covs
+        Whether the model has been trained with past covariates
+    future_covs
+        Whether the model has been trained with future covariates
+
+    Returns
+    -------
+    Tuple[pandas.DataFrame, pandas.DataFrame]
+        -First position of tuple:
+            A dataframe consisting of the samples of the validation dataset that
+            were chosen, along with their corresponding covariates. Its exact form
+            is as follows:
+
+            0 timestep  1 timestep  ... <input_chunk_length - 1> timestep \
+
+            Step 0 of past covariate 0 ... Step <input_chunk_length - 1> of past covariate 0 \
+
+            Step 0 of past covariate 1 ... Step <input_chunk_length - 1> of past covariate <past_covs.n_components> \
+
+            Step 0 of future covariate 0 ... Step <input_chunk_length + output_chunk_length - 1> of future covariate <future_covs.n_components>
+        -Second position of tuple:
+            A dataframe containsing the sample providing the values that replace the data's values that are simulated to be
+            missing. Each feature's value is the median of the TimeSeries it originates from. So, if it's a covariate feature,
+            its value will be the median of this covariate, and if it is a feature of the dataset, its value will be the median
+            of the training dataset.
+    """
 
     data = []
     background = []
@@ -241,7 +295,47 @@ def build_shap_dataset(size, train, test, input_chunk_length, output_chunk_lengt
     background = pd.DataFrame([background], columns=columns)
     return data, background
 
-def predict(x, n_past_covs, n_future_covs, input_chunk_length, output_chunk_length, model, scaler_list, scale=True):
+def predict(x: darts.TimeSeries,
+            n_past_covs: int = 0,
+            n_future_covs: int = 0,
+            input_chunk_length: int,
+            output_chunk_length: int,
+            model,
+            scaler_list: List[darts.dataprocessing.transformers.Scaler],
+            scale: bool = True):
+    """
+    The function to be given to KernelExplainer, in order for it to produce predictions
+    for all samples of x. These samples have the format described in the above function. Also,
+    this function scales the data if necessary and is called multiple times by the SHAP explainer
+
+    Parameters
+    ----------
+    x
+        The dataset of samples to be predicted.
+    n_past_covs
+        The number of past covariates the model was trained on. This is needed to produce the
+        timeseries to be given to the models predict method.
+    n_future_covs
+        The number of future covariates the model was trained on.
+    input_chunk_length
+        The length of each sample of the dataset. Also, the input_chunk_length of the model.
+    output_chunk_length
+        The length of each sample of the result. Also, the output_chunk_length of the model
+    model
+        The model to be explained.
+    scaler_list
+        The list of scalers that were used. First, the training data scaler is listed. Then, all
+        the covariate scalers are listed in the order in which they appear in x.
+    scale
+        Whether to scale the data and the covariates
+
+    Returns
+    -------
+    numpy.array
+        The numpy array of the model's results. Its line number is equal to the number of samples
+        provided, and its column number is equal to output_chunk_length.
+    """
+
     res = []
     for sample in x:
     #    print(sample)
@@ -294,18 +388,68 @@ def predict(x, n_past_covs, n_future_covs, input_chunk_length, output_chunk_leng
     return np.array(res)
 #lambda x: model_rnn.predict(TimeSeries.from_dataframe(pd.DataFrame(index=(x[-1] + pd.offsets.DateOffset(hours=i) for i in range(96)), data=x[:-1])))
 
-def call_shap(n_past_covs, n_future_covs, input_chunk_length, output_chunk_length, model, scaler_list, scale, background, data):
+def call_shap(n_past_covs: int = 0,
+              n_future_covs: int = 0,
+              input_chunk_length: int,
+              output_chunk_length: int,
+              model,
+              scaler_list: List[darts.dataprocessing.transformers.Scaler],
+              scale: bool = True,
+              background: darts.TimeSeries,
+              data: darts.TimeSeries):
+    """
+    The function that calls KernelExplainer, and stores to the MLflow server
+    some plots explaining the output of the model. More specifficaly, ...
+
+    Parameters
+    ----------
+    n_past_covs
+        The number of past covariates the model was trained on. This is needed to produce the
+        timeseries to be given to the models predict method.
+    n_future_covs
+        The number of future covariates the model was trained on.
+    input_chunk_length
+        The length of each sample of the dataset. Also, the input_chunk_length of the model.
+    output_chunk_length
+        The length of each sample of the result. Also, the output_chunk_length of the model
+    model
+        The model to be explained.
+    scaler_list
+        The list of scalers that were used. First, the training data scaler is listed. Then, all
+        the covariate scalers are listed in the order in which they appear in x.
+    scale
+        Whether to scale the data and the covariates
+    background
+        The sample that provides the values that replace the data's values that are simulated to be
+        missing
+    data
+        The samples to be tested
+    """
+
     shap.initjs()
     explainer = shap.KernelExplainer(lambda x : predict(x, n_past_covs, n_future_covs, input_chunk_length, output_chunk_length, model, scaler_list, scale), background)
     shap_values = explainer.shap_values(data, nsamples="auto", normalize=False)
-    fig = shap.force_plot(explainer.expected_value[0],shap_values[0][0,:], data.iloc[0,:],  matplotlib = True, show = False)
-    mlflow.log_figure(fig, 'force_plot_0_sample.png')
+    plt.close()
     shap.summary_plot(shap_values[0], data, show=False)
-    fig = plt.gcf()
-    mlflow.log_figure(fig, 'summary_plot_all_samples.png')
+    plt.savefig("summary_plot_all_samples.png")
+    mlflow.log_artifact("summary_plot_all_samples.png")
+    os.remove("summary_plot_all_samples.png")
+    plt.close()
     shap.summary_plot(shap_values[0], data, plot_type='bar', show=False)
-    fig = plt.gcf()
-    mlflow.log_figure(fig, 'summary_plot_bar_graph.png')
+    plt.savefig("summary_plot_bar_graph.png")
+    mlflow.log_artifact('summary_plot_bar_graph.png')
+    os.remove("summary_plot_bar_graph.png")
+    plt.close()
+    fig = shap.force_plot(explainer.expected_value[0],shap_values[0][0,:], data.iloc[0,:],  matplotlib = True, show = False)
+    mlflow.log_figure(fig, 'force_plot_0_sample_0_output.png')
+    plt.close()
+    fig = shap.force_plot(explainer.expected_value[0],shap_values[0][9,:], data.iloc[9,:],  matplotlib = True, show = False)
+    mlflow.log_figure(fig, 'force_plot_9_sample_0_output.png')
+    plt.close()
+    fig = shap.force_plot(explainer.expected_value[4],shap_values[4][0,:], data.iloc[0,:],  matplotlib = True, show = False)
+    mlflow.log_figure(fig, 'force_plot_0_sample_4th_output.png')
+    plt.close()
+
 
 @click.command()
 @click.option("--mode",
@@ -466,9 +610,11 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         if analyze_with_shap:
             data, background = build_shap_dataset(size=size,
                                                 train=series_split['train'],
-                                                test=series_split['val'],
+                                                test=series_split['test'],
                                                 input_chunk_length=input_chunk_length,
-                                                output_chunk_length=forecast_horizon)
+                                                output_chunk_length=forecast_horizon,
+                                                future_covs=future_covariates,
+                                                past_covs=past_covariates)
 
         #print(data, background)
             call_shap(n_past_covs=0 if past_covariates == None else past_covariates.n_components,

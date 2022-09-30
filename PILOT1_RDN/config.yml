@@ -639,3 +639,16 @@ hyperparameters:
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
+
+  tcn_interpretability_test:
+    input_chunk_length: 96
+    output_chunk_length: 24
+    kernel_size: 3
+    num_filters: 3
+    dilation_base: 2
+    weight_norm: True
+    dropout: 0
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
