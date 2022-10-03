@@ -29,6 +29,10 @@ from preprocessing import split_dataset
 import tempfile
 import random
 import shap
+from typing import Union
+from typing import List
+import darts
+import json
 
 # get environment variables
 from dotenv import load_dotenv
@@ -188,7 +192,7 @@ def backtester(model,
 
     return {"metrics": metrics, "eval_plot": plt, "backtest_series": backtest_series}
 
-def build_shap_dataset(size: Union[int, float] = 100,
+def build_shap_dataset(size: Union[int, float],
                        train: darts.TimeSeries,
                        test: darts.TimeSeries,
                        input_chunk_length: int,
@@ -238,17 +242,22 @@ def build_shap_dataset(size: Union[int, float] = 100,
 
             Step 0 of future covariate 0 ... Step <input_chunk_length + output_chunk_length - 1> of future covariate <future_covs.n_components>
         -Second position of tuple:
-            A dataframe containsing the sample providing the values that replace the data's values that are simulated to be
+            A dataframe containing the sample providing the values that replace the data's values that are simulated to be
             missing. Each feature's value is the median of the TimeSeries it originates from. So, if it's a covariate feature,
             its value will be the median of this covariate, and if it is a feature of the dataset, its value will be the median
             of the training dataset.
     """
-
+    #data: The dataset to be given to SHAP
     data = []
+    #background: Dataframe containing the sample providing the values that replace the data's values that are simulated to be missing
     background = []
+    #columns: The name of the columns of the dataframes
     columns = []
+    #Whether it is the first time the for loop is run
     first_iter = True
     samples = set()
+
+    #Choosing the samples of val we will use randomly
     if(type(size) == float):
         size = int(size*(len(test) - input_chunk_length + 1))
     if size == len(test) - input_chunk_length + 1:
@@ -262,6 +271,7 @@ def build_shap_dataset(size: Union[int, float] = 100,
             samples.add(r)
 
     for i in samples:
+
         curr = test[i:i + input_chunk_length]
         curr_date = int(curr.time_index[0].timestamp())
         curr_values = curr.random_component_values(copy=False)
@@ -296,8 +306,8 @@ def build_shap_dataset(size: Union[int, float] = 100,
     return data, background
 
 def predict(x: darts.TimeSeries,
-            n_past_covs: int = 0,
-            n_future_covs: int = 0,
+            n_past_covs: int,
+            n_future_covs: int,
             input_chunk_length: int,
             output_chunk_length: int,
             model,
@@ -388,15 +398,28 @@ def predict(x: darts.TimeSeries,
     return np.array(res)
 #lambda x: model_rnn.predict(TimeSeries.from_dataframe(pd.DataFrame(index=(x[-1] + pd.offsets.DateOffset(hours=i) for i in range(96)), data=x[:-1])))
 
-def call_shap(n_past_covs: int = 0,
-              n_future_covs: int = 0,
+def bar_plot_store_json(shap_values, data, filename):
+    feature_order = np.argsort(np.sum(np.abs(shap_values), axis=0))
+    feature_order = feature_order[-min(20, len(feature_order)):]
+    feature_inds = feature_order[:20]
+    feature_inds = reversed(feature_inds)
+    feature_names = data.columns
+    global_shap_values = np.abs(shap_values).mean(0)
+    bar_plot_dict = {}
+    for i in feature_inds:
+        bar_plot_dict[feature_names[i]] = global_shap_values[i]
+    with open(filename, "w") as out:
+        json.dump(bar_plot_dict, out)
+
+def call_shap(n_past_covs: int,
+              n_future_covs: int,
               input_chunk_length: int,
               output_chunk_length: int,
               model,
               scaler_list: List[darts.dataprocessing.transformers.Scaler],
-              scale: bool = True,
               background: darts.TimeSeries,
-              data: darts.TimeSeries):
+              data: darts.TimeSeries,
+              scale: bool = True):
     """
     The function that calls KernelExplainer, and stores to the MLflow server
     some plots explaining the output of the model. More specifficaly, ...
@@ -429,7 +452,7 @@ def call_shap(n_past_covs: int = 0,
     shap.initjs()
     explainer = shap.KernelExplainer(lambda x : predict(x, n_past_covs, n_future_covs, input_chunk_length, output_chunk_length, model, scaler_list, scale), background)
     shap_values = explainer.shap_values(data, nsamples="auto", normalize=False)
-    plt.close()
+    """plt.close()
     shap.summary_plot(shap_values[0], data, show=False)
     plt.savefig("summary_plot_all_samples.png")
     mlflow.log_artifact("summary_plot_all_samples.png")
@@ -448,7 +471,29 @@ def call_shap(n_past_covs: int = 0,
     plt.close()
     fig = shap.force_plot(explainer.expected_value[4],shap_values[4][0,:], data.iloc[0,:],  matplotlib = True, show = False)
     mlflow.log_figure(fig, 'force_plot_0_sample_4th_output.png')
+    plt.close()"""
     plt.close()
+    interprtmpdir = tempfile.mkdtemp()
+    sample = random.randint(0, len(data) - 1)
+    for out in [0, output_chunk_length//2, output_chunk_length-1]:
+        print(len(shap_values))
+        print(out)
+        shap.summary_plot(shap_values[out], data, show=False)
+        plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
+        plt.close()
+        shap.summary_plot(shap_values[out], data, plot_type='bar', show=False)
+        plt.savefig(f"{interprtmpdir}/summary_plot_bar_graph_out_{out}.png")
+        plt.close()
+        bar_plot_store_json(shap_values[out], data, f"{interprtmpdir}/summary_plot_bar_data_out_{out}.json")
+        shap.force_plot(explainer.expected_value[out],shap_values[out][sample,:], data.iloc[sample,:],  matplotlib = True, show = False)
+        plt.savefig(f"{interprtmpdir}/force_plot_of_{sample}_sample_{out}_output.png")
+        plt.close()
+
+        print("\nUploading SHAP interpretation results to MLflow server...")
+        logging.info("\nUploading SHAP interpretation results to MLflow server...")
+
+        mlflow.log_artifacts(interprtmpdir, "interpretation")
+
 
 
 @click.command()
@@ -623,9 +668,9 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                     output_chunk_length=forecast_horizon,
                     model=model,
                     scaler_list=[scaler],
-                    scale=(scaler is not None),
                     background=background,
-                    data=data)
+                    data=data,
+                    scale=(scaler is not None))
 
         series_split['test'].to_csv(
             os.path.join(evaltmpdir, "test.csv"))
