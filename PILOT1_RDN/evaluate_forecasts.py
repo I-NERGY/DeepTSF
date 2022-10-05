@@ -1,5 +1,5 @@
 import pretty_errors
-from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_model, load_scaler
+from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file
 
 from functools import reduce
 from darts.metrics import mape as mape_darts
@@ -568,8 +568,17 @@ def call_shap(n_past_covs: int,
              type=str,
              default="False",
              help="Whether to do SHAP analysis on the model. Only global forecasting models are supported")
+@click.option("--multiple",
+    type=str,
+    default="false",
+    help="Whether to train on multiple timeseries")
 
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, size, analyze_with_shap):
+@click.option("--eval-country",
+    type=str,
+    default="Portugal",
+    help="On which country to run the backtesting. Only for multiple timeseries")
+
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, size, analyze_with_shap, multiple, eval_country):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -579,6 +588,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     stride = int(forecast_horizon) if stride is None else int(stride)
     retrain = truth_checker(retrain)
     analyze_with_shap = truth_checker(analyze_with_shap)
+    multiple = truth_checker(multiple)
 
     future_covariates_uri = none_checker(future_covs_uri)
     past_covariates_uri = none_checker(past_covs_uri)
@@ -592,9 +602,11 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     ## load series from MLflow
     series_path = download_online_file(
         series_uri, "series.csv") if mode == 'remote' else series_uri
-    series = load_local_csv_as_darts_timeseries(
+    series, country_l, country_code_l = load_local_csv_as_darts_timeseries(
         local_path=series_path,
-        last_date=test_end_date)
+        last_date=test_end_date,
+        multiple=multiple)
+
 
     if future_covariates_uri is not None:
         future_covs_path = download_online_file(
@@ -620,7 +632,10 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     scaler = load_scaler(scaler_uri=none_checker(scaler_uri), mode=mode)
 
     if scaler is not None:
-        series_transformed = scaler.transform(series)
+        if not multiple:
+            series_transformed = scaler.transform(series)
+        else:
+            series_transformed = [scaler.transform(s) for s in series]
 
     # Split in the same way as in training
     ## series
@@ -628,22 +643,33 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         series,
         val_start_date_str=cut_date_test,
         test_start_date_str=cut_date_test,
-        test_end_date=test_end_date)
+        test_end_date=test_end_date,
+        multiple=multiple,
+        country_l=country_l,
+        country_code_l=country_code_l)
 
     series_transformed_split = split_dataset(
         series_transformed,
         val_start_date_str=cut_date_test,
         test_start_date_str=cut_date_test,
-        test_end_date=test_end_date)
+        test_end_date=test_end_date,
+        multiple=multiple,
+        country_l=country_l,
+        country_code_l=country_code_l)
 
+    if multiple:
+        eval_i = country_l.index(eval_country)
+    else:
+        eval_i = 0
     # Evaluate Model
     evaltmpdir = tempfile.mkdtemp()
     with mlflow.start_run(run_name='eval', nested=True) as mlrun:
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
         evaluation_results = backtester(model=model,
-                                series_transformed=series_transformed_split['all'],
-                                series=series_split['all'],
+                                series_transformed=series_transformed_split['all'][eval_i] \
+                                                   if multiple else series_transformed_split['all'],
+                                series=series_split['all'][eval_i] if multiple else series_split['all'],
                                 transformer_ts=scaler,
                                 test_start_date=cut_date_test,
                                 forecast_horizon=forecast_horizon,
@@ -671,9 +697,11 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                     background=background,
                     data=data,
                     scale=(scaler is not None))
-
-        series_split['test'].to_csv(
-            os.path.join(evaltmpdir, "test.csv"))
+        if not multiple:
+            series_split['test'].to_csv(
+                os.path.join(evaltmpdir, "test.csv"))
+        else:
+            multiple_dfs_to_ts_file(series_split['test'], country_l, country_code_l, os.path.join(evaltmpdir, "test.csv"))
 
         print("\nUploading evaluation results to MLflow server...")
         logging.info("\nUploading evaluation results to MLflow server...")
