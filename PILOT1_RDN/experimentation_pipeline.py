@@ -239,11 +239,22 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
              type=str,
              default="False",
              help="Whether to do SHAP analysis on the model. Only global forecasting models are supported")
+@click.option("--multiple",
+    type=str,
+    default="false",
+    help="Whether to train on multiple timeseries")
+
+@click.option("--eval-country",
+    type=str,
+    default="Portugal",
+    help="On which country to run the backtesting. Only for multiple timeseries")
+
 
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
-             country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap):
+             country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
+             multiple, eval_country):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -256,7 +267,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
         # 1.Load Data
         git_commit = active_run.data.tags.get(mlflow_tags.MLFLOW_GIT_COMMIT)
 
-        load_raw_data_params = {"series_csv": series_csv, "series_uri": series_uri, "day_first": day_first}
+        load_raw_data_params = {"series_csv": series_csv, "series_uri": series_uri, "day_first": day_first, "multiple": multiple}
         load_raw_data_run = _get_or_run("load_raw_data", load_raw_data_params, git_commit, ignore_previous_runs)
         # series_uri = f"{load_raw_data_run.info.artifact_uri}/raw_data/series.csv" \
         #                 .replace("s3:/", S3_ENDPOINT_URL)
@@ -274,7 +285,8 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                       "a": a,
                       "wncutoff": wncutoff,
                       "ycutoff": ycutoff,
-                      "ydcutoff": ydcutoff}
+                      "ydcutoff": ydcutoff,
+                      "multiple": multiple}
 
         etl_run = _get_or_run("etl", etl_params, git_commit, ignore_previous_runs)
 
@@ -295,7 +307,8 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
             "test_end_date": test_end_date,
             "device": device,
             "scale": scale,
-            "scale_covs": scale_covs
+            "scale_covs": scale_covs,
+            "multiple": multiple
             }
         train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 
@@ -337,7 +350,9 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
             "retrain": retrain,
             "input_chunk_length" : None,
             "size" : shap_data_size,
-            "analyze_with_shap" : analyze_with_shap
+            "analyze_with_shap" : analyze_with_shap,
+            "multiple": multiple,
+            "eval_country": eval_country
             }
 
         if "input_chunk_length" in train_run.data.params:

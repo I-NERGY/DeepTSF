@@ -114,10 +114,15 @@ my_stopper = EarlyStopping(
               type=str,
               default="true",
               help="Whether to scale the covariates")
+@click.option("--multiple",
+    type=str,
+    default="false",
+    help="Whether to train on multiple timeseries")
+    
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
-          test_end_date, device, scale, scale_covs):
+          test_end_date, device, scale, scale_covs, multiple):
 
     # Argument preprocessing
 
@@ -127,6 +132,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
     ## scale or not
     scale = truth_checker(scale)
     scale_covs = truth_checker(scale_covs)
+
+    multiple = truth_checker(multiple)
 
     ## hyperparameters
     hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
@@ -190,19 +197,20 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         ######################
         # Load series and covariates datasets
         time_col = "Date"
-        series = load_local_csv_as_darts_timeseries(
+        series, country_l, country_code_l = load_local_csv_as_darts_timeseries(
                 local_path=series_csv,
                 name='series',
                 time_col=time_col,
-                last_date=test_end_date)
+                last_date=test_end_date,
+                multiple=multiple)
         if future_covariates is not None:
-            future_covariates = load_local_csv_as_darts_timeseries(
+            future_covariates, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
                 last_date=test_end_date)
         if past_covariates is not None:
-            past_covariates = load_local_csv_as_darts_timeseries(
+            past_covariates, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
@@ -231,7 +239,10 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             test_end_date=test_end_date,
             store_dir=features_dir,
             name='series',
-            conf_file_name='split_info.yml')
+            conf_file_name='split_info.yml',
+            multiple=multiple,
+            country_l=country_l,
+            country_code_l=country_code_l)
         ## future covariates
         future_covariates_split = split_dataset(
             future_covariates,
@@ -259,7 +270,10 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             series_split,
             store_dir=features_dir,
             filename_suffix="series_transformed.csv",
-            scale=scale)
+            scale=scale,
+            multiple=multiple,
+            country_l=country_l,
+            country_code_l=country_code_l)
         if scale:
             pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
         ## scale future covariates

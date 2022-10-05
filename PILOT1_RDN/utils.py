@@ -5,7 +5,7 @@ import os
 # from tensorflow.python.summary.summary_iterator import summary_iterator
 # import seaborn as sns
 import mlflow
-
+import pandas as pd
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 
 class ConfigParser:
@@ -232,27 +232,44 @@ def load_local_model_as_torch(local_path):
     model.device = device
     return model
 
-def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Date', last_date=None):
+def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Date', last_date=None, multiple = False):
 
     import logging, darts
     import numpy as np
     import pandas as pd
 
     try:
-        covariates = darts.TimeSeries.from_csv(
-            local_path, time_col=time_col,
-            fill_missing_dates=True,
-            freq=None)
-        covariates = covariates.astype(np.float32)
-        if last_date is not None:
-            covariates.drop_after(pd.Timestamp(last_date))
+        if multiple:
+            #TODO Fix this too
+            ts_list, country_l, country_code_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=True)
+            covariate_l  = []
+            print("liiiist", local_path)
+            for df in ts_list:
+                covariates = darts.TimeSeries.from_dataframe(
+                             df, time_col=time_col,
+                             fill_missing_dates=True,
+                             freq=None)
+                covariates = covariates.astype(np.float32)
+                if last_date is not None:
+                    covariates.drop_after(pd.Timestamp(last_date))
+                covariate_l.append(covariates)
+            covariates = covariate_l
+        else:
+            country_code_l, country_l = [], []
+            covariates = darts.TimeSeries.from_csv(
+                local_path, time_col=time_col,
+                fill_missing_dates=True,
+                freq=None)
+            covariates = covariates.astype(np.float32)
+            if last_date is not None:
+                covariates.drop_after(pd.Timestamp(last_date))
     except (FileNotFoundError, PermissionError) as e:
         print(
             f"\nBad {name} file.  The model won't include {name}...")
         logging.info(
             f"\nBad {name} file. The model won't include {name}...")
         covariates = None
-    return covariates
+    return covariates, country_l, country_code_l
 
 def parse_uri_prediction_input(model_input: dict, model) -> dict:
 
@@ -303,6 +320,49 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
         "past_covariates": past_covariates,
         "batch_size": batch_size,
     }
+
+def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
+                            day_first: str = "true"):
+    ts = pd.read_csv(series_csv,
+                     sep=None,
+                     header=0,
+                     index_col=0,
+                     parse_dates=True,
+                     dayfirst=day_first,
+                     engine='python')
+    print("tssss", ts)
+    res = []
+    country = []
+    country_code = []
+    for i in range(max(ts["ID"])):
+        curr = ts[ts["ID"] == i]
+        curr = pd.melt(curr, id_vars=['Day', 'ID', 'Country', 'Country Code'], var_name='Time', value_name='Load')
+        curr["Date"] = pd.to_datetime(curr['Day'] + curr['Time'], format='%Y-%m-%d%H:%M:%S')
+        curr = curr.set_index("Date")
+        series = curr["Load"].sort_index().dropna().asfreq('60'+'min')
+        res.append(pd.DataFrame({"Load" : series}))
+        country.append(curr["Country"].values[0])
+        country_code.append(curr["Country Code"].values[0])
+    return res, country, country_code
+
+def multiple_dfs_to_ts_file(res_l, country_l, country_code_l, save_dir):
+    ts_list = []
+    for i, (ts, country, country_code) in enumerate(zip(res_l, country_l, country_code_l)):
+        ts["Day"] = ts.index.date
+        ts["Time"] = ts.index.time
+        ts = pd.pivot_table(ts, index=["Day"], columns=["Time"])
+        ts = ts["Load"]
+        ts["ID"] = i
+        ts["Country"] = country
+        ts["Country Code"] = country_code
+        ts_list.append(ts)
+    res = pd.concat(ts_list).sort_values(by=["Day", "ID"])
+    columns = list(res.columns)
+    columns.remove("ID")
+    columns = ["ID"] + columns
+    res = res[columns].reset_index()
+    res.to_csv(save_dir)
+
 #TODO: Fix it. It does not get any progress any more
 # def get_training_progress_by_tag(fn, tag):
 #     # assert(os.path.isdir(output_dir))

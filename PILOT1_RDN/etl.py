@@ -2,8 +2,7 @@ import pretty_errors
 from utils import none_checker
 import os
 from os import times
-from utils import download_online_file
-from utils import truth_checker
+from utils import download_online_file, truth_checker, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 import darts
 from darts.utils.timeseries_generation import holidays_timeseries
@@ -468,7 +467,12 @@ def impute(ts: pd.DataFrame,
     help="Historical data will only take into account dates that have at most ydcutoff distance \
           from the current null value's yearday")
 
-def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff):
+@click.option("--multiple",
+    type=str,
+    default="false",
+    help="Whether to train on multiple timeseries")
+
+def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple):
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
     # Also check if current transformations are ok
@@ -492,19 +496,25 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
     # Day first check
     day_first = truth_checker(day_first)
 
+    multiple = truth_checker(multiple)
+
     print("\nLoading source dataset..")
     logging.info("\nLoading source dataset..")
 
-    ts = pd.read_csv(series_csv,
-                     delimiter=',',
-                     header=0,
-                     index_col=0,
-                     parse_dates=True,
-                     dayfirst=day_first)
+    if multiple:
+        ts_list, country_l, country_code_l = multiple_ts_file_to_dfs(series_csv, day_first)
+    else:
+        ts_list = [pd.read_csv(series_csv,
+                         delimiter=',',
+                         header=0,
+                         index_col=0,
+                         parse_dates=True,
+                         dayfirst=day_first)]
+        country_l = [country]
 
     # Year range handling
     if none_checker(year_range) is None:
-        year_range = f"{ts.index[0].year}-{ts.index[-1].year}"
+        year_range = f"{ts_list[0].index[0].year}-{ts_list[0].index[-1].year}"
     if "-" in year_range:
         year_range = year_range.split("-")
     if isinstance(year_range, list):
@@ -520,103 +530,114 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
     tmpdir = tempfile.mkdtemp()
 
     with mlflow.start_run(run_name='etl', nested=True) as mlrun:
+        res_ = []
+        for i, ts in enumerate(ts_list):
+            # temporal filtering
+            print(f"\Starting etl of ts {i}, and country {country_l[i]}...")
+            logging.info(f"\Starting etl of ts {i}, and country {country_l[i]}...")
 
-        # temporal filtering
-        print("\nTemporal filtering...")
-        logging.info("\nTemporal filtering...")
-        ts = ts[ts.index >= pd.Timestamp(str(year_min) + '0101 00:00:00')]
-        ts = ts[ts.index <= pd.Timestamp(str(year_max) + '1231 23:59:59')]
+            print(f"\nTemporal filtering...")
+            logging.info(f"\nTemporal filtering...")
+            ts = ts[ts.index >= pd.Timestamp(str(year_min) + '0101 00:00:00')]
+            ts = ts[ts.index <= pd.Timestamp(str(year_max) + '1231 23:59:59')]
 
-        # ts.to_csv(f'{tmpdir}/1_filtered.csv')
+            # ts.to_csv(f'{tmpdir}/1_filtered.csv')
 
-        if resolution != "15":
-            print("\nResampling as given frequency is different than 15 minutes")
-            logging.info("\nResampling as given frequency is different than 15 minutes")
-            ts_res = ts.resample(resolution+'min').sum()
-        else:
-            ts_res = ts
+            if resolution != "15":
+                print(f"\nResampling as given frequencyis different than 15 minutes")
+                logging.info(f"\nResampling as given frequency is different than 15 minutes")
+                ts_res = ts.resample(resolution+'min').sum()
+            else:
+                ts_res = ts
 
-        # ts_res.to_csv(f'{tmpdir}/2_resampled.csv')
+            # ts_res.to_csv(f'{tmpdir}/2_resampled.csv')
 
-        # drop duplicate index entries, keeping the first
-        print("\nDropping duplicate time index entries, keeping first one...")
-        logging.info("\nDropping duplicate time index entries, keeping first one...")
-        # TODO: fix!!! It is not working correctly! Remember IISA 2022...
-        ts_res = ts_res[~ts_res.index.duplicated(keep='first')]
+            # drop duplicate index entries, keeping the first
+            print("\nDropping duplicate time index entries, keeping first one...")
+            logging.info("\nDropping duplicate time index entries, keeping first one...")
 
-        # ts_res.to_csv(f'{tmpdir}/3_dropped_duplicates.csv')
+            ts_res = ts_res[~ts_res.index.duplicated(keep='first')]
 
-        print("\nPerfrorming Outlier Detection...")
-        logging.info("\nPerfrorming Outlier Detection...")
+            # ts_res.to_csv(f'{tmpdir}/3_dropped_duplicates.csv')
 
-        ts_res, removed = remove_outliers(ts=ts_res,
-                                          name=country,
-                                          std_dev=std_dev,
-                                          resolution=resolution)
-        #holidays_: The holidays of country
-        try:
-            code = compile(f"holidays.{country}()", "<string>", "eval")
-            country_holidays = eval(code)
-        except:
-            raise CountryDoesNotExist()
+            print("\nPerfrorming Outlier Detection...")
+            logging.info("\nPerfrorming Outlier Detection...")
 
-        print("\nPerfrorming Imputation of the Dataset...")
-        logging.info("\nPerfrorming Imputation of the Dataset...")
+            ts_res, removed = remove_outliers(ts=ts_res,
+                                              name=country,
+                                              std_dev=std_dev,
+                                              resolution=resolution)
+            #holidays_: The holidays of country
+            try:
+                code = compile(f"holidays.{country_l[i]}()", "<string>", "eval")
+                country_holidays = eval(code)
+            except:
+                raise CountryDoesNotExist()
 
-        ts_res, imputed_values = impute(ts=ts_res,
-                                        holidays=country_holidays,
-                                        max_thr=max_thr,
-                                        a=a,
-                                        wncutoff=wncutoff,
-                                        ycutoff=ycutoff,
-                                        ydcutoff=ydcutoff,
-                                        resolution=resolution)
+            print("\nPerfrorming Imputation of the Dataset...")
+            logging.info("\nPerfrorming Imputation of the Dataset...")
 
-        print("\nCreating darts data frame...")
-        logging.info("\nCreating darts data frame...")
+            ts_res, imputed_values = impute(ts=ts_res,
+                                            holidays=country_holidays,
+                                            max_thr=max_thr,
+                                            a=a,
+                                            wncutoff=wncutoff,
+                                            ycutoff=ycutoff,
+                                            ydcutoff=ydcutoff,
+                                            resolution=resolution)
 
-        # explicitly redefine frequency
-        ts_res = ts_res.asfreq(resolution+'min')
+            print("\nCreating darts data frame...")
+            logging.info("\nCreating darts data frame...")
 
-        # ts_res.to_csv(f'{tmpdir}/4_asfreq.csv')
+            # explicitly redefine frequency
+            ts_res = ts_res.asfreq(resolution+'min')
 
-        # darts dataset creation
-        ts_res_darts = darts.TimeSeries.from_dataframe(ts_res)
+            # ts_res.to_csv(f'{tmpdir}/4_asfreq.csv')
 
-        # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
+            # darts dataset creation
+            ts_res_darts = darts.TimeSeries.from_dataframe(ts_res)
+
+            # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
 
 
-        # ts_res_darts.to_csv(f'{tmpdir}/5_filled_na.csv')
+            # ts_res_darts.to_csv(f'{tmpdir}/5_filled_na.csv')
 
-        # time variables creation
+            # time variables creation
 
-        #TODO: Make training happen withot outlier detection
-        if time_covs is not None:
-            print("\nCreating time covariates dataset...")
-            logging.info("\nCreating time covariates dataset...")
-            time_covariates = get_time_covariates(ts_res_darts, time_covs)
-        else:
-            print("\nSkipping the creation of time covariates")
-            logging.info("\nSkipping the creation of time covariates")
-            time_covariates = None
+            #TODO: Make training happen withot outlier detection
+            ##TODO fix multiple with covariates
+            if time_covs is not None:
+                print("\nCreating time covariates dataset...")
+                logging.info("\nCreating time covariates dataset...")
+                time_covariates = get_time_covariates(ts_res_darts, time_covs)
+            else:
+                print("\nSkipping the creation of time covariates")
+                logging.info("\nSkipping the creation of time covariates")
+                time_covariates = None
 
-        # store locally as csv in folder
+            res_.append(ts_res)
+
+        ##TODO store removed values and imputation result for multiple ts
         print("\nCreating local folder to store the datasets as csv...")
         logging.info("\nCreating local folder to store the datasets as csv...")
-        ts_res_darts.to_csv(f'{tmpdir}/series.csv')
+        if not multiple:
+            # store locally as csv in folder
+            ts_res_darts.to_csv(f'{tmpdir}/series.csv')
 
-        print("\nStoring removed values from outlier detection as csv locally...")
-        logging.info("\nStoring removed values from outlier detection as csv...")
-        removed.to_csv(f'{tmpdir}/removed.csv')
+            print("\nStoring removed values from outlier detection as csv locally...")
+            logging.info("\nStoring removed values from outlier detection as csv...")
+            removed.to_csv(f'{tmpdir}/removed.csv')
 
-        print("\nStoring imputed dates and their values as csv locally...")
-        logging.info("\nStoring imputed dates and their values as csv locally...")
-        imputed_values.to_csv(f'{tmpdir}/imputed_values.csv')
+            print("\nStoring imputed dates and their values as csv locally...")
+            logging.info("\nStoring imputed dates and their values as csv locally...")
+            imputed_values.to_csv(f'{tmpdir}/imputed_values.csv')
 
-        print("\nStoring datasets locally...")
-        logging.info("\nStoring datasets...")
-        if time_covariates is not None:
-            time_covariates.to_csv(f'{tmpdir}/time_covariates.csv')
+            print("\nStoring datasets locally...")
+            logging.info("\nStoring datasets...")
+            if time_covariates is not None:
+                time_covariates.to_csv(f'{tmpdir}/time_covariates.csv')
+        else:
+            multiple_dfs_to_ts_file(res_, country_l, country_code_l, f'{tmpdir}/series.csv')
 
         print("\nUploading features to MLflow server...")
         logging.info("\nUploading features to MLflow server...")
