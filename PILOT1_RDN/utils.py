@@ -44,6 +44,10 @@ def load_yaml_as_dict(filepath):
             print(exc)
             return
 
+def save_dict_as_yaml(filepath, data):
+    with open(filepath, 'w') as savefile:
+        yaml.dump(data, savefile, default_flow_style=False)
+
 def load_local_pkl_as_object(local_path):
     import pickle
     pkl_object = pickle.load(open(local_path, "rb"))

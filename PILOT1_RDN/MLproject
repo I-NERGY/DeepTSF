@@ -50,8 +50,10 @@ entry_points:
       scale: {type: str, default: "true"}
       scale_covs: {type: str, default: "true"}
       multiple: {type: str, default: "false"}
+      opt_test: {type: str, default: "false"}
+      training_dict: {type: str, default: "None"}
     command: |
-      python training.py --series-csv {series_csv} --series-uri {series_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --past-covs-csv {past_covs_csv}  --past-covs-uri {past_covs_uri} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --scale {scale} --scale-covs {scale_covs} --multiple {multiple}
+      python training.py --series-csv {series_csv} --series-uri {series_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --past-covs-csv {past_covs_csv}  --past-covs-uri {past_covs_uri} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --opt-test {opt_test} --training-dict {training_dict}
 
   eval:
     parameters:
@@ -72,8 +74,9 @@ entry_points:
       analyze_with_shap: {type: str, default: "false"}
       multiple: {type: str, default: "false"}
       eval_country: {type: str, default: "Portugal"}
+      opt_test: {type: str, default: "false"}
     command: |
-      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --model-type {model_type} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --input-chunk-length {input_chunk_length} --size {size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-country {eval_country}
+      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --model-type {model_type} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --input-chunk-length {input_chunk_length} --size {size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-country {eval_country} --opt-test {opt_test}
 
   exp_pipeline:
     parameters:
@@ -106,8 +109,9 @@ entry_points:
       analyze_with_shap: {type: str, default: false}
       multiple: {type: str, default: "false"}
       eval_country: {type: str, default: "Portugal"}
+      n_trials: {type: str, default: 100}
     command: |
-      python experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --shap-data-size {shap_data_size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-country {eval_country}
+      python experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --shap-data-size {shap_data_size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-country {eval_country} --n-trials {n_trials}
 
   inference:
     parameters:
