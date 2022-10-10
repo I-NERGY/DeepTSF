@@ -1,5 +1,5 @@
 import pretty_errors
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker #, log_curves
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict #, log_curves
 from preprocessing import scale_covariates, split_dataset
 
 # the following are used through eval(darts_model + 'Model')
@@ -128,12 +128,16 @@ my_stopper = EarlyStopping(
         type=str,
         default="None",
         help="In case of an optuna run, the yaml with the dictionary with the current model's hyperparameters")
-
+@click.option("--cut-date-test2",
+              type=str,
+              default='20210101',
+              help="Test2 set start date [str: 'YYYYMMDD']",
+              )
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          opt_test, training_dict):
+          opt_test, training_dict, cut_date_test2):
 
     # Argument preprocessing
 
@@ -155,6 +159,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
 
     ## device
+    print("param", hyperparameters)
     if device == 'gpu' and torch.cuda.is_available():
         device = 'gpu'
         print("\nGPU is available")
@@ -259,7 +264,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             multiple=multiple,
             country_l=country_l,
             country_code_l=country_code_l,
-            opt_test=opt_test
+            opt_test=opt_test,
+            test2_start_date_str=cut_date_test2
             )
         ## future covariates
         future_covariates_split = split_dataset(
@@ -269,7 +275,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             test_end_date=test_end_date,
             # store_dir=features_dir,
             name='future_covariates',
-            opt_test=opt_test)
+            opt_test=opt_test,
+            test2_start_date_str=cut_date_test2)
         ## past covariates
         past_covariates_split = split_dataset(
             past_covariates,
@@ -278,7 +285,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             test_end_date=test_end_date,
             # store_dir=features_dir,
             name='past_covariates',
-            opt_test=opt_test)
+            opt_test=opt_test,
+            test2_start_date_str=cut_date_test2)
 
         #################
         # Scaling

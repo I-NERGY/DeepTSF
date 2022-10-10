@@ -563,8 +563,18 @@ def call_shap(n_past_covs: int,
     type=str,
     default="false",
     help="Whether we are running optuna")
+@click.option("--cut-date-test2",
+              type=str,
+              default='20210101',
+              help="Test2 set start date [str: 'YYYYMMDD']",
+              )
+@click.option("--cut-date-val",
+              type=str,
+              default='20200101',
+              help="Validation set start date [str: 'YYYYMMDD']"
+              )
 
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, size, analyze_with_shap, multiple, eval_country, opt_test):
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, size, analyze_with_shap, multiple, eval_country, opt_test, cut_date_test2, cut_date_val):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -625,23 +635,50 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
 
     # Split in the same way as in training
     ## series
-    series_split = split_dataset(
-        series,
-        val_start_date_str=cut_date_test,
-        test_start_date_str=cut_date_test,
-        test_end_date=test_end_date,
-        multiple=multiple,
-        country_l=country_l,
-        country_code_l=country_code_l)
+    if opt_test:
+        series_split = split_dataset(
+            series,
+            val_start_date_str=cut_date_val,
+            test_start_date_str=cut_date_test,
+            test_end_date=test_end_date,
+            multiple=multiple,
+            country_l=country_l,
+            country_code_l=country_code_l,
+            opt_test=opt_test,
+            test2_start_date_str=cut_date_test2)
 
-    series_transformed_split = split_dataset(
-        series_transformed,
-        val_start_date_str=cut_date_test,
-        test_start_date_str=cut_date_test,
-        test_end_date=test_end_date,
-        multiple=multiple,
-        country_l=country_l,
-        country_code_l=country_code_l)
+        series_transformed_split = split_dataset(
+            series_transformed,
+            val_start_date_str=cut_date_val,
+            test_start_date_str=cut_date_test,
+            test_end_date=test_end_date,
+            multiple=multiple,
+            country_l=country_l,
+            country_code_l=country_code_l,
+            opt_test=opt_test,
+            test2_start_date_str=cut_date_test2)
+    else:
+        series_split = split_dataset(
+            series,
+            val_start_date_str=cut_date_test,
+            test_start_date_str=cut_date_test,
+            test_end_date=test_end_date,
+            multiple=multiple,
+            country_l=country_l,
+            country_code_l=country_code_l,
+            opt_test=opt_test,
+            test2_start_date_str=cut_date_test2)
+
+        series_transformed_split = split_dataset(
+            series_transformed,
+            val_start_date_str=cut_date_test,
+            test_start_date_str=cut_date_test,
+            test_end_date=test_end_date,
+            multiple=multiple,
+            country_l=country_l,
+            country_code_l=country_code_l,
+            opt_test=opt_test,
+            test2_start_date_str=cut_date_test2)
 
     if multiple:
         eval_i = country_l.index(eval_country)
@@ -652,11 +689,12 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     with mlflow.start_run(run_name='eval', nested=True) as mlrun:
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
+        print(series_split['train'], series_split['val'], series_split['test'])
         if opt_test:
-            backtest_series = darts.timeseries.concatenate([series_split['train'][eval_i], series_split['test'][eval_i], series_split['test2'][eval_i]]) if multiple else \
-                              darts.timeseries.concatenate([series_split['train'], series_split['test'], series_split['test2'])
-            backtest_series_transformed = darts.timeseries.concatenate([series_transformed_split['train'][eval_i], series_transformed_split['test'][eval_i], series_transformed_split['test2'][eval_i]]) if multiple else \
-                                          darts.timeseries.concatenate([series_transformed_split['train'], series_transformed_split['test'], series_transformed_split['test2']])
+            backtest_series = darts.timeseries.concatenate([series_split['train'][eval_i], series_split['val'][eval_i], series_split['test'][eval_i]]) if multiple else \
+                              darts.timeseries.concatenate([series_split['train'], series_split['val'], series_split['test']])
+            backtest_series_transformed = darts.timeseries.concatenate([series_transformed_split['train'][eval_i], series_transformed_split['val'][eval_i], series_transformed_split['test'][eval_i]]) if multiple else \
+                                          darts.timeseries.concatenate([series_transformed_split['train'], series_transformed_split['val'], series_transformed_split['test']])
         else:
             backtest_series = series_split['all'][eval_i] if multiple else series_split['all']
             backtest_series_transformed = series_transformed_split['all'][eval_i] if multiple else series_transformed_split['all']
@@ -664,7 +702,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
 
         evaluation_results = backtester(model=model,
                                 series_transformed=backtest_series_transformed,
-                                series=sbacktest_series,
+                                series=backtest_series,
                                 transformer_ts=scaler,
                                 test_start_date=cut_date_test,
                                 forecast_horizon=forecast_horizon,

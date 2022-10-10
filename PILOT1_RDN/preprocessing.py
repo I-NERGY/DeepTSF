@@ -42,7 +42,7 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
                     covariate_test2 = covariate_test
                 else:
                     covariate_test, covariate_test2 = covariate_test.split_before(
-                        pd.Timestamp(test_start_date_str))
+                        pd.Timestamp(test2_start_date_str))
                 covariates_test2.append(covariate_test2)
             covariates_train.append(covariate_train)
             covariates_test.append(covariate_test)
