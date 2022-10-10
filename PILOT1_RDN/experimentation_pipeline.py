@@ -2,7 +2,8 @@
 Downloads the REN dataset, ETLs (cleansing, resampling) it together with time covariates,
 trains a darts model, and evaluates the model.
 """
-
+import matplotlib.pyplot as plt
+import tempfile
 import pretty_errors
 from darts.dataprocessing.transformers import Scaler
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, LightGBMModel, RandomForest, TFTModel, TCNModel
@@ -20,8 +21,9 @@ from mlflow.utils import mlflow_tags
 from mlflow.entities import RunStatus
 from mlflow.utils.logging_utils import eprint
 from mlflow.tracking.fluent import _get_experiment_id
-from utils import truth_checker, load_yaml_as_dict, download_online_file, ConfigParser, save_dict_as_yaml
+from utils import truth_checker, load_yaml_as_dict, download_online_file, ConfigParser, save_dict_as_yaml, none_checker
 import optuna
+import logging
 
 # get environment variables
 from dotenv import load_dotenv
@@ -35,24 +37,30 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-             multiple, eval_country, trial):
+             multiple, eval_country, cut_date_test2, etl_series_uri, etl_time_covariates_uri, git_commit, trial):
 
                 hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for key, value in hyperparameters.items():
                     if key.split("_")[-2:] == ["opt", "test"]:
-                        param = "_".join(key[:-2])
-                        if type(value) == tuple:
-                            if type(value[0]) == int:
-                                training_dict[param] = trial.suggest_int(param, value[0], value[1], value[2])
+                        param = "_".join(key.split("_")[:-2])
+                        print(param, value)
+                        if value[0] == "range":
+                            if type(value[1]) == int:
+                                print(param)
+                                training_dict[param] = trial.suggest_int(param, value[1], value[2], value[3])
                             else:
-                                training_dict[param] = trial.suggest_float(param, value[0], value[1], value[2])
+                                print(param)
+                                training_dict[param] = trial.suggest_float(param, value[1], value[2], value[3])
                         else:
-                            training_dict[param] = trial.suggest_categorical(param, value)
+                            print(param)
+                            training_dict[param] = trial.suggest_categorical(param, value[1:])
                     else:
+                        print(key)
                         training_dict[key] = value
 
-                filepath = tempfile.mkdtemp()
+                filedir = tempfile.mkdtemp()
+                filepath = os.path.join(filedir, "dict.yml")
                 save_dict_as_yaml(filepath, training_dict)
 
                 train_params = {
@@ -69,7 +77,8 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
                     "scale_covs": scale_covs,
                     "multiple": multiple,
                     "opt_test": True,
-                    "training_dict": filepath
+                    "training_dict": filepath,
+                    "cut_date_test2": cut_date_test2,
                     }
                 train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 
@@ -102,8 +111,8 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
                     "future_covs_uri": train_future_covariates_uri,
                     "past_covs_uri": train_past_covariates_uri,
                     "scaler_uri": train_scaler_uri,
-                    "cut_date_test": setup['test_start'],
-                    "test_end_date": setup['test_end'],
+                    "cut_date_test": cut_date_test,
+                    "test_end_date": test_end_date,#check that again
                     "model_uri": train_model_uri,
                     "model_type": train_model_type,
                     "forecast_horizon": forecast_horizon,
@@ -114,7 +123,9 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
                     "analyze_with_shap" : analyze_with_shap,
                     "multiple": multiple,
                     "eval_country": eval_country,
-                    "opt_test": True
+                    "opt_test": True,
+                    "cut_date_test2": cut_date_test2,
+                    "cut_date_val": cut_date_val,
                     }
 
                 if "input_chunk_length" in train_run.data.params:
@@ -351,16 +362,22 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     type=str,
     default="100",
     help="How many trials optuna will run")
+@click.option("--cut-date-test2",
+              type=str,
+              default='20210101',
+              help="Test2 set start date [str: 'YYYYMMDD']",
+              )
 
 
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-             multiple, n_trials):
+             multiple, eval_country, n_trials, cut_date_test2):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
+
 
     # Note: The entrypoint names are defined in MLproject. The artifact directories
     # are documented by each step's .py file.
@@ -400,35 +417,37 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
 
         # 3. Training
         if hyperparams_entrypoint.split("_")[-2:] == ["opt", "test"]:
-
+            n_trials = none_checker(n_trials)
+            n_trials = int(n_trials)
             study = optuna.create_study(storage="sqlite:///memory.db", study_name=hyperparams_entrypoint, load_if_exists=True)
 
             study.optimize(lambda trial: objective(series_csv, series_uri, year_range, resolution, time_covs,
                            darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
                            forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
                            country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-                           multiple, eval_country, trial), n_trials=n_trials, n_jobs = 1)
+                           multiple, eval_country, cut_date_test2, etl_series_uri, etl_time_covariates_uri, git_commit, trial), n_trials=n_trials, n_jobs = 1)
 
             opt_tmpdir = tempfile.mkdtemp()
             plt.close()
 
             fig = optuna.visualization.matplotlib.plot_optimization_history(study)
-            plt.savefig("opt_tmpdir/plot_optimization_history.png")
+            plt.savefig(f"{opt_tmpdir}/plot_optimization_history.png")
             plt.close()
 
             fig = optuna.visualization.matplotlib.plot_param_importances(study)
-            plt.savefig("opt_tmpdir/plot_param_importances.png")
+            plt.savefig(f"{opt_tmpdir}/plot_param_importances.png")
             plt.close()
 
             fig = optuna.visualization.matplotlib.plot_slice(study)
-            plt.savefig("opt_tmpdir/plot_slice.png")
+            plt.savefig(f"{opt_tmpdir}/plot_slice.png")
             plt.close()
 
+            study.trials_dataframe().to_csv(f"{opt_tmpdir}/{hyperparams_entrypoint}.csv")
 
             print("\nUploading optuna plots to MLflow server...")
             logging.info("\nUploading optuna plots to MLflow server...")
 
-            mlflow.log_artifacts(opt_tmpdir, "optuna_plots")
+            mlflow.log_artifacts(opt_tmpdir, "optuna_results")
 
 
 
@@ -447,7 +466,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "scale_covs": scale_covs,
                 "multiple": multiple,
                 "opt_test": False,
-                "training_dict": None
+                "training_dict": None,
             }
             train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 

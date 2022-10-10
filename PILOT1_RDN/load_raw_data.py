@@ -133,8 +133,8 @@ def load_raw_data(series_csv, series_uri, day_first, multiple):
 #            mlflow.set_tag("dataset_end", datetime.strftime(ts["Day"][-1], "%Y%m%d"))
             pass
         else:
-            mlflow.set_tag("dataset_start", datetime.strftime(ts[0].index, "%Y%m%d"))
-            mlflow.set_tag("dataset_end", datetime.strftime(ts[0].index, "%Y%m%d"))
+            mlflow.set_tag("dataset_start", datetime.strftime(ts.index[0], "%Y%m%d"))
+            mlflow.set_tag("dataset_end", datetime.strftime(ts.index[-1], "%Y%m%d"))
         mlflow.set_tag("run_id", mlrun.info.run_id)
 
         mlflow.set_tag("stage", "load_raw_data")

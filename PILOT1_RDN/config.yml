@@ -653,15 +653,15 @@ hyperparameters:
     nr_epochs_val_period: 2
     batch_size: 1024
 
-  tcn_opt_test:
+  tcn2_opt_test:
     output_chunk_length: 24
     weight_norm: True
     dropout: 0
     nr_epochs_val_period: 2
-    n_epochs: 250
+    n_epochs: 2
     random_state: 0
-    input_chunk_length_opt_test: (24, 504, 24)
-    kernel_size_opt_test: (2, 6, 1)
-    num_filters_opt_test: (2, 12, 1)
-    dilation_base_opt_test: [2, 4, 8, 16, 32]
-    batch_size_opt_test: [256, 512, 1024, 1280, 1536, 2048]
+    input_chunk_length_opt_test: ["range", 24, 504, 24]
+    kernel_size_opt_test: ["range", 2, 6, 1]
+    num_filters_opt_test: ["range", 2, 12, 1]
+    dilation_base_opt_test: ["list", 2, 4, 8, 16, 32]
+    batch_size_opt_test: ["list", 256, 512, 1024, 1280, 1536, 2048]

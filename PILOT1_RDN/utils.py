@@ -6,6 +6,7 @@ import os
 # import seaborn as sns
 import mlflow
 import pandas as pd
+import yaml
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 
 class ConfigParser:
