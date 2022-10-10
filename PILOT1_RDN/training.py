@@ -118,11 +118,22 @@ my_stopper = EarlyStopping(
     type=str,
     default="false",
     help="Whether to train on multiple timeseries")
-    
+
+@click.option("--opt-test",
+    type=str,
+    default="false",
+    help="Whether we are running optuna")
+
+@click.option("--training-dict",
+        type=str,
+        default="None",
+        help="In case of an optuna run, the yaml with the dictionary with the current model's hyperparameters")
+
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
-          test_end_date, device, scale, scale_covs, multiple):
+          test_end_date, device, scale, scale_covs, multiple,
+          opt_test, training_dict):
 
     # Argument preprocessing
 
@@ -135,8 +146,13 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
     multiple = truth_checker(multiple)
 
+    opt_test = truth_checker(opt_test)
+
     ## hyperparameters
-    hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
+    if opt_test:
+        hyperparameters = load_yaml_as_dict(training_dict)
+    else:
+        hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
 
     ## device
     if device == 'gpu' and torch.cuda.is_available():
@@ -242,7 +258,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             conf_file_name='split_info.yml',
             multiple=multiple,
             country_l=country_l,
-            country_code_l=country_code_l)
+            country_code_l=country_code_l,
+            opt_test=opt_test
+            )
         ## future covariates
         future_covariates_split = split_dataset(
             future_covariates,
@@ -250,7 +268,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             test_start_date_str=cut_date_test,
             test_end_date=test_end_date,
             # store_dir=features_dir,
-            name='future_covariates')
+            name='future_covariates',
+            opt_test=opt_test)
         ## past covariates
         past_covariates_split = split_dataset(
             past_covariates,
@@ -258,7 +277,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             test_start_date_str=cut_date_test,
             test_end_date=test_end_date,
             # store_dir=features_dir,
-            name='past_covariates')
+            name='past_covariates',
+            opt_test=opt_test)
 
         #################
         # Scaling
@@ -273,7 +293,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             scale=scale,
             multiple=multiple,
             country_l=country_l,
-            country_code_l=country_code_l)
+            country_code_l=country_code_l,
+            opt_test=opt_test)
         if scale:
             pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
         ## scale future covariates
@@ -281,13 +302,15 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             future_covariates_split,
             store_dir=features_dir,
             filename_suffix="future_covariates_transformed.csv",
-            scale=scale_covs)
+            scale=scale_covs,
+            opt_test=opt_test)
         ## scale past covariates
         past_covariates_transformed = scale_covariates(
             past_covariates_split,
             store_dir=features_dir,
             filename_suffix="past_covariates_transformed.csv",
-            scale=scale_covs)
+            scale=scale_covs,
+            opt_test=opt_test)
 
         ######################
         # Model training

@@ -452,26 +452,6 @@ def call_shap(n_past_covs: int,
     shap.initjs()
     explainer = shap.KernelExplainer(lambda x : predict(x, n_past_covs, n_future_covs, input_chunk_length, output_chunk_length, model, scaler_list, scale), background)
     shap_values = explainer.shap_values(data, nsamples="auto", normalize=False)
-    """plt.close()
-    shap.summary_plot(shap_values[0], data, show=False)
-    plt.savefig("summary_plot_all_samples.png")
-    mlflow.log_artifact("summary_plot_all_samples.png")
-    os.remove("summary_plot_all_samples.png")
-    plt.close()
-    shap.summary_plot(shap_values[0], data, plot_type='bar', show=False)
-    plt.savefig("summary_plot_bar_graph.png")
-    mlflow.log_artifact('summary_plot_bar_graph.png')
-    os.remove("summary_plot_bar_graph.png")
-    plt.close()
-    fig = shap.force_plot(explainer.expected_value[0],shap_values[0][0,:], data.iloc[0,:],  matplotlib = True, show = False)
-    mlflow.log_figure(fig, 'force_plot_0_sample_0_output.png')
-    plt.close()
-    fig = shap.force_plot(explainer.expected_value[0],shap_values[0][9,:], data.iloc[9,:],  matplotlib = True, show = False)
-    mlflow.log_figure(fig, 'force_plot_9_sample_0_output.png')
-    plt.close()
-    fig = shap.force_plot(explainer.expected_value[4],shap_values[4][0,:], data.iloc[0,:],  matplotlib = True, show = False)
-    mlflow.log_figure(fig, 'force_plot_0_sample_4th_output.png')
-    plt.close()"""
     plt.close()
     interprtmpdir = tempfile.mkdtemp()
     sample = random.randint(0, len(data) - 1)
@@ -568,6 +548,7 @@ def call_shap(n_past_covs: int,
              type=str,
              default="False",
              help="Whether to do SHAP analysis on the model. Only global forecasting models are supported")
+
 @click.option("--multiple",
     type=str,
     default="false",
@@ -578,7 +559,12 @@ def call_shap(n_past_covs: int,
     default="Portugal",
     help="On which country to run the backtesting. Only for multiple timeseries")
 
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, size, analyze_with_shap, multiple, eval_country):
+@click.option("--opt-test",
+    type=str,
+    default="false",
+    help="Whether we are running optuna")
+
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, size, analyze_with_shap, multiple, eval_country, opt_test):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -666,10 +652,19 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     with mlflow.start_run(run_name='eval', nested=True) as mlrun:
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
+        if opt_test:
+            backtest_series = darts.timeseries.concatenate([series_split['train'][eval_i], series_split['test'][eval_i], series_split['test2'][eval_i]]) if multiple else \
+                              darts.timeseries.concatenate([series_split['train'], series_split['test'], series_split['test2'])
+            backtest_series_transformed = darts.timeseries.concatenate([series_transformed_split['train'][eval_i], series_transformed_split['test'][eval_i], series_transformed_split['test2'][eval_i]]) if multiple else \
+                                          darts.timeseries.concatenate([series_transformed_split['train'], series_transformed_split['test'], series_transformed_split['test2']])
+        else:
+            backtest_series = series_split['all'][eval_i] if multiple else series_split['all']
+            backtest_series_transformed = series_transformed_split['all'][eval_i] if multiple else series_transformed_split['all']
+
+
         evaluation_results = backtester(model=model,
-                                series_transformed=series_transformed_split['all'][eval_i] \
-                                                   if multiple else series_transformed_split['all'],
-                                series=series_split['all'][eval_i] if multiple else series_split['all'],
+                                series_transformed=backtest_series_transformed,
+                                series=sbacktest_series,
                                 transformer_ts=scaler,
                                 test_start_date=cut_date_test,
                                 forecast_horizon=forecast_horizon,
