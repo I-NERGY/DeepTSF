@@ -665,3 +665,9 @@ hyperparameters:
     num_filters_opt_test: ["range", 2, 12, 1]
     dilation_base_opt_test: ["list", 2, 4, 8, 16, 32]
     batch_size_opt_test: ["list", 256, 512, 1024, 1280, 1536, 2048]
+  lgbm_w_opt_test:
+    lags: 672
+    lags_past_covariates: null
+    lags_future_covariates_opt_test: ["list", [1, 1], [2, 2]]
+    future_covs_as_tuple: true
+    random_state: 0

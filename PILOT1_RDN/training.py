@@ -128,16 +128,12 @@ my_stopper = EarlyStopping(
         type=str,
         default="None",
         help="In case of an optuna run, the yaml with the dictionary with the current model's hyperparameters")
-@click.option("--cut-date-test2",
-              type=str,
-              default='20210101',
-              help="Test2 set start date [str: 'YYYYMMDD']",
-              )
+
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          opt_test, training_dict, cut_date_test2):
+          opt_test, training_dict):
 
     # Argument preprocessing
 
@@ -264,8 +260,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             multiple=multiple,
             country_l=country_l,
             country_code_l=country_code_l,
-            opt_test=opt_test,
-            test2_start_date_str=cut_date_test2
             )
         ## future covariates
         future_covariates_split = split_dataset(
@@ -275,8 +269,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             test_end_date=test_end_date,
             # store_dir=features_dir,
             name='future_covariates',
-            opt_test=opt_test,
-            test2_start_date_str=cut_date_test2)
+            )
         ## past covariates
         past_covariates_split = split_dataset(
             past_covariates,
@@ -285,8 +278,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             test_end_date=test_end_date,
             # store_dir=features_dir,
             name='past_covariates',
-            opt_test=opt_test,
-            test2_start_date_str=cut_date_test2)
+            )
 
         #################
         # Scaling
@@ -302,7 +294,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             multiple=multiple,
             country_l=country_l,
             country_code_l=country_code_l,
-            opt_test=opt_test)
+            )
         if scale:
             pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
         ## scale future covariates
@@ -311,14 +303,14 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             store_dir=features_dir,
             filename_suffix="future_covariates_transformed.csv",
             scale=scale_covs,
-            opt_test=opt_test)
+            )
         ## scale past covariates
         past_covariates_transformed = scale_covariates(
             past_covariates_split,
             store_dir=features_dir,
             filename_suffix="past_covariates_transformed.csv",
             scale=scale_covs,
-            opt_test=opt_test)
+            )
 
         ######################
         # Model training
