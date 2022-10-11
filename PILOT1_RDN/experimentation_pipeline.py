@@ -37,8 +37,8 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-             multiple, eval_country, cut_date_test2, etl_series_uri, etl_time_covariates_uri, git_commit, trial):
-
+             multiple, eval_country, etl_series_uri, etl_time_covariates_uri, git_commit, trial):
+                print("CUUUUUUT", cut_date_val)
                 hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for key, value in hyperparameters.items():
@@ -78,7 +78,6 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
                     "multiple": multiple,
                     "opt_test": True,
                     "training_dict": filepath,
-                    "cut_date_test2": cut_date_test2,
                     }
                 train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 
@@ -105,7 +104,6 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
                     train_setup_uri, "setup.yml")
                 setup = load_yaml_as_dict(setup_file)
                 print(f"\nSplit info: {setup} \n")
-
                 eval_params = {
                     "series_uri": train_series_uri,
                     "future_covs_uri": train_future_covariates_uri,
@@ -123,9 +121,8 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
                     "analyze_with_shap" : analyze_with_shap,
                     "multiple": multiple,
                     "eval_country": eval_country,
-                    "opt_test": True,
-                    "cut_date_test2": cut_date_test2,
                     "cut_date_val": cut_date_val,
+                    "opt_test": True,
                     }
 
                 if "input_chunk_length" in train_run.data.params:
@@ -362,18 +359,13 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     type=str,
     default="100",
     help="How many trials optuna will run")
-@click.option("--cut-date-test2",
-              type=str,
-              default='20210101',
-              help="Test2 set start date [str: 'YYYYMMDD']",
-              )
 
 
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-             multiple, eval_country, n_trials, cut_date_test2):
+             multiple, eval_country, n_trials):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -425,7 +417,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                            darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
                            forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
                            country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-                           multiple, eval_country, cut_date_test2, etl_series_uri, etl_time_covariates_uri, git_commit, trial), n_trials=n_trials, n_jobs = 1)
+                           multiple, eval_country, etl_series_uri, etl_time_covariates_uri, git_commit, trial), n_trials=n_trials, n_jobs = 1)
 
             opt_tmpdir = tempfile.mkdtemp()
             plt.close()
@@ -510,7 +502,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "size" : shap_data_size,
                 "analyze_with_shap" : analyze_with_shap,
                 "multiple": multiple,
-                "eval_country": eval_country
+                "eval_country": eval_country,
             }
 
             if "input_chunk_length" in train_run.data.params:
