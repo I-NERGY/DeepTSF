@@ -110,6 +110,7 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
                     "stride": stride,
                     "retrain": retrain,
                     "input_chunk_length" : None,
+                    "output_chunk_length" : None,
                     "size" : shap_data_size,
                     "analyze_with_shap" : analyze_with_shap,
                     "multiple": multiple,
@@ -120,6 +121,9 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
 
                 if "input_chunk_length" in train_run.data.params:
                     eval_params["input_chunk_length"] = train_run.data.params["input_chunk_length"]
+
+                if "output_chunk_length" in train_run.data.params:
+                                    eval_params["output_chunk_length"] = train_run.data.params["output_chunk_length"]
 
                 eval_run = _get_or_run("eval", eval_params, git_commit)
 
@@ -366,6 +370,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
+    opt_test = truth_checker(opt_test)
 
 
     # Note: The entrypoint names are defined in MLproject. The artifact directories
@@ -496,6 +501,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "stride": stride,
                 "retrain": retrain,
                 "input_chunk_length" : None,
+                "output_chunk_length" : None,
                 "size" : shap_data_size,
                 "analyze_with_shap" : analyze_with_shap,
                 "multiple": multiple,
@@ -504,6 +510,10 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
 
             if "input_chunk_length" in train_run.data.params:
                 eval_params["input_chunk_length"] = train_run.data.params["input_chunk_length"]
+
+            if "output_chunk_length" in train_run.data.params:
+                eval_params["output_chunk_length"] = train_run.data.params["output_chunk_length"]
+
 
             eval_run = _get_or_run("eval", eval_params, git_commit)
 

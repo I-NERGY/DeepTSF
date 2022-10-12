@@ -528,6 +528,11 @@ def call_shap(n_past_covs: int,
              default="None",
              help="input_chunk_length of model. Is not None only if evaluating a global forecasting model")
 
+@click.option("--output-chunk-length",
+             type=str,
+             default="None",
+             help="output_chunk_length of model. Is not None only if evaluating a global forecasting model")
+
 @click.option("--size",
              type=str,
              default="10",
@@ -558,7 +563,7 @@ def call_shap(n_past_covs: int,
     help="Whether we are running optuna")
 
 
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, size, analyze_with_shap, multiple, eval_country, cut_date_val, opt_test):
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_country, cut_date_val, opt_test):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -569,6 +574,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     retrain = truth_checker(retrain)
     analyze_with_shap = truth_checker(analyze_with_shap)
     multiple = truth_checker(multiple)
+    opt_test = truth_checker(opt_test)
 
     future_covariates_uri = none_checker(future_covs_uri)
     past_covariates_uri = none_checker(past_covs_uri)
@@ -577,6 +583,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     except:
         size = float(size)
     input_chunk_length = int(input_chunk_length)
+    output_chunk_length = int(output_chunk_length)
+
     # Load model / datasets / scalers from Mlflow server
 
     ## load series from MLflow
@@ -702,7 +710,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                                 train=series_split['train'],
                                                 test=series_split['test'],
                                                 input_chunk_length=input_chunk_length,
-                                                output_chunk_length=forecast_horizon,
+                                                output_chunk_length=output_chunk_length,
                                                 future_covs=future_covariates,
                                                 past_covs=past_covariates)
 
@@ -710,7 +718,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             call_shap(n_past_covs=0 if past_covariates == None else past_covariates.n_components,
                     n_future_covs=0 if future_covariates == None else future_covariates.n_components,
                     input_chunk_length=input_chunk_length,
-                    output_chunk_length=forecast_horizon,
+                    output_chunk_length=output_chunk_length,
                     model=model,
                     scaler_list=[scaler],
                     background=background,

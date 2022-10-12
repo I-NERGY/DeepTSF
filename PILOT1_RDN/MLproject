@@ -70,6 +70,7 @@ entry_points:
       stride: {type: str, default: None}
       retrain: {type: str, default: "false"}
       input_chunk_length: {type: str, default: None}
+      output_chunk_length: {type: str, default: None}
       size: {type: str, default: 10}
       analyze_with_shap: {type: str, default: "false"}
       multiple: {type: str, default: "false"}
@@ -78,7 +79,7 @@ entry_points:
       opt_test: {type: str, default: "false"}
 
     command: |
-      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --model-type {model_type} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --input-chunk-length {input_chunk_length} --size {size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-country {eval_country} --cut-date-val {cut_date_val} --opt-test {opt_test}
+      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --model-type {model_type} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --input-chunk-length {input_chunk_length} --output-chunk-length {output_chunk_length} --size {size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-country {eval_country} --cut-date-val {cut_date_val} --opt-test {opt_test}
 
   exp_pipeline:
     parameters:
