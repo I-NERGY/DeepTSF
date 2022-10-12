@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import yaml
 from darts.dataprocessing.transformers import Scaler
+import datetime
 
 # get environment variables
 from dotenv import load_dotenv
@@ -17,13 +18,14 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
         conf_file_name='split_info.yml'):
     
     if covariates is not None:
-        covariates_train, covariates_val = covariates.split_before(
-            pd.Timestamp(val_start_date_str))
-        
-        if test_end_date is not None:
+
+        if test_end_date is not None and covariates.time_index[-1].strftime('%Y%m%d') > test_end_date:
             covariates = covariates.drop_after(
-                pd.Timestamp(test_end_date))
+                pd.Timestamp(test_end_date) + datetime.timedelta(days=1))
         
+        covariates_train, covariates_val = covariates.split_before(
+             pd.Timestamp(val_start_date_str))
+
         if val_start_date_str == test_start_date_str:
             covariates_test = covariates_val
         else:
@@ -36,6 +38,7 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
                 "test_start": test_start_date_str,
                 "test_end": covariates_test.time_index[-1].strftime('%Y%m%d')
             }
+            print(split_info)
             with open(f'{store_dir}/{conf_file_name}', 'w') as outfile:
                 yaml.dump(split_info, outfile, default_flow_style=False)
             covariates.to_csv(f"{store_dir}/{name}.csv")

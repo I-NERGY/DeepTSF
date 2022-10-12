@@ -1,5 +1,5 @@
 """
-Downloads the REN dataset, ETLs (cleansing, resampling) it together with time covariates, 
+Downloads the REN dataset, ETLs (cleansing, resampling) it together with time covariates,
 trains a darts model, and evaluates the model.
 """
 
@@ -85,35 +85,35 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
             print("Found existing run for entrypoint=%s and parameters=%s" % (entrypoint, parameters))
             return existing_run
     print("Launching new run for entrypoint=%s and parameters=%s" % (entrypoint, parameters))
-    submitted_run = mlflow.run(".", entrypoint, parameters=parameters, use_conda=False)
+    submitted_run = mlflow.run(".", entrypoint, parameters=parameters, env_manager="local")
     return mlflow.tracking.MlflowClient().get_run(submitted_run.run_id)
 
 
 @click.command()
 # load arguments
-@click.option("--series-csv", 
-    type=str, 
+@click.option("--series-csv",
+    type=str,
     default="../../RDN/Load_Data/2009-2021-global-load.csv",
     help="Local timeseries file"
     )
-@click.option("--series-uri", 
+@click.option("--series-uri",
     default="online_artifact",
     help="Online link to download the series from"
     )
 # etl arguments
-@click.option("--resolution", 
-    default="15", 
+@click.option("--resolution",
+    default="15",
     type=str,
     help="Change the resolution of the dataset (minutes)."
 )
-@click.option('--year-range',  
+@click.option('--year-range',
     default="2009-2019",
     type=str,
     help='Choose year range to include in the dataset.'
 )
 @click.option(
-    "--time-covs", 
-    default="PT", 
+    "--time-covs",
+    default="PT",
     type=click.Choice(["None", "PT"]),
     help="Optionally add time covariates to the timeseries."
 )
@@ -126,7 +126,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
                    'BlockRNN',
                    'TFT',
                    'LightGBM',
-                   'RandomForest', 
+                   'RandomForest',
                    'Naive',
                    'AutoARIMA']),
               multiple=False,
@@ -156,7 +156,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
               )
 @click.option("--device",
               type=click.Choice(
-                  ['gpu', 
+                  ['gpu',
                    'cpu']),
               multiple=False,
               default='gpu',
@@ -184,9 +184,14 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
               type=str,
               default="true",
               help="Whether to scale the covariates")
-def workflow(series_csv, series_uri, year_range, resolution, time_covs, 
+@click.option("--day-first",
+              type=str,
+              default="true",
+              help="Whether the date has the day before the month")
+
+def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
-             forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs):
+             forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -198,20 +203,21 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
 
         # 1.Load Data
         git_commit = active_run.data.tags.get(mlflow_tags.MLFLOW_GIT_COMMIT)
-        
-        load_raw_data_params = {"series_csv": series_csv, "series_uri": series_uri}
+
+        load_raw_data_params = {"series_csv": series_csv, "series_uri": series_uri, "day_first": day_first}
         load_raw_data_run = _get_or_run("load_raw_data", load_raw_data_params, git_commit, ignore_previous_runs)
         # series_uri = f"{load_raw_data_run.info.artifact_uri}/raw_data/series.csv" \
         #                 .replace("s3:/", S3_ENDPOINT_URL)
         load_data_series_uri = load_raw_data_run.data.tags['dataset_uri'].replace("s3:/", S3_ENDPOINT_URL)
-        
+
         # 2. ETL
-        etl_params = {"series_uri": load_data_series_uri, 
-                      "year_range": year_range, 
+        etl_params = {"series_uri": load_data_series_uri,
+                      "year_range": year_range,
                       "resolution": resolution,
-                      "time_covs": time_covs} 
+                      "time_covs": time_covs,
+                      "day_first": day_first}
         etl_run = _get_or_run("etl", etl_params, git_commit, ignore_previous_runs)
-        
+
         etl_series_uri =  etl_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
         etl_time_covariates_uri =  etl_run.data.tags["time_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
 
@@ -219,18 +225,18 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
 
         # 3. Training
         train_params = {
-            "series_uri": etl_series_uri, 
+            "series_uri": etl_series_uri,
             "future_covs_uri": etl_time_covariates_uri,
             "past_covs_uri": None, # fix that in case REAL Temperatures come -> etl_temp_covs_uri. For forecasts, integrate them into future covariates!!
-            "darts_model": darts_model, 
-            "hyperparams_entrypoint": hyperparams_entrypoint, 
-            "cut_date_val": cut_date_val, 
+            "darts_model": darts_model,
+            "hyperparams_entrypoint": hyperparams_entrypoint,
+            "cut_date_val": cut_date_val,
             "cut_date_test": cut_date_test,
             "test_end_date": test_end_date,
             "device": device,
             "scale": scale,
             "scale_covs": scale_covs
-            } 
+            }
         train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 
         # Log train params (mainly for logging hyperparams to father run)
@@ -258,7 +264,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
         print(f"\nSplit info: {setup} \n")
 
         eval_params = {
-            "series_uri": train_series_uri, 
+            "series_uri": train_series_uri,
             "future_covs_uri": train_future_covariates_uri,
             "past_covs_uri": train_past_covariates_uri,
             "scaler_uri": train_scaler_uri,
@@ -269,9 +275,9 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
             "forecast_horizon": forecast_horizon,
             "stride": stride,
             "retrain": retrain
-            } 
+            }
         eval_run = _get_or_run("eval", eval_params, git_commit)
-        
+
         # Log eval metrics to father run for consistency and clear results
         mlflow.log_metrics(eval_run.data.metrics)
 

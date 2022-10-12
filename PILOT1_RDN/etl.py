@@ -3,6 +3,7 @@ from utils import none_checker
 import os
 from os import times
 from utils import download_online_file
+from utils import truth_checker
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 import darts
 from darts.utils.timeseries_generation import holidays_timeseries
@@ -10,7 +11,7 @@ import pandas as pd
 import math
 from datetime import timezone
 import matplotlib.pyplot as plt
-import mlflow 
+import mlflow
 import click
 import shutil
 import logging
@@ -30,12 +31,10 @@ def isholiday(x, holiday_list):
         return True
     return False
 
-
 def isweekend(x):
     if x == 6 or x == 0:
         return True
     return False
-
 
 def create_calendar(timeseries, timestep_minutes, holiday_list, local_timezone):
 
@@ -74,9 +73,9 @@ def create_calendar(timeseries, timestep_minutes, holiday_list, local_timezone):
 
 
 def add_cyclical_time_features(calendar):
-    """ 
-    The function below is useful to create sinusoidal transformations of time features. 
-    This article explains why 2 transformations are necessary: 
+    """
+    The function below is useful to create sinusoidal transformations of time features.
+    This article explains why 2 transformations are necessary:
     https://ianlondon.github.io/blog/encoding-cyclical-features-24hour-time/
     """
 
@@ -134,25 +133,25 @@ def add_cyclical_time_features(calendar):
 
 def get_time_covariates(series, country_code='PT'):
     """ Do it the darts way"""
-    
+
     if isinstance(series, pd.Series):
         series = darts.TimeSeries.from_series(series)
-    
+
     year = datetime_attribute_timeseries(
         time_index=series, attribute='year')
-    
+
     month = datetime_attribute_timeseries(
         time_index=series, attribute='month', cyclic=True)
-    
+
     dayofyear = datetime_attribute_timeseries(
         time_index=series, attribute='dayofyear', cyclic=True)
-    
+
     hour = datetime_attribute_timeseries(
-        time_index=series, attribute='hour', cyclic=True)    
-    
+        time_index=series, attribute='hour', cyclic=True)
+
     # minute = datetime_attribute_timeseries(
     #     time_index=series, attribute='minute', cyclic=True)
-    
+
     dayofweek = datetime_attribute_timeseries(
         time_index=series, attribute='dayofweek', cyclic=True)
 
@@ -164,7 +163,7 @@ def get_time_covariates(series, country_code='PT'):
 
     holidays = holidays_timeseries(
         time_index=series.time_index, country_code=country_code)
-    
+
     # weekofyear = darts.TimeSeries.from_series(
     #     series.time_index.isocalendar().week)
 
@@ -184,37 +183,43 @@ def get_time_covariates(series, country_code='PT'):
          "the time covariates. The new timeseries is logged as artifact "
          "to MLflow"
 )
-@click.option("--series-csv", 
-    type=str, 
+@click.option("--series-csv",
+    type=str,
     default="../../RDN/Load_Data/2009-2019-global-load.csv",
     help="Local timeseries csv. It gets overwritten by uri if given."
 )
-@click.option("--series-uri", 
-    type=str, 
+@click.option("--series-uri",
+    type=str,
     default="mlflow_artifact_uri",
     help="Remote timeseries csv file.  If set, it overwrites the local value."
 )
-@click.option('--year-range',  
-    default="2009-2019",
+@click.option('--year-range',
+    default="None",
     type=str,
     help='The year range to include in the dataset.'
 )
-@click.option("--resolution", 
-    default="15", 
+@click.option("--resolution",
+    default="15",
     type=str,
     help="The resolution of the dataset in minutes."
 )
 @click.option(
-    "--time-covs", 
-    default="PT", 
+    "--time-covs",
+    default="PT",
     type=click.Choice(["None", "PT"]),
     help="Optionally add time covariates to the timeseries. [Options: None or Country Code based on the Python 'holidays' package]"
 )
-def etl(series_csv, series_uri, year_range, resolution, time_covs):
+@click.option(
+    "--day-first",
+    type=str,
+    default="true",
+    help="Whether the date has the day before the month")
+
+def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first):
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
     # Also check if current transformations are ok
-    
+
     if series_uri != "mlflow_artifact_uri":
         download_file_path = download_online_file(series_uri, dst_filename="load.csv")
         series_csv = download_file_path
@@ -225,7 +230,22 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
     # Time col check
     time_covs = none_checker(time_covs)
 
+    # Day first check
+    day_first = truth_checker(day_first)
+
+    print("\nLoading source dataset..")
+    logging.info("\nLoading source dataset..")
+
+    ts = pd.read_csv(series_csv,
+                     delimiter=',',
+                     header=0,
+                     index_col=0,
+                     parse_dates=True,
+                     dayfirst=day_first)
+
     # Year range handling
+    if none_checker(year_range) is None:
+        year_range = f"{ts.index[0].year}-{ts.index[-1].year}"
     if "-" in year_range:
         year_range = year_range.split("-")
     if isinstance(year_range, list):
@@ -237,20 +257,10 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
         year_max = year
         year_min = year
 
-    # Tempdir for artifacts 
+    # Tempdir for artifacts
     tmpdir = tempfile.mkdtemp()
 
     with mlflow.start_run(run_name='etl', nested=True) as mlrun:
-        print("\nLoading source dataset..")
-        logging.info("\nLoading source dataset..")
-        
-        ts = pd.read_csv(series_csv, 
-                        delimiter=',', 
-                        header=0, 
-                        index_col=0, 
-                        parse_dates=True)
-
-        # ts.to_csv(f'{tmpdir}/0_loaded.csv')
 
         # temporal filtering
         print("\nTemporal filtering...")
@@ -284,13 +294,13 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
         ts_res = ts_res.asfreq(resolution+'min')
 
         # ts_res.to_csv(f'{tmpdir}/4_asfreq.csv')
-        
+
         # darts dataset creation
         ts_res_darts = darts.TimeSeries.from_dataframe(ts_res)
 
         # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
-        
-        # fill missing values with interpolation 
+
+        # fill missing values with interpolation
         transformer = MissingValuesFiller()
         ts_res_darts = transformer.transform(ts_res_darts)
 
@@ -310,7 +320,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
         print("\nCreating local folder to store the datasets as csv...")
         logging.info("\nCreating local folder to store the datasets as csv...")
         ts_res_darts.to_csv(f'{tmpdir}/series.csv')
-        
+
         print("\nStoring datasets locally...")
         logging.info("\nStoring datasets...")
         if time_covariates is not None:
@@ -319,14 +329,14 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
         print("\nUploading features to MLflow server...")
         logging.info("\nUploading features to MLflow server...")
         mlflow.log_artifacts(tmpdir, "features")
-        
+
         print("\nArtifacts uploaded. Deleting local copies...")
         logging.info("\nArtifacts uploaded. Deleting local copies...")
         shutil.rmtree(tmpdir)
 
         print("\nETL succesful.")
         logging.info("\nETL succesful.")
-        
+
         # mlflow tags
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "etl")
@@ -335,7 +345,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs):
             mlflow.set_tag('time_covariates_uri', f'{mlrun.info.artifact_uri}/features/time_covariates.csv')
         else: # default naming for non available time covariates uri
             mlflow.set_tag('time_covariates_uri', 'mlflow_artifact_uri')
-            
+
         return
 
 
