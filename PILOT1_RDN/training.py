@@ -155,7 +155,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
 
     ## device
-    print("param", hyperparameters)
+    #print("param", hyperparameters)
     if device == 'gpu' and torch.cuda.is_available():
         device = 'gpu'
         print("\nGPU is available")

@@ -90,7 +90,7 @@ def backtester(model,
     test_start_date = pd.Timestamp(test_start_date)
 
     # produce list of forecasts
-    print("backtesting starting at", test_start_date, "series:", series_transformed)
+    #print("backtesting starting at", test_start_date, "series:", series_transformed)
     backtest_series_transformed = model.historical_forecasts(series_transformed,
                                                              future_covariates=future_covariates,
                                                              past_covariates=past_covariates,
@@ -267,9 +267,9 @@ def build_shap_dataset(size: Union[int, float],
         curr = test[i:i + input_chunk_length]
         curr_date = int(curr.time_index[0].timestamp())
         curr_values = curr.random_component_values(copy=False)
-        if np.isnan(curr_values).any():
-            print(curr_date, "has NaN values")
-            continue
+        #if np.isnan(curr_values).any():
+            #print(curr_date, "has NaN values")
+            #continue
         data.append(curr_values.flatten())
 #    print(data[-1].flatten())
         if first_iter:
@@ -445,8 +445,8 @@ def call_shap(n_past_covs: int,
     interprtmpdir = tempfile.mkdtemp()
     sample = random.randint(0, len(data) - 1)
     for out in [0, output_chunk_length//2, output_chunk_length-1]:
-        print(len(shap_values))
-        print(out)
+#        print(len(shap_values))
+#        print(out)
         shap.summary_plot(shap_values[out], data, show=False)
         plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
         plt.close()

@@ -38,26 +38,19 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_country, etl_series_uri, etl_time_covariates_uri, git_commit, trial):
-                print("CUUUUUUT", cut_date_val)
-                hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
+                hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
-                for key, value in hyperparameters.items():
-                    if key.split("_")[-2:] == ["opt", "test"]:
-                        param = "_".join(key.split("_")[:-2])
-                        print(param, value)
-                        if value[0] == "range":
-                            if type(value[1]) == int:
-                                print(param)
-                                training_dict[param] = trial.suggest_int(param, value[1], value[2], value[3])
-                            else:
-                                print(param)
-                                training_dict[param] = trial.suggest_float(param, value[1], value[2], value[3])
+                for param, value in hyperparameters.items():
+                    if type(value) == list and value and value[0] == "range":
+                        if type(value[1]) == int:
+                            training_dict[param] = trial.suggest_int(param, value[1], value[2], value[3])
                         else:
-                            print(param)
-                            training_dict[param] = trial.suggest_categorical(param, value[1:])
+                            training_dict[param] = trial.suggest_float(param, value[1], value[2], value[3])
+                    elif type(value) == list and value and value[0] == "list":
+                        training_dict[param] = trial.suggest_categorical(param, value[1:])
                     else:
-                        print(key)
-                        training_dict[key] = value
+                        training_dict[param] = value
+
 
                 filedir = tempfile.mkdtemp()
                 filepath = os.path.join(filedir, "dict.yml")
@@ -360,12 +353,16 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     default="100",
     help="How many trials optuna will run")
 
+@click.option("--opt-test",
+    type=str,
+    default="false",
+    help="Whether we are running optuna")
 
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-             multiple, eval_country, n_trials):
+             multiple, eval_country, n_trials, opt_test):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -408,7 +405,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
         # weather_covariates_uri = ...
 
         # 3. Training
-        if hyperparams_entrypoint.split("_")[-2:] == ["opt", "test"]:
+        if opt_test:
             n_trials = none_checker(n_trials)
             n_trials = int(n_trials)
             study = optuna.create_study(storage="sqlite:///memory.db", study_name=hyperparams_entrypoint, load_if_exists=True)
