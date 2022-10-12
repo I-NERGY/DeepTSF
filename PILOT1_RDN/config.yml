@@ -1,10 +1,3 @@
-# mlflow_settings:
-#   # mlflow_tracking_uri: http://131.154.97.48:5000
-#   # mlflow_s3_endpoint_url: http://147.102.6.64:9000
-#   # minio_settings:
-#   #     aws_access_key_id: accessminio
-#   #     aws_secret_access_key: secretminio
-
 hyperparameters:
 
   test:
@@ -159,6 +152,20 @@ hyperparameters:
   #   learning_rate: 0.001
   #   # likelihood: Gaussian
   #   batch_size: 1024
+
+  lstm_example:
+    model: LSTM
+    n_rnn_layers: 2
+    hidden_dim:  64 #128
+    n_epochs: 100
+    input_chunk_length: 672
+    training_length: 672
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    # likelihood: Gaussian
+    batch_size: 1024
 
   lstm1_7:
     model: LSTM
@@ -390,6 +397,21 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 1
     batch_size: 1024
+
+  testnbeats:
+    input_chunk_length: 672
+    output_chunk_length: 96
+    num_stacks: 25
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 128
+    expansion_coefficient_dim: 5
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 2048
+
 # Generally speaking, for a receptive field with no holes, the kernel size k has to be at least as big as the dilation base b.
   tcn0_4:
     input_chunk_length: 384
@@ -563,7 +585,6 @@ hyperparameters:
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
-
 
   rf_w:
     lags: 672
