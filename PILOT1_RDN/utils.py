@@ -1,13 +1,15 @@
 
+from dotenv import load_dotenv
+import tempfile
 import pretty_errors
 import os
-# import tensorflow as tf
-# from tensorflow.python.summary.summary_iterator import summary_iterator
-# import seaborn as sns
 import mlflow
 import pandas as pd
 import yaml
 cur_dir = os.path.dirname(os.path.realpath(__file__))
+
+load_dotenv()
+
 
 class ConfigParser:
     def __init__(self, config_file_path=f'{cur_dir}/config.yml'):
@@ -22,18 +24,22 @@ class ConfigParser:
     def read_entrypoints(self):
         return self.config['hyperparameters']
 
+
 def download_file_from_s3_bucket(object_name, dst_filename, dst_dir=None, bucketName='mlflow-bucket'):
-    import boto3, tempfile
+    import boto3
+    import tempfile
     if dst_dir is None:
         dst_dir = tempfile.mkdtemp()
     else:
         os.makedirs(dst_dir, exist_ok=True)
     os.makedirs(dst_dir, exist_ok=True)
-    s3_resource = boto3.resource('s3', aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
+    s3_resource = boto3.resource(
+        's3', aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
     bucket = s3_resource.Bucket(bucketName)
     local_path = os.path.join(dst_dir, dst_filename)
     bucket.download_file(object_name, local_path)
     return local_path
+
 
 def load_yaml_as_dict(filepath):
     import yaml
@@ -54,8 +60,11 @@ def load_local_pkl_as_object(local_path):
     pkl_object = pickle.load(open(local_path, "rb"))
     return pkl_object
 
+
 def download_online_file(url, dst_filename=None, dst_dir=None):
-    import sys, tempfile, requests
+    import sys
+    import tempfile
+    import requests
 
     if dst_dir is None:
         dst_dir = tempfile.mkdtemp()
@@ -76,9 +85,6 @@ def download_online_file(url, dst_filename=None, dst_dir=None):
 
 
 def download_mlflow_file(url, dst_dir=None):
-    import tempfile
-    from dotenv import load_dotenv
-    load_dotenv()
     S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 
     if dst_dir is None:
@@ -99,12 +105,14 @@ def download_mlflow_file(url, dst_dir=None):
             url, dst_dir=dst_dir)
     return local_path
 
+
 def load_pkl_model_from_server(model_uri):
     print("\nLoading remote PKL model...")
-    model_path = download_online_file(f'{model_uri}/_model.pkl', '_model.pkl')
+    model_path = download_mlflow_file(f'{model_uri}/_model.pkl')
     print(model_path)
     best_model = load_local_pkl_as_object(model_path)
     return best_model
+
 
 def load_local_pl_model(model_root_dir):
 
@@ -129,6 +137,7 @@ def load_local_pl_model(model_root_dir):
 
     return best_model
 
+
 def load_pl_model_from_server(model_root_dir):
 
     import tempfile
@@ -142,7 +151,8 @@ def load_pl_model_from_server(model_root_dir):
     local_dir = tempfile.mkdtemp()
     client.download_artifacts(
         run_id=model_run_id, path=mlflow_relative_model_root_dir, dst_path=local_dir)
-    best_model = load_local_pl_model(os.path.join(local_dir, mlflow_relative_model_root_dir))
+    best_model = load_local_pl_model(os.path.join(
+        local_dir, mlflow_relative_model_root_dir))
     return best_model
 
 
@@ -177,6 +187,7 @@ def load_model(model_root_dir, mode="remote"):
         model = load_local_pkl_as_object(model_uri)
     return model
 
+
 def load_scaler(scaler_uri=None, mode="remote"):
 
     import tempfile
@@ -186,20 +197,22 @@ def load_scaler(scaler_uri=None, mode="remote"):
         return None
 
     if mode == "remote":
-        run_id = scaler_uri.split("/")[5]
+        run_id = scaler_uri.split("/")[-2]
         mlflow_filepath = scaler_uri.split("/artifacts/")[1]
 
         client = mlflow.tracking.MlflowClient()
         local_dir = tempfile.mkdtemp()
-
+        print("Scaler: ", scaler_uri)
+        print("Run: ", run_id)
         client.download_artifacts(
             run_id=run_id,
             path=mlflow_filepath,
             dst_path=local_dir
-            )
+        )
         # scaler_path = download_online_file(
         #     scaler_uri, "scaler.pkl") if mode == 'remote' else scaler_uri
-        scaler = load_local_pkl_as_object(os.path.join(local_dir, mlflow_filepath))
+        scaler = load_local_pkl_as_object(
+            os.path.join(local_dir, mlflow_filepath))
     else:
         scaler = load_local_pkl_as_object(scaler_uri)
     return scaler
@@ -209,6 +222,7 @@ def truth_checker(argument):
     """ Returns True if string has specific truth values else False"""
     return argument.lower() in ['true', '1', 't', 'y', 'yes', 'yeah', 'on']
 
+
 def none_checker(argument):
     """ Returns True if string has specific truth values else False"""
     if argument is None:
@@ -217,6 +231,7 @@ def none_checker(argument):
         return None
     else:
         return argument
+
 
 def load_artifacts(run_id, src_path, dst_path=None):
     import tempfile
@@ -230,16 +245,19 @@ def load_artifacts(run_id, src_path, dst_path=None):
     fname = src_path.split("/")[-1]
     return mlflow.artifacts.download_artifacts(artifact_path=src_path, dst_path="/".join([dst_dir, fname]), run_id=run_id)
 
+
 def load_local_model_as_torch(local_path):
     import torch
-    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    device = torch.device(
+        'cuda') if torch.cuda.is_available() else torch.device('cpu')
     model = torch.load(local_path, map_location=device)
     model.device = device
     return model
 
 def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Date', last_date=None, multiple = False):
 
-    import logging, darts
+    import logging
+    import darts
     import numpy as np
     import pandas as pd
 
@@ -268,6 +286,15 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             covariates = covariates.astype(np.float32)
             if last_date is not None:
                 covariates.drop_after(pd.Timestamp(last_date))
+#=======                
+#        covariates = darts.TimeSeries.from_csv(
+#            local_path, time_col=time_col,
+#            fill_missing_dates=True,
+#            freq=None)
+#        covariates = covariates.astype(np.float32)
+#        if last_date is not None:
+#            covariates.drop_after(pd.Timestamp(last_date))
+#>>>>>>> dev
     except (FileNotFoundError, PermissionError) as e:
         print(
             f"\nBad {name} file.  The model won't include {name}...")
@@ -275,6 +302,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             f"\nBad {name} file. The model won't include {name}...")
         covariates = None
     return covariates, country_l, country_code_l
+
 
 def parse_uri_prediction_input(model_input: dict, model) -> dict:
 
@@ -286,14 +314,17 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
     forecast_horizon = int(model_input["n"])
 
     ## Horizon
-    n = int(model_input["n"]) if model_input["n"] is not None else model.output_chunk_length
-    roll_size = int(model_input["roll_size"]) if model_input["roll_size"] is not None else model.output_chunk_length
+    n = int(
+        model_input["n"]) if model_input["n"] is not None else model.output_chunk_length
+    roll_size = int(
+        model_input["roll_size"]) if model_input["roll_size"] is not None else model.output_chunk_length
 
     ## TODO: future and past covariates (load and transform to darts)
     past_covariates_uri = model_input["past_covariates_uri"]
     future_covariates_uri = model_input["future_covariates_uri"]
 
-    batch_size = int(model_input["batch_size"]) if model_input["batch_size"] is not None else 1
+    batch_size = int(model_input["batch_size"]
+                     ) if model_input["batch_size"] is not None else 1
 
     if 'runs:/' in series_uri or 's3://mlflow-bucket/' in series_uri or series_uri.startswith('http://'):
         print('\nDownloading remote file of recent time series history...')
@@ -452,5 +483,3 @@ def multiple_dfs_to_ts_file(res_l, country_l, country_code_l, save_dir):
     # print("Artifacts uploaded. Deleting local copies...")
     # logging.info("Artifacts uploaded. Deleting local copies...")
     # shutil.rmtree(output_dir)
-
-    # return
