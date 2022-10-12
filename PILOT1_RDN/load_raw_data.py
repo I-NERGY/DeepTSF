@@ -77,8 +77,12 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     type=str,
     default="true",
     help="Whether the date has the day before the month")
+@click.option("--multiple",
+    type=str,
+    default="false",
+    help="Whether to train on multiple timeseries")
 
-def load_raw_data(series_csv, series_uri, day_first):
+def load_raw_data(series_csv, series_uri, day_first, multiple):
 
     if series_uri != "online_artifact":
         download_file_path = download_online_file(series_uri, dst_filename="series.csv")
@@ -90,11 +94,23 @@ def load_raw_data(series_csv, series_uri, day_first):
 
     day_first = truth_checker(day_first)
 
+    multiple = truth_checker(multiple)
+
     with mlflow.start_run(run_name='load_data', nested=True) as mlrun:
 
-        print(f'Validating timeseries on local file: {series_csv}')
-        logging.info(f'Validating timeseries on local file: {series_csv}')
-        ts = read_and_validate_input(series_csv, day_first)
+        if not multiple:
+            print(f'Validating timeseries on local file: {series_csv}')
+            logging.info(f'Validating timeseries on local file: {series_csv}')
+            ts = read_and_validate_input(series_csv, day_first)
+        else:
+            ##TODO: add validator here
+            ts = pd.read_csv(series_csv,
+                             sep=None,
+                             header=0,
+                             index_col=0,
+                             parse_dates=True,
+                             dayfirst=day_first,
+                             engine='python')
 
         local_path = local_path.replace("'", "") if "'" in local_path else local_path
         series_filename = os.path.join(*local_path, fname)
@@ -102,7 +118,7 @@ def load_raw_data(series_csv, series_uri, day_first):
         # darts_series = darts.TimeSeries.from_series(series, freq=f'{timestep}min')
         print(f'\nUploading timeseries to MLflow server: {series_filename}')
         logging.info(f'\nUploading timeseries to MLflow server: {series_filename}')
-        
+
         tmpdir = tempfile.mkdtemp()
         ts_filename = os.path.join(tmpdir, fname)
         ts.to_csv(ts_filename, index=True)
@@ -111,10 +127,16 @@ def load_raw_data(series_csv, series_uri, day_first):
         ## TODO: Read from APi
 
         # set mlflow tags for next steps
-        mlflow.set_tag("dataset_start", datetime.strftime(ts.index[0], "%Y%m%d"))
-        mlflow.set_tag("dataset_end", datetime.strftime(ts.index[-1], "%Y%m%d"))
+        ##TODO fix this
+        if multiple:
+#            mlflow.set_tag("dataset_start", datetime.strftime(ts["Day"][0], "%Y%m%d"))
+#            mlflow.set_tag("dataset_end", datetime.strftime(ts["Day"][-1], "%Y%m%d"))
+            pass
+        else:
+            mlflow.set_tag("dataset_start", datetime.strftime(ts.index[0], "%Y%m%d"))
+            mlflow.set_tag("dataset_end", datetime.strftime(ts.index[-1], "%Y%m%d"))
         mlflow.set_tag("run_id", mlrun.info.run_id)
-        
+
         mlflow.set_tag("stage", "load_raw_data")
         mlflow.set_tag('dataset_uri', f'{mlrun.info.artifact_uri}/raw_data/{fname}')
 
