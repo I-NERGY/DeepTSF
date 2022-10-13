@@ -560,8 +560,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
 
             # ts_res.to_csv(f'{tmpdir}/3_dropped_duplicates.csv')
 
-            print("\nPerfrorming Outlier Detection...")
-            logging.info("\nPerfrorming Outlier Detection...")
+            print("\nperforming Outlier Detection...")
+            logging.info("\nperforming Outlier Detection...")
 
             ts_res, removed = remove_outliers(ts=ts_res,
                                               name=country,
@@ -574,8 +574,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
             except:
                 raise CountryDoesNotExist()
 
-            print("\nPerfrorming Imputation of the Dataset...")
-            logging.info("\nPerfrorming Imputation of the Dataset...")
+            print("\nPerforming Imputation of the Dataset...")
+            logging.info("\nPerforming Imputation of the Dataset...")
 
             ts_res, imputed_values = impute(ts=ts_res,
                                             holidays=country_holidays,
