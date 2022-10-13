@@ -97,6 +97,14 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
                     train_setup_uri, "setup.yml")
                 setup = load_yaml_as_dict(setup_file)
                 print(f"\nSplit info: {setup} \n")
+                
+                # Naive models require retrain = True while evaluated
+                print(train_run.data.tags["darts_forecasting_model"])
+
+                if train_run.data.tags["darts_forecasting_model"] == 'NaiveSeasonal' and retrain==False:
+                    retrain = True
+                    print("\Warning: Switching retrain flag to True as Naive models require...\n")
+
                 eval_params = {
                     "series_uri": train_series_uri,
                     "future_covs_uri": train_future_covariates_uri,
@@ -123,7 +131,7 @@ def objective(series_csv, series_uri, year_range, resolution, time_covs,
                     eval_params["input_chunk_length"] = train_run.data.params["input_chunk_length"]
 
                 if "output_chunk_length" in train_run.data.params:
-                                    eval_params["output_chunk_length"] = train_run.data.params["output_chunk_length"]
+                    eval_params["output_chunk_length"] = train_run.data.params["output_chunk_length"]
 
                 eval_run = _get_or_run("eval", eval_params, git_commit)
 
@@ -513,6 +521,11 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
 
             if "output_chunk_length" in train_run.data.params:
                 eval_params["output_chunk_length"] = train_run.data.params["output_chunk_length"]
+            
+            # Naive models require retrain=True
+            if "naive" in [train_run.data.params["darts_model"].lower()]:
+                eval_params["retrain"] = True
+                print("\Warning: Switching retrain flag to True as Naive models require...\n")
 
 
             eval_run = _get_or_run("eval", eval_params, git_commit)

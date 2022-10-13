@@ -153,6 +153,12 @@ hyperparameters:
   #   # likelihood: Gaussian
   #   batch_size: 1024
 
+  naive_d:
+    days_seasonality: 1
+
+  naive_w:
+    days_seasonality: 7
+
   lstm_example:
     model: LSTM
     n_rnn_layers: 2
