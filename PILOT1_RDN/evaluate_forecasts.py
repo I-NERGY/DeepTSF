@@ -521,7 +521,8 @@ def call_shap(n_past_covs: int,
               default="None")
 @click.option("--retrain",
               type=str,
-              default="false")
+              default="false",
+              help="Whether to retrain model during backtesting")
 
 @click.option("--input-chunk-length",
              type=str,
@@ -624,6 +625,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             series_transformed = scaler.transform(series)
         else:
             series_transformed = [scaler.transform(s) for s in series]
+    else:
+        series_transformed = series
 
     # Split in the same way as in training
     ## series
