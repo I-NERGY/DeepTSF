@@ -150,4 +150,5 @@ dependencies:
     - zipp==3.8.0
     - nvsmi==0.4.2
     - optuna==3.0.3
+    - shap==0.41.0
 prefix: C:\Users\spele\Miniconda3\envs\darts_38
