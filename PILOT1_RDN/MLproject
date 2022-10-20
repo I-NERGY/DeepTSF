@@ -81,6 +81,32 @@ entry_points:
     command: |
       python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --model-type {model_type} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --input-chunk-length {input_chunk_length} --output-chunk-length {output_chunk_length} --size {size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-country {eval_country} --cut-date-val {cut_date_val} --opt-test {opt_test}
 
+
+  optuna_search:
+    parameters:
+      series_uri: {type: str, default: online_artifact}
+      future_covs_uri: {type: str, default: mlflow_artifact_uri}
+      resolution: {type: str, default: 15}
+      year_range: {type: str, default: None}
+      time_covs: {type: str, default: PT}
+      darts_model: {type: str, default: RNN}
+      hyperparams_entrypoint: {type: str, default: LSTM1}
+      cut_date_val: {type: str, default: 20180101}
+      cut_date_test: {type: str, default: 20190101}
+      test_end_date: {type: str, default: None}
+      device: {type: str, default: gpu}
+      forecast_horizon: {type: str, default: 96}
+      stride: {type: str, default: None}
+      retrain: {type: str, default: false}
+      scale: {type: str, default: "true"}
+      scale_covs: {type: str, default: "true"}
+      multiple: {type: str, default: "false"}
+      eval_country: {type: str, default: "Portugal"}
+      n_trials: {type: str, default: 100}
+    command: |
+      python optuna_search.py --series-uri {series_uri} --future-covs-uri {future_covs_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --darts-model {darts_model} --hyperparams-entrypoint {hyperparams_entrypoint} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --device {device} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --eval-country {eval_country} --n-trials {n_trials}
+
+
   exp_pipeline:
     parameters:
       series_csv: {type: str, default: ../../RDN/Load_Data/2009-2021-global-load.csv}

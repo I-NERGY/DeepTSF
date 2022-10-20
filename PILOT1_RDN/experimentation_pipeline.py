@@ -409,41 +409,30 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
 
         # weather_covariates_uri = ...
 
-        # 3. Training
+        # 3. Training or Optuna test
         if opt_test:
-            n_trials = none_checker(n_trials)
-            n_trials = int(n_trials)
-            study = optuna.create_study(storage="sqlite:///memory.db", study_name=hyperparams_entrypoint, load_if_exists=True)
-
-            study.optimize(lambda trial: objective(series_csv, series_uri, year_range, resolution, time_covs,
-                           darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
-                           forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
-                           country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-                           multiple, eval_country, etl_series_uri, etl_time_covariates_uri, git_commit, trial), n_trials=n_trials, n_jobs = 1)
-
-            opt_tmpdir = tempfile.mkdtemp()
-            plt.close()
-
-            fig = optuna.visualization.matplotlib.plot_optimization_history(study)
-            plt.savefig(f"{opt_tmpdir}/plot_optimization_history.png")
-            plt.close()
-
-            fig = optuna.visualization.matplotlib.plot_param_importances(study)
-            plt.savefig(f"{opt_tmpdir}/plot_param_importances.png")
-            plt.close()
-
-            fig = optuna.visualization.matplotlib.plot_slice(study)
-            plt.savefig(f"{opt_tmpdir}/plot_slice.png")
-            plt.close()
-
-            study.trials_dataframe().to_csv(f"{opt_tmpdir}/{hyperparams_entrypoint}.csv")
-
-            print("\nUploading optuna plots to MLflow server...")
-            logging.info("\nUploading optuna plots to MLflow server...")
-
-            mlflow.log_artifacts(opt_tmpdir, "optuna_results")
-
-
+            optuna_params = {
+                "series_uri": etl_series_uri,
+                "future_covs_uri": etl_time_covariates_uri,
+                "year_range": year_range,
+                "resolution": resolution,
+                "time_covs": time_covs,
+                "darts_model": darts_model,
+                "hyperparams_entrypoint": hyperparams_entrypoint,
+                "cut_date_val": cut_date_val,
+                "test_end_date": test_end_date,
+                "cut_date_test": cut_date_test,
+                "device": device,
+                "forecast_horizon": forecast_horizon,
+                "stride": stride,
+                "retrain": retrain,
+                "scale": scale,
+                "scale_covs": scale_covs,
+                "multiple": multiple,
+                "eval_country": eval_country,
+                "n_trials": n_trials,
+            }
+            optuna_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
 
         else:
             train_params = {
