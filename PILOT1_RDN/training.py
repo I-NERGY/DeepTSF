@@ -141,11 +141,6 @@ my_stopper = EarlyStopping(
     default="false",
     help="Whether to train on multiple timeseries")
 
-@click.option("--opt-test",
-    type=str,
-    default="false",
-    help="Whether we are running optuna")
-
 @click.option("--training-dict",
         type=str,
         default="None",
@@ -155,7 +150,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          opt_test, training_dict):
+          training_dict):
 
     # Argument preprocessing
 
@@ -168,13 +163,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
     multiple = truth_checker(multiple)
 
-    opt_test = truth_checker(opt_test)
 
     ## hyperparameters
-    if opt_test:
-        hyperparameters = load_yaml_as_dict(training_dict)
-    else:
-        hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
+    hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
 
     ## device
     #print("param", hyperparameters)

@@ -33,106 +33,6 @@ load_dotenv()
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 
-def objective(series_csv, series_uri, year_range, resolution, time_covs,
-             darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
-             forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
-             country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-             multiple, eval_country, etl_series_uri, etl_time_covariates_uri, git_commit, trial):
-                hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
-                training_dict = {}
-                for param, value in hyperparameters.items():
-                    if type(value) == list and value and value[0] == "range":
-                        if type(value[1]) == int:
-                            training_dict[param] = trial.suggest_int(param, value[1], value[2], value[3])
-                        else:
-                            training_dict[param] = trial.suggest_float(param, value[1], value[2], value[3])
-                    elif type(value) == list and value and value[0] == "list":
-                        training_dict[param] = trial.suggest_categorical(param, value[1:])
-                    else:
-                        training_dict[param] = value
-
-
-                filedir = tempfile.mkdtemp()
-                filepath = os.path.join(filedir, "dict.yml")
-                save_dict_as_yaml(filepath, training_dict)
-
-                train_params = {
-                    "series_uri": etl_series_uri,
-                    "future_covs_uri": etl_time_covariates_uri,
-                    "past_covs_uri": None, # fix that in case REAL Temperatures come -> etl_temp_covs_uri. For forecasts, integrate them into future covariates!!
-                    "darts_model": darts_model,
-                    "hyperparams_entrypoint": hyperparams_entrypoint,
-                    "cut_date_val": cut_date_val,
-                    "cut_date_test": cut_date_test,
-                    "test_end_date": test_end_date,
-                    "device": device,
-                    "scale": scale,
-                    "scale_covs": scale_covs,
-                    "multiple": multiple,
-                    "opt_test": True,
-                    "training_dict": filepath,
-                    }
-                train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
-
-                # Log train params (mainly for logging hyperparams to father run)
-                for param_name, param_value in train_run.data.params.items():
-                    try:
-                        mlflow.log_param(param_name, param_value)
-                    except mlflow.exceptions.RestException:
-                        pass
-                    except mlflow.exceptions.MlflowException:
-                        pass
-
-                train_model_uri = train_run.data.tags["model_uri"].replace("s3:/", S3_ENDPOINT_URL)
-                train_model_type = train_run.data.tags["model_type"]
-                train_series_uri = train_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
-                train_future_covariates_uri = train_run.data.tags["future_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
-                train_past_covariates_uri = train_run.data.tags["past_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
-                train_scaler_uri = train_run.data.tags["scaler_uri"].replace("s3:/", S3_ENDPOINT_URL)
-                train_setup_uri = train_run.data.tags["setup_uri"].replace("s3:/", S3_ENDPOINT_URL)
-
-                # 4. Evaluation
-                ## load setup file
-                setup_file = download_online_file(
-                    train_setup_uri, "setup.yml")
-                setup = load_yaml_as_dict(setup_file)
-                print(f"\nSplit info: {setup} \n")
-                eval_params = {
-                    "series_uri": train_series_uri,
-                    "future_covs_uri": train_future_covariates_uri,
-                    "past_covs_uri": train_past_covariates_uri,
-                    "scaler_uri": train_scaler_uri,
-                    "cut_date_test": cut_date_test,
-                    "test_end_date": test_end_date,#check that again
-                    "model_uri": train_model_uri,
-                    "model_type": train_model_type,
-                    "forecast_horizon": forecast_horizon,
-                    "stride": stride,
-                    "retrain": retrain,
-                    "input_chunk_length" : 0,
-                    "output_chunk_length" : 0,
-                    "size" : shap_data_size,
-                    "analyze_with_shap" : analyze_with_shap,
-                    "multiple": multiple,
-                    "eval_country": eval_country,
-                    "cut_date_val": cut_date_val,
-                    "opt_test": True,
-                    }
-
-                if "input_chunk_length" in train_run.data.params:
-                    eval_params["input_chunk_length"] = train_run.data.params["input_chunk_length"]
-
-                if "output_chunk_length" in train_run.data.params:
-                                    eval_params["output_chunk_length"] = train_run.data.params["output_chunk_length"]
-
-                eval_run = _get_or_run("eval", eval_params, git_commit)
-
-                # Log eval metrics to father run for consistency and clear results
-                mlflow.log_metrics(eval_run.data.metrics)
-
-                return eval_run.data.metrics["mape"]
-
-
 def _already_ran(entry_point_name, parameters, git_commit, experiment_id=None):
     """Best-effort detection of if a run with the given entrypoint name,
     parameters, and experiment id already ran. The run must have completed
@@ -448,7 +348,6 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "scale": scale,
                 "scale_covs": scale_covs,
                 "multiple": multiple,
-                "opt_test": False,
                 "training_dict": None,
             }
             train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)

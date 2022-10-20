@@ -50,10 +50,9 @@ entry_points:
       scale: {type: str, default: "true"}
       scale_covs: {type: str, default: "true"}
       multiple: {type: str, default: "false"}
-      opt_test: {type: str, default: "false"}
       training_dict: {type: str, default: "None"}
     command: |
-      python training.py --series-csv {series_csv} --series-uri {series_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --past-covs-csv {past_covs_csv}  --past-covs-uri {past_covs_uri} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --opt-test {opt_test} --training-dict {training_dict} --cut-date-val {cut_date_val}
+      python training.py --series-csv {series_csv} --series-uri {series_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --past-covs-csv {past_covs_csv}  --past-covs-uri {past_covs_uri} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --training-dict {training_dict} --cut-date-val {cut_date_val}
 
   eval:
     parameters:
@@ -76,10 +75,9 @@ entry_points:
       multiple: {type: str, default: "false"}
       eval_country: {type: str, default: "Portugal"}
       cut_date_val: {type: str, default: 20210101}
-      opt_test: {type: str, default: "false"}
 
     command: |
-      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --model-type {model_type} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --input-chunk-length {input_chunk_length} --output-chunk-length {output_chunk_length} --size {size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-country {eval_country} --cut-date-val {cut_date_val} --opt-test {opt_test}
+      python evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --model-type {model_type} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --input-chunk-length {input_chunk_length} --output-chunk-length {output_chunk_length} --size {size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-country {eval_country} --cut-date-val {cut_date_val}
 
 
   optuna_search:

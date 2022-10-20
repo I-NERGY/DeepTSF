@@ -557,13 +557,9 @@ def call_shap(n_past_covs: int,
               default='20210101',
               help="Val set start date [str: 'YYYYMMDD']",
               )
-@click.option("--opt-test",
-    type=str,
-    default="false",
-    help="Whether we are running optuna")
 
 
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_country, cut_date_val, opt_test):
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_country, cut_date_val):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -574,8 +570,6 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     retrain = truth_checker(retrain)
     analyze_with_shap = truth_checker(analyze_with_shap)
     multiple = truth_checker(multiple)
-    opt_test = truth_checker(opt_test)
-
     future_covariates_uri = none_checker(future_covs_uri)
     past_covariates_uri = none_checker(past_covs_uri)
     try:
@@ -627,27 +621,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
 
     # Split in the same way as in training
     ## series
-    if opt_test:
-        print(cut_date_val)
-        series_split = split_dataset(
-            series,
-            val_start_date_str=cut_date_val,
-            test_start_date_str=cut_date_test,
-            test_end_date=test_end_date,
-            multiple=multiple,
-            country_l=country_l,
-            country_code_l=country_code_l)
-
-        series_transformed_split = split_dataset(
-            series_transformed,
-            val_start_date_str=cut_date_val,
-            test_start_date_str=cut_date_test,
-            test_end_date=test_end_date,
-            multiple=multiple,
-            country_l=country_l,
-            country_code_l=country_code_l)
-    else:
-        series_split = split_dataset(
+    series_split = split_dataset(
             series,
             val_start_date_str=cut_date_test,
             test_start_date_str=cut_date_test,
@@ -656,7 +630,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             country_l=country_l,
             country_code_l=country_code_l)
 
-        series_transformed_split = split_dataset(
+    series_transformed_split = split_dataset(
             series_transformed,
             val_start_date_str=cut_date_test,
             test_start_date_str=cut_date_test,
@@ -675,25 +649,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
 
-        if opt_test:
-            backtest_series = darts.timeseries.concatenate([series_split['train'][eval_i], series_split['val'][eval_i]]) if multiple else \
-                              darts.timeseries.concatenate([series_split['train'], series_split['val']])
-            backtest_series_transformed = darts.timeseries.concatenate([series_transformed_split['train'], series_transformed_split['val']])
 
-            evaluation_results = backtester(model=model,
-                                            series_transformed=backtest_series_transformed,
-                                            series=backtest_series,
-                                            transformer_ts=scaler,
-                                            test_start_date=cut_date_val,
-                                            forecast_horizon=forecast_horizon,
-                                            stride=stride,
-                                            retrain=retrain,
-                                            future_covariates=future_covariates,
-                                            past_covariates=past_covariates,
-                                            path_to_save_backtest=evaltmpdir)
-
-        else:
-            evaluation_results = backtester(model=model,
+        evaluation_results = backtester(model=model,
                                             series_transformed=series_transformed_split['all'][eval_i] \
                                                                if multiple else series_transformed_split['all'],
                                             series=series_split['all'][eval_i] if multiple else series_split['all'],
