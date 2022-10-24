@@ -1,13 +1,13 @@
 hyperparameters:
 
-  tcn2:
+  tcn_val_2020:
     output_chunk_length: 24
     weight_norm: True
     dropout: 0
     nr_epochs_val_period: 2
     n_epochs: 2
     random_state: 0
-    input_chunk_length: ["range", 24, 504, 24]
+    input_chunk_length: ["range", 48, 480, 24]
     kernel_size: ["range", 2, 6, 1]
     num_filters: ["range", 2, 12, 1]
     dilation_base: ["list", 2, 4, 8, 16, 32]
