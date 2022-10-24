@@ -109,8 +109,7 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                       )
 
                 trial.set_user_attr("epochs_trained", model.epochs_trained)
-
-                return validate(
+                metrics = validate(
                     series_uri=series_uri,
                     future_covariates=train_future_covariates,
                     past_covariates=train_past_covariates,
@@ -126,6 +125,12 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                     cut_date_val=cut_date_val,
                     mlrun=mlrun,
                     )
+                trial.set_user_attr("mape", float(metrics["mape"]))
+                trial.set_user_attr("smape", float(metrics["smape"]))
+                trial.set_user_attr("mase", float(metrics["mase"]))
+                trial.set_user_attr("mae", float(metrics["mae"]))
+                trial.set_user_attr("rmse", float(metrics["rmse"]))
+                return metrics["mape"]
 
 def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
@@ -538,7 +543,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                     past_covariates=past_covariates,
                                     )
 
-    return validation_results["metrics"]['mape']
+    return validation_results["metrics"]
 
 @click.command()
 # load arguments
@@ -658,6 +663,13 @@ def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs
                        darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
                        forecast_horizon, stride, retrain, scale, scale_covs,
                        multiple, eval_country, mlrun, trial), n_trials=n_trials, n_jobs = 1)
+
+            ######################
+            # Log hyperparameters
+            mlflow.log_params(study.best_params)
+
+            # Log log_metrics
+            mlflow.log_metrics(study.best_trial.user_attrs)
 
             opt_tmpdir = tempfile.mkdtemp()
             plt.close()
