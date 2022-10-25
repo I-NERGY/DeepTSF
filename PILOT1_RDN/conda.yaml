@@ -107,7 +107,6 @@ dependencies:
     - pretty-errors==1.2.25
     - prometheus-client==0.14.1
     - prometheus-flask-exporter==0.20.1
-    - protobuf==3.20.1
     - pure-eval==0.2.2
     - pyasn1==0.4.8
     - pyasn1-modules==0.2.8
@@ -151,4 +150,5 @@ dependencies:
     - nvsmi==0.4.2
     - optuna==3.0.3
     - shap==0.41.0
+    - protobuf==3.19.0
 prefix: C:\Users\spele\Miniconda3\envs\darts_38
