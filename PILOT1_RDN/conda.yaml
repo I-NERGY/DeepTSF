@@ -148,6 +148,7 @@ dependencies:
     - yarl==1.7.2
     - zipp==3.8.0
     - nvsmi==0.4.2
+    - fastapi==0.85.1
     - optuna==3.0.3
     - shap==0.41.0
     - protobuf==3.19.0
