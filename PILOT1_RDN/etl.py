@@ -533,7 +533,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
         res_ = []
         for i, ts in enumerate(ts_list):
             # temporal filtering
-            print(f"\Starting etl of ts {i}, and country {country_l[i]}...")
+            print(f"\nStarting etl of ts {i}, and country {country_l[i]}...")
             logging.info(f"\Starting etl of ts {i}, and country {country_l[i]}...")
 
             print(f"\nTemporal filtering...")
