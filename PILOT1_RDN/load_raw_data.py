@@ -29,7 +29,8 @@ load_dotenv()
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
-                            day_first: str = "true"):
+                            day_first: bool = True,
+                            multiple: bool = False):
     """
     Validates the input after read_csv is called and
     throws apropriate exception if it detects an error
@@ -40,6 +41,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         The path to the local file of the series to be validated
     day_first
         Whether to read the csv assuming day comes before the month
+    multiple
+        Whether to train on multiple timeseries
 
     Returns
     -------
@@ -53,10 +56,13 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      parse_dates=True,
                      dayfirst=day_first,
                      engine='python')
-    if not ts.index.sort_values().equals(ts.index):
-        raise DatesNotInOrder()
-    elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
-        raise WrongColumnNames(list(ts.columns) + [ts.index.name])
+    if not multiple:
+        if not ts.index.sort_values().equals(ts.index):
+            raise DatesNotInOrder()
+        elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
+            raise WrongColumnNames(list(ts.columns) + [ts.index.name])
+    else:
+        pass
     return ts
 
 @click.command(
@@ -98,19 +104,10 @@ def load_raw_data(series_csv, series_uri, day_first, multiple):
 
     with mlflow.start_run(run_name='load_data', nested=True) as mlrun:
 
-        if not multiple:
-            print(f'Validating timeseries on local file: {series_csv}')
-            logging.info(f'Validating timeseries on local file: {series_csv}')
-            ts = read_and_validate_input(series_csv, day_first)
-        else:
-            ##TODO: add validator here
-            ts = pd.read_csv(series_csv,
-                             sep=None,
-                             header=0,
-                             index_col=0,
-                             parse_dates=True,
-                             dayfirst=day_first,
-                             engine='python')
+        print(f'Validating timeseries on local file: {series_csv}')
+        logging.info(f'Validating timeseries on local file: {series_csv}')
+        ts = read_and_validate_input(series_csv, day_first, multiple=multiple)
+
 
         local_path = local_path.replace("'", "") if "'" in local_path else local_path
         series_filename = os.path.join(*local_path, fname)

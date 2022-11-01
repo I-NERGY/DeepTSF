@@ -1,14 +1,60 @@
 hyperparameters:
 
-  tcn_val_2020:
+  TCN_val_2020:
     output_chunk_length: 24
     weight_norm: True
     dropout: 0
     nr_epochs_val_period: 2
-    n_epochs: 2
+    n_epochs: 500
     random_state: 0
     input_chunk_length: ["range", 48, 480, 24]
     kernel_size: ["range", 2, 6, 1]
     num_filters: ["range", 2, 12, 1]
     dilation_base: ["list", 2, 4, 8, 16, 32]
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+
+#An ta layers bgainoun symantikotero karfwse ta 4
+#kai 19 kai 20
+  NBEATS_val_2020:
+    input_chunk_length: ["range", 24, 480, 24]
+    output_chunk_length: 24
+    num_stacks: ["range", 1, 25, 1]
+    num_blocks: ["range", 1, 20, 1]
+    num_layers: ["range", 1, 10, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+
+  BlockLSTM_val_2020:
+    model: LSTM
+    n_rnn_layers: ["range", 1, 4, 1] #kospe an yparxei thema
+    input_chunk_length: ["range", 24, 480, 24]
+    output_chunk_length: 24
+    hidden_size:  ["range", 24, 240, 24] #hmerisio???
+    n_epochs: 500
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: ["range", 0.0005, 0.002, 0.0005] #rwta gia to an prepei na to afhsoume karfwmeno
+    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+
+  MLP_val_2020:
+    hidden_layer_sizes : # n_layers=[1,10, 1], n_neur=[50, 200, 10]
+    activation: ["list", "relu", "logistic"]
+    solver: 'adam'
+    alpha: 0.0001
+    batch_size: 'auto' #print and save the batch size
+    learning_rate: 'constant'
+    learning_rate_init: ["range", 0.0005, 0.002, 0.0005] #rwta gia to an prepei na to afhsoume karfwmeno
+    max_iter: 200
+    shuffle: ["list", "True", "False"]
+    random_state: 0
+    verbose: True
+    early_stopping: True
+    validation_fraction: 0.13
+    tolerance: 1e-06
+    n_iter_no_change: 10
