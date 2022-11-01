@@ -91,6 +91,7 @@ def backtester(model,
 
     # produce list of forecasts
     #print("backtesting starting at", test_start_date, "series:", series_transformed)
+    print("EVALUATIING ON SERIES:", series_transformed)
     backtest_series_transformed = model.historical_forecasts(series_transformed,
                                                              future_covariates=future_covariates,
                                                              past_covariates=past_covariates,
@@ -617,7 +618,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         if not multiple:
             series_transformed = scaler.transform(series)
         else:
-            series_transformed = [scaler.transform(s) for s in series]
+            series_transformed = [scaler[i].transform(series[i]) for i in range(len(series))]
 
     # Split in the same way as in training
     ## series
@@ -654,7 +655,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             series_transformed=series_transformed_split['all'][eval_i] \
                                                                if multiple else series_transformed_split['all'],
                                             series=series_split['all'][eval_i] if multiple else series_split['all'],
-                                            transformer_ts=scaler,
+                                            transformer_ts=scaler[eval_i],
                                             test_start_date=cut_date_test,
                                             forecast_horizon=forecast_horizon,
                                             stride=stride,

@@ -6,6 +6,7 @@ import os
 import mlflow
 import pandas as pd
 import yaml
+import darts
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 
 load_dotenv()
@@ -267,9 +268,10 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             ts_list, country_l, country_code_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=True)
             covariate_l  = []
             print("liiiist", local_path)
+            print(ts_list[0])
             for df in ts_list:
                 covariates = darts.TimeSeries.from_dataframe(
-                             df, time_col=time_col,
+                             df,
                              fill_missing_dates=True,
                              freq=None)
                 covariates = covariates.astype(np.float32)
@@ -366,11 +368,11 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      parse_dates=True,
                      dayfirst=day_first,
                      engine='python')
-    print("tssss", ts)
+    print("ts", ts, sep="\n")
     res = []
     country = []
     country_code = []
-    for i in range(max(ts["ID"])):
+    for i in range(max(ts["ID"]) + 1):
         curr = ts[ts["ID"] == i]
         curr = pd.melt(curr, id_vars=['Day', 'ID', 'Country', 'Country Code'], var_name='Time', value_name='Load')
         curr["Date"] = pd.to_datetime(curr['Day'] + curr['Time'], format='%Y-%m-%d%H:%M:%S')
@@ -384,6 +386,8 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 def multiple_dfs_to_ts_file(res_l, country_l, country_code_l, save_dir):
     ts_list = []
     for i, (ts, country, country_code) in enumerate(zip(res_l, country_l, country_code_l)):
+        if type(ts) == darts.timeseries.TimeSeries:
+            ts = ts.pd_dataframe()
         ts["Day"] = ts.index.date
         ts["Time"] = ts.index.time
         ts = pd.pivot_table(ts, index=["Day"], columns=["Time"])
@@ -393,9 +397,7 @@ def multiple_dfs_to_ts_file(res_l, country_l, country_code_l, save_dir):
         ts["Country Code"] = country_code
         ts_list.append(ts)
     res = pd.concat(ts_list).sort_values(by=["Day", "ID"])
-    columns = list(res.columns)
-    columns.remove("ID")
-    columns = ["ID"] + columns
+    columns = list(res.columns)[-3:] + list(res.columns)[:-3]
     res = res[columns].reset_index()
     res.to_csv(save_dir)
 

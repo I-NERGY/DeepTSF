@@ -344,7 +344,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             if 'likelihood' in hyperparameters:
                 hyperparameters['likelihood'] = eval(hyperparameters['likelihood']+"Likelihood"+"()")
-
+            print("TRAINING ON SERIES:", series_transformed['train'])
+            print("VALIDATING ON SERIES:", series_transformed['val'])
             model = eval(darts_model + 'Model')(
                 save_checkpoints=True,
                 log_tensorboard=False,
