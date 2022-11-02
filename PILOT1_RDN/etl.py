@@ -531,6 +531,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
 
     with mlflow.start_run(run_name='etl', nested=True) as mlrun:
         res_ = []
+        print("ETL MULTIPLE", len(ts_list))
         for i, ts in enumerate(ts_list):
             # temporal filtering
             print(f"\Starting etl of ts {i}, and country {country_l[i]}...")

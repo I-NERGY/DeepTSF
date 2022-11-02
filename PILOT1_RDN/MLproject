@@ -10,9 +10,10 @@ entry_points:
       series_uri: {type: str, default: online_artifact}
       day_first: {type: str, default: "true"}
       multiple: {type: str, default: "false"}
+      resolution: {type: str, default: 15}
 
     command: |
-      python load_raw_data.py --series-csv {series_csv} --series-uri {series_uri} --day-first {day_first} --multiple {multiple}
+      python load_raw_data.py --series-csv {series_csv} --series-uri {series_uri} --day-first {day_first} --multiple {multiple} --resolution {resolution}
 
   etl:
     parameters:

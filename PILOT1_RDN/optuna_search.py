@@ -246,7 +246,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     logging.info(
         f"\nTrain / Test split: Validation set starts: {cut_date_val} - Test set starts: {cut_date_test} - Test set end: {test_end_date}")
 
-    print(series)
     ## series
     series_split = split_dataset(
         series,
@@ -503,7 +502,6 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 
     # Split in the same way as in training
     ## series
-    print(cut_date_val)
     series_split = split_dataset(
             series,
             val_start_date_str=cut_date_val,
