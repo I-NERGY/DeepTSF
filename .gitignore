@@ -57,4 +57,4 @@ nodeLanguageServer.*/**
 !/.gitattributes
 
 # optuna storage
-.db
+*.db
