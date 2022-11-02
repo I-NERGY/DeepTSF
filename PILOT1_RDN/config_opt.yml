@@ -1,11 +1,11 @@
 hyperparameters:
 
-  tcn_val_2020:
+  TCN_val_2020:
     output_chunk_length: 24
     weight_norm: True
     dropout: 0
     nr_epochs_val_period: 2
-    n_epochs: 2
+    n_epochs: 500
     random_state: 0
     input_chunk_length: ["range", 48, 480, 24]
     kernel_size: ["range", 2, 6, 1]

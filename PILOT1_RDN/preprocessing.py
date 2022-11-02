@@ -123,7 +123,7 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale
             covariates_val_transformed = covariates_val
             covariates_test_transformed = covariates_test
             covariates_transformed = covariates
-            transformer = None
+            transformers = None
 
         if store_dir is not None:
             if not multiple:
