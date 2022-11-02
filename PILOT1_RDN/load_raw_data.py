@@ -9,6 +9,7 @@ import click
 from utils import ConfigParser
 import logging
 import pandas as pd
+import numpy as np
 import csv
 from datetime import datetime
 from utils import download_online_file
@@ -17,6 +18,7 @@ import pretty_errors
 import uuid
 from exceptions import DatesNotInOrder
 from exceptions import WrongColumnNames
+from exceptions import WrongIDs
 from utils import truth_checker
 import tempfile
 
@@ -30,7 +32,8 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
                             day_first: bool = True,
-                            multiple: bool = False):
+                            multiple: bool = False,
+                            resolution: int = 15):
     """
     Validates the input after read_csv is called and
     throws apropriate exception if it detects an error
@@ -43,6 +46,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         Whether to read the csv assuming day comes before the month
     multiple
         Whether to train on multiple timeseries
+    resolution
+        The resolution of the dataset
 
     Returns
     -------
@@ -60,9 +65,16 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         if not ts.index.sort_values().equals(ts.index):
             raise DatesNotInOrder()
         elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
-            raise WrongColumnNames(list(ts.columns) + [ts.index.name])
+            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Load', 'Date'])
     else:
-        pass
+#if not ts.index.sort_values().equals(ts.index):
+#    raise DatesNotInOrder()
+        des_columns = list(map(str, ['Day', 'ID', 'Country', 'Country Code'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
+        if not(len(des_columns) == len(ts.columns) and (des_columns == ts.columns).all()):
+            #print(des_columns == ts.columns)
+            raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
+        elif not list(np.unique(ts["ID"]) == [range(max(ts["ID"])+1)]):
+            raise WrongIDs(np.unique(ts["ID"]))
     return ts
 
 @click.command(
@@ -87,8 +99,13 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     type=str,
     default="false",
     help="Whether to train on multiple timeseries")
+@click.option("--resolution",
+    default="15",
+    type=str,
+    help="The resolution of the dataset in minutes."
+)
 
-def load_raw_data(series_csv, series_uri, day_first, multiple):
+def load_raw_data(series_csv, series_uri, day_first, multiple, resolution):
 
     if series_uri != "online_artifact":
         download_file_path = download_online_file(series_uri, dst_filename="series.csv")
@@ -102,11 +119,13 @@ def load_raw_data(series_csv, series_uri, day_first, multiple):
 
     multiple = truth_checker(multiple)
 
+    resolution = int(resolution)
+
     with mlflow.start_run(run_name='load_data', nested=True) as mlrun:
 
         print(f'Validating timeseries on local file: {series_csv}')
         logging.info(f'Validating timeseries on local file: {series_csv}')
-        ts = read_and_validate_input(series_csv, day_first, multiple=multiple)
+        ts = read_and_validate_input(series_csv, day_first, multiple=multiple, resolution=resolution)
 
 
         local_path = local_path.replace("'", "") if "'" in local_path else local_path
