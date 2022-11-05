@@ -67,13 +67,11 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Load', 'Date'])
     else:
-#if not ts.index.sort_values().equals(ts.index):
-#    raise DatesNotInOrder()
         des_columns = list(map(str, ['Day', 'ID', 'Country', 'Country Code'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
         if not(len(des_columns) == len(ts.columns) and (des_columns == ts.columns).all()):
             #print(des_columns == ts.columns)
             raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
-        elif not list(np.unique(ts["ID"]) == [range(max(ts["ID"])+1)]):
+        elif not ts["ID"] == ts.index.to_series().apply(lambda x: x%max(ts["ID"])):
             raise WrongIDs(np.unique(ts["ID"]))
     return ts
 
