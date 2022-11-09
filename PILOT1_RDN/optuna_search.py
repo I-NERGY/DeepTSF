@@ -68,6 +68,36 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 # stop training when validation loss does not decrease more than 0.05 (`min_delta`) over
 # a period of 5 epochs (`patience`)
+def log_optuna(study, opt_tmpdir, hyperparams_entrypoint):
+    if len(study.trials_dataframe()[study.trials_dataframe()["state"] == "COMPLETE"]) <= 1: return
+
+    ######################
+    # Log hyperparameters
+    mlflow.log_params(study.best_params)
+
+    # Log log_metrics
+    mlflow.log_metrics(study.best_trial.user_attrs)
+
+    plt.close()
+
+    fig = optuna.visualization.plot_optimization_history(study)
+    fig.write_html(f"{opt_tmpdir}/plot_optimization_history.html")
+    plt.close()
+
+    fig = optuna.visualization.plot_param_importances(study)
+    fig.write_html(f"{opt_tmpdir}/plot_param_importances.html")
+    plt.close()
+
+    fig = optuna.visualization.plot_slice(study)
+    fig.write_html(f"{opt_tmpdir}/plot_slice.html")
+    plt.close()
+
+    study.trials_dataframe().to_csv(f"{opt_tmpdir}/{hyperparams_entrypoint}.csv")
+
+    print("\nUploading optuna plots to MLflow server...")
+    logging.info("\nUploading optuna plots to MLflow server...")
+
+    mlflow.log_artifacts(opt_tmpdir, "optuna_results")
 
 def append(x, y):
     return x.append(y)
@@ -75,9 +105,9 @@ def append(x, y):
 def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, scale, scale_covs, multiple,
-             eval_country, mlrun, trial):
+             eval_country, mlrun, trial, study, opt_tmpdir):
 
-
+                log_optuna(study, opt_tmpdir, hyperparams_entrypoint)
                 hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
@@ -130,6 +160,7 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                 trial.set_user_attr("mase", float(metrics["mase"]))
                 trial.set_user_attr("mae", float(metrics["mae"]))
                 trial.set_user_attr("rmse", float(metrics["rmse"]))
+
                 return metrics["mape"]
 
 def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
@@ -659,39 +690,14 @@ def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs
 
             study = optuna.create_study(storage="sqlite:///memory.db", study_name=hyperparams_entrypoint, load_if_exists=True)
 
+            opt_tmpdir = tempfile.mkdtemp()
+
             study.optimize(lambda trial: objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                        darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
                        forecast_horizon, stride, retrain, scale, scale_covs,
-                       multiple, eval_country, mlrun, trial), n_trials=n_trials, n_jobs = 1)
+                       multiple, eval_country, mlrun, trial, study, opt_tmpdir), n_trials=n_trials, n_jobs = 1)
 
-            ######################
-            # Log hyperparameters
-            mlflow.log_params(study.best_params)
-
-            # Log log_metrics
-            mlflow.log_metrics(study.best_trial.user_attrs)
-
-            opt_tmpdir = tempfile.mkdtemp()
-            plt.close()
-
-            fig = optuna.visualization.matplotlib.plot_optimization_history(study)
-            plt.savefig(f"{opt_tmpdir}/plot_optimization_history.png")
-            plt.close()
-
-            fig = optuna.visualization.matplotlib.plot_param_importances(study)
-            plt.savefig(f"{opt_tmpdir}/plot_param_importances.png")
-            plt.close()
-
-            fig = optuna.visualization.matplotlib.plot_slice(study)
-            plt.savefig(f"{opt_tmpdir}/plot_slice.png")
-            plt.close()
-
-            study.trials_dataframe().to_csv(f"{opt_tmpdir}/{hyperparams_entrypoint}.csv")
-
-            print("\nUploading optuna plots to MLflow server...")
-            logging.info("\nUploading optuna plots to MLflow server...")
-
-            mlflow.log_artifacts(opt_tmpdir, "optuna_results")
+            log_optuna(study, opt_tmpdir, hyperparams_entrypoint)
 
             return
 
