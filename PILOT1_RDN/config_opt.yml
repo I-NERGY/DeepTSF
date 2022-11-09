@@ -39,7 +39,7 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 2
     dropout: 0
-    learning_rate: ["range", 0.0005, 0.002, 0.0005] #rwta gia to an prepei na to afhsoume karfwmeno
+    learning_rate: ["range", 0.0005, 0.002, 0.0005] #asto karfwmeno
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
 
   MLP_val_2020:
@@ -49,7 +49,7 @@ hyperparameters:
     alpha: 0.0001
     batch_size: 'auto' #print and save the batch size
     learning_rate: 'constant'
-    learning_rate_init: ["range", 0.0005, 0.002, 0.0005] #rwta gia to an prepei na to afhsoume karfwmeno
+    learning_rate_init: ["range", 0.0005, 0.002, 0.0005] #asto karfwmeno
     max_iter: 200
     shuffle: ["list", "True", "False"]
     random_state: 0
@@ -58,3 +58,32 @@ hyperparameters:
     validation_fraction: 0.13
     tolerance: 1e-06
     n_iter_no_change: 10
+                          #kai lbw bale
+                          #trekse apo script
+  NBEATS_val_2020_5_13:
+    input_chunk_length: ["range", 120, 312, 24]
+    output_chunk_length: 24
+    num_stacks: ["range", 1, 25, 1]
+    num_blocks: ["range", 1, 20, 1]
+    num_layers: ["range", 1, 10, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 1
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+
+  NBEATS_val_2020_17_23:
+    input_chunk_length: ["range", 408, 552, 24]
+    output_chunk_length: 24
+    num_stacks: ["range", 1, 25, 1]
+    num_blocks: ["range", 1, 20, 1]
+    num_layers: ["range", 1, 10, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 1
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
