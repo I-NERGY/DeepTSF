@@ -68,15 +68,16 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 # stop training when validation loss does not decrease more than 0.05 (`min_delta`) over
 # a period of 5 epochs (`patience`)
-def log_optuna(study, opt_tmpdir, hyperparams_entrypoint):
+def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, log_params=False):
     if len(study.trials_dataframe()[study.trials_dataframe()["state"] == "COMPLETE"]) <= 1: return
 
-    ######################
-    # Log hyperparameters
-    mlflow.log_params(study.best_params)
+    if log_params:
+        ######################
+        # Log hyperparameters
+        mlflow.log_params(study.best_params)
 
-    # Log log_metrics
-    mlflow.log_metrics(study.best_trial.user_attrs)
+        # Log log_metrics
+        mlflow.log_metrics(study.best_trial.user_attrs)
 
     plt.close()
 
@@ -107,7 +108,7 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
              forecast_horizon, stride, retrain, scale, scale_covs, multiple,
              eval_country, mlrun, trial, study, opt_tmpdir):
 
-                log_optuna(study, opt_tmpdir, hyperparams_entrypoint)
+                log_optuna(study, opt_tmpdir, shyperparams_entrypoint, True)
                 hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
