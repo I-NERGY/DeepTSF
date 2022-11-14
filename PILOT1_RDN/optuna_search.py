@@ -108,7 +108,7 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
              forecast_horizon, stride, retrain, scale, scale_covs, multiple,
              eval_country, mlrun, trial, study, opt_tmpdir):
 
-                log_optuna(study, opt_tmpdir, shyperparams_entrypoint, True)
+                log_optuna(study, opt_tmpdir, hyperparams_entrypoint)
                 hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
@@ -278,6 +278,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     logging.info(
         f"\nTrain / Test split: Validation set starts: {cut_date_val} - Test set starts: {cut_date_test} - Test set end: {test_end_date}")
 
+    print("SERIES TO BE TRAINED", series)
     ## series
     series_split = split_dataset(
         series,
@@ -698,7 +699,7 @@ def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs
                        forecast_horizon, stride, retrain, scale, scale_covs,
                        multiple, eval_country, mlrun, trial, study, opt_tmpdir), n_trials=n_trials, n_jobs = 1)
 
-            log_optuna(study, opt_tmpdir, hyperparams_entrypoint)
+            log_optuna(study, opt_tmpdir, hyperparams_entrypoint, True)
 
             return
 
