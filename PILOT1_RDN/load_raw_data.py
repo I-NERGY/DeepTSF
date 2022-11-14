@@ -30,6 +30,9 @@ load_dotenv()
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
+MONGO_URL = os.environ.get("MONGO_URL")
+
+
 def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
                             day_first: bool = True,
                             multiple: bool = False,
@@ -75,6 +78,45 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             raise WrongIDs(np.unique(ts["ID"]))
     return ts
 
+from pymongo import MongoClient
+import pandas as pd
+
+client = MongoClient(MONGO_URL)
+
+def load_data_to_csv(tmpdir, mongo_name):
+    lds = get_loads_from_db(mongo_name)
+    new_loads = unfold_timeseries(lds)
+    loads_to_csv(new_loads, tmpdir)
+    client.close()
+
+
+def loads_to_csv(new_loads, tmpdir):
+    df = pd.DataFrame.from_dict(new_loads)
+    df.to_csv(f'{tmpdir}/load.csv', index=False)
+
+
+def unfold_timeseries(lds):
+    new_loads = {'Date': [], 'Load': []}
+    prev_date = ''
+    for l in reversed(list(lds)):
+        if prev_date != l['date']:
+            for key in l:
+                if key != '_id' and key != 'date':
+                    new_date = l['date'] + ' ' + key
+                    new_loads['Date'].append(new_date)
+                    new_loads['Load'].append(l[key])
+        prev_date = l['date']
+    return new_loads
+
+
+def get_loads_from_db(mongo_name):
+    db = client['inergy_prod_db']
+    collection = db[mongo_name]
+    loads = collection
+    lds = loads.find().sort('_id', -1)
+    return lds
+
+
 @click.command(
     help="Downloads the RDN series and saves it as an mlflow artifact "
     "called 'load_x_y.csv'."
@@ -102,10 +144,27 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     type=str,
     help="The resolution of the dataset in minutes."
 )
+@click.option("--from-mongo",
+    default="false",
+    type=str,
+    help="Whether to read the dataset from mongodb."
+)
+@click.option("--mongo-name",
+    default="rdn_load_data",
+    type=str,
+    help="Which mongo file to read."
+)
 
-def load_raw_data(series_csv, series_uri, day_first, multiple, resolution):
+def load_raw_data(series_csv, series_uri, day_first, multiple, resolution, from_mongo, mongo_name):
 
-    if series_uri != "online_artifact":
+    from_mongo = truth_checker(from_mongo)
+    tmpdir = tempfile.mkdtemp()
+
+    if from_mongo:
+        load_data_to_csv(tmpdir, mongo_name)
+        series_csv = f'{tmpdir}/load.csv'
+
+    elif series_uri != "online_artifact":
         download_file_path = download_online_file(series_uri, dst_filename="series.csv")
         series_csv = download_file_path
 
@@ -133,7 +192,6 @@ def load_raw_data(series_csv, series_uri, day_first, multiple, resolution):
         print(f'\nUploading timeseries to MLflow server: {series_filename}')
         logging.info(f'\nUploading timeseries to MLflow server: {series_filename}')
 
-        tmpdir = tempfile.mkdtemp()
         ts_filename = os.path.join(tmpdir, fname)
         ts.to_csv(ts_filename, index=True)
         mlflow.log_artifact(ts_filename, "raw_data")

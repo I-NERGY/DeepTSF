@@ -262,15 +262,28 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     default="false",
     help="Whether we are running optuna")
 
+@click.option("--from-mongo",
+    default="false",
+    type=str,
+    help="Whether to read the dataset from mongodb."
+)
+@click.option("--mongo-name",
+    default="rdn_load_data",
+    type=str,
+    help="Which mongo file to read."
+)
+
+
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-             multiple, eval_country, n_trials, opt_test):
+             multiple, eval_country, n_trials, opt_test, from_mongo, mongo_name):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
     opt_test = truth_checker(opt_test)
+    from_mongo = truth_checker(from_mongo)
 
 
     # Note: The entrypoint names are defined in MLproject. The artifact directories
@@ -281,7 +294,14 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
         # 1.Load Data
         git_commit = active_run.data.tags.get(mlflow_tags.MLFLOW_GIT_COMMIT)
 
-        load_raw_data_params = {"series_csv": series_csv, "series_uri": series_uri, "day_first": day_first, "multiple": multiple, "resolution": resolution}
+        load_raw_data_params = {"series_csv": series_csv, 
+                                "series_uri": series_uri, 
+                                "day_first": day_first, 
+                                "multiple": multiple, 
+                                "resolution": resolution,
+                                "from_mongo": from_mongo,
+                                "mongo_name": mongo_name}
+        
         load_raw_data_run = _get_or_run("load_raw_data", load_raw_data_params, git_commit, ignore_previous_runs)
         # series_uri = f"{load_raw_data_run.info.artifact_uri}/raw_data/series.csv" \
         #                 .replace("s3:/", S3_ENDPOINT_URL)
