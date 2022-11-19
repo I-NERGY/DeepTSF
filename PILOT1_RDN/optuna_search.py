@@ -121,6 +121,9 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                         training_dict[param] = trial.suggest_categorical(param, value[1:])
                     else:
                         training_dict[param] = value
+                if 'scale' in training_dict:
+                     scale = training_dict['scale']
+                     del training_dict['scale']
 
                 model, scaler, train_future_covariates, train_past_covariates = train(
                       series_uri=series_uri,
@@ -278,7 +281,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     logging.info(
         f"\nTrain / Test split: Validation set starts: {cut_date_val} - Test set starts: {cut_date_test} - Test set end: {test_end_date}")
 
-    print("SERIES TO BE TRAINED", series)
     ## series
     series_split = split_dataset(
         series,

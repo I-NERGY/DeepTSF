@@ -26,8 +26,8 @@ class CountryDoesNotExist(Exception):
 
 class WrongIDs(Exception):
     """
-    Exception raised if the IDs present in a multiple timeseries file are not consecutive.
+    Exception raised if the IDs present in a multiple timeseries file are not consecutive integers.
     """
     def __init__(self, ids):
-        self.message = f'ID names provided: {self.ids}. IDs in multiple timeseries file must be consecutive.'
+        self.message = f'ID names provided: {ids}. IDs in a multiple timeseries file must be consecutive integers.'
         super().__init__(self.message)
