@@ -108,7 +108,7 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
              forecast_horizon, stride, retrain, scale, scale_covs, multiple,
              eval_country, mlrun, trial, study, opt_tmpdir):
 
-                log_optuna(study, opt_tmpdir, shyperparams_entrypoint, True)
+                log_optuna(study, opt_tmpdir, hyperparams_entrypoint)
                 hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
@@ -698,7 +698,7 @@ def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs
                        forecast_horizon, stride, retrain, scale, scale_covs,
                        multiple, eval_country, mlrun, trial, study, opt_tmpdir), n_trials=n_trials, n_jobs = 1)
 
-            log_optuna(study, opt_tmpdir, hyperparams_entrypoint)
+            log_optuna(study, opt_tmpdir, hyperparams_entrypoint, True)
 
             return
 
