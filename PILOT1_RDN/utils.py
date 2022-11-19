@@ -372,12 +372,13 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     res = []
     country = []
     country_code = []
+    ts["ID"] = ts["ID"].apply(int)
     for i in range(max(ts["ID"]) + 1):
         curr = ts[ts["ID"] == i]
         curr = pd.melt(curr, id_vars=['Day', 'ID', 'Country', 'Country Code'], var_name='Time', value_name='Load')
         curr["Date"] = pd.to_datetime(curr['Day'] + curr['Time'], format='%Y-%m-%d%H:%M:%S')
         curr = curr.set_index("Date")
-        series = curr["Load"].sort_index().dropna().asfreq('60'+'min')
+        series = curr["Load"].sort_index().dropna().asfreq('60'+'min')#TODO
         res.append(pd.DataFrame({"Load" : series}))
         country.append(curr["Country"].values[0])
         country_code.append(curr["Country Code"].values[0])

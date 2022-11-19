@@ -121,6 +121,9 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                         training_dict[param] = trial.suggest_categorical(param, value[1:])
                     else:
                         training_dict[param] = value
+                if 'scale' in training_dict:
+                     scale = training_dict['scale']
+                     del training_dict['scale']
 
                 model, scaler, train_future_covariates, train_past_covariates = train(
                       series_uri=series_uri,
