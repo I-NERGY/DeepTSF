@@ -29,7 +29,7 @@ hyperparameters:
     nr_epochs_val_period: 2
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
 
-  BlockLSTM_val_2020:
+  BlockLSTM_val_2020_:
     model: LSTM
     n_rnn_layers: ["range", 1, 4, 1] #kospe an yparxei thema
     input_chunk_length: ["range", 24, 480, 24]
@@ -41,6 +41,7 @@ hyperparameters:
     dropout: 0
     learning_rate: 0.001
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+    scale:  ["list", "True", "False"]
 
   MLP_val_2020:
     hidden_layer_sizes : # n_layers=[1,10, 1], n_neur=[50, 200, 10]
