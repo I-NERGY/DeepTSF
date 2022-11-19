@@ -41,6 +41,18 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     Validates the input after read_csv is called and
     throws apropriate exception if it detects an error
 
+    Multiple timeseries file format (along with example values):
+
+    Index | Day         | ID | Country | Country Code | 00:00:00 | 00:00:00 + resolution | ... | 24:00:00 - resolution
+    0     | 2015-04-09  | 0  | Portugal| PT           | 5248     | 5109                  | ... | 5345
+    1     | 2015-04-09  | 1  | Spain   | ES           | 25497    | 23492                 | ... | 25487
+    .
+    .
+
+    Columns can be in any order and ID must alwaws be convertible to an int, and consequtive. Also, all the above
+    column names must be present in the file, and the hour columns must be consequtive and separated by resolution 
+    minutes. The lines can be at any order as long as the Day column is increasing for each country.
+
     Parameters
     ----------
     series_csv
@@ -71,11 +83,20 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Load', 'Date'])
     else:
         des_columns = list(map(str, ['Day', 'ID', 'Country', 'Country Code'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
-        if not(len(des_columns) == len(ts.columns) and (des_columns == ts.columns).all()):
-            #print(des_columns == ts.columns)
-            raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
-        elif not ts["ID"] == ts.index.to_series().apply(lambda x: x%max(ts["ID"])):
+        print(ts["ID"].dtype == [np.int64, np.int32])
+        print(set(des_columns) == set(ts.columns))
+        try:
+            ts["ID"].apply(int)
+        except:
             raise WrongIDs(np.unique(ts["ID"]))
+        if not(len(des_columns) == len(ts.columns) and set(des_columns) == set(ts.columns)):
+            raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
+#        elif not (np.unique(ts["ID"]) == list(range(max(ts["ID"])))):
+#            raise WrongIDs(np.unique(ts["ID"]))
+#        for id in np.unique(ts["ID"]):
+#            if not ts.loc[ts["ID"] = id]["Day"].sort_values().equals(ts.loc[ts["ID"] = id]["Day"]):
+#                raise DatesNotInOrder(id)
+        
     return ts
 
 from pymongo import MongoClient
