@@ -336,7 +336,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                              "log_every_n_steps": 10}
 
         ## choose architecture
-        if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN']:
+        if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN']:
             hparams_to_log = hyperparameters
             if 'learning_rate' in hyperparameters:
                 hyperparameters['optimizer_kwargs'] = {'lr': hyperparameters['learning_rate']}
@@ -344,8 +344,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             if 'likelihood' in hyperparameters:
                 hyperparameters['likelihood'] = eval(hyperparameters['likelihood']+"Likelihood"+"()")
-            print("TRAINING ON SERIES:", series_transformed['train'])
-            print("VALIDATING ON SERIES:", series_transformed['val'])
             model = eval(darts_model + 'Model')(
                 save_checkpoints=True,
                 log_tensorboard=False,
@@ -438,6 +436,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 model_info_dict,
                 outfile,
                 default_flow_style=False)
+
+        ###?????###
         shutil.move('model_info.yml', target_dir)
 
         ## Rename logs path to get rid of run name

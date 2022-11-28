@@ -36,3 +36,16 @@ or
 
 ## Full pipeline example
 ```mlflow run --experiment-name 2009-2019 --entry-point exp_pipeline . -P hyperparams_entrypoint=nbeats0_10 -P darts_model=NBEATS -P ignore_previous_runs=t -P cut_date_val=20180101 -P cut_date_test=20190101 -P year_range=2009-2019 -P time_covs=None --env-manager=local```
+
+## Multiple timeseries suport
+This pipeline supports training with multiple timeseries, which should be provided in a csv file using the following file format (along with example values):
+
+    Index | Day         | ID | Country | Country Code | 00:00:00 | 00:00:00 + resolution | ... | 24:00:00 - resolution
+    0     | 2015-04-09  | 0  | Portugal| PT           | 5248     | 5109                  | ... | 5345
+    1     | 2015-04-09  | 1  | Spain   | ES           | 25497    | 23492                 | ... | 25487
+    .
+    .
+
+Columns can be in any order and ID must alwaws be convertible to an int, and consequtive. Also, all the above
+column names must be present in the file, and the hour columns must be consequtive and separated by resolution 
+minutes. The lines can be at any order as long as the Day column is increasing for each country.

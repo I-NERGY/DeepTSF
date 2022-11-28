@@ -18,7 +18,7 @@ import pretty_errors
 import uuid
 from exceptions import DatesNotInOrder
 from exceptions import WrongColumnNames
-from exceptions import WrongIDs
+from exceptions import WrongIDs, EmptyDataframe
 from utils import truth_checker
 import tempfile
 
@@ -36,7 +36,8 @@ MONGO_URL = os.environ.get("MONGO_URL")
 def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
                             day_first: bool = True,
                             multiple: bool = False,
-                            resolution: int = 15):
+                            resolution: int = 15,
+                            from_mongo: bool = False):
     """
     Validates the input after read_csv is called and
     throws apropriate exception if it detects an error
@@ -76,26 +77,35 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      parse_dates=True,
                      dayfirst=day_first,
                      engine='python')
+    print(ts)
+    ts.to_csv("temp")
+    if ts.empty:
+        raise EmptyDataframe(from_mongo)
     if not multiple:
+        #Check that dates are in order. If month is used before day and day_first is set to True, this is not the case.
         if not ts.index.sort_values().equals(ts.index):
             raise DatesNotInOrder()
+        #Check that column Date is used as index, and that Load is the only other column in the csv
         elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Load', 'Date'])
     else:
         des_columns = list(map(str, ['Day', 'ID', 'Country', 'Country Code'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
-        print(ts["ID"].dtype == [np.int64, np.int32])
-        print(set(des_columns) == set(ts.columns))
+#        print((list(np.unique(ts["ID"])) == list(range(max(ts["ID"]) + 1))))
+        #Check that all columns 'Day', 'ID', 'Country', 'Country Code' and the time columns exist in any order.
+        if not set(des_columns) == set(ts.columns):
+            raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
+        #Check that ID column can be transformed to int
         try:
             ts["ID"].apply(int)
         except:
             raise WrongIDs(np.unique(ts["ID"]))
-        if not(len(des_columns) == len(ts.columns) and set(des_columns) == set(ts.columns)):
-            raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
-#        elif not (np.unique(ts["ID"]) == list(range(max(ts["ID"])))):
-#            raise WrongIDs(np.unique(ts["ID"]))
-#        for id in np.unique(ts["ID"]):
-#            if not ts.loc[ts["ID"] = id]["Day"].sort_values().equals(ts.loc[ts["ID"] = id]["Day"]):
-#                raise DatesNotInOrder(id)
+        #Check that all ints in ID column are consecutive
+        if not (list(np.unique(ts["ID"])) == list(range(max(ts["ID"]) + 1))):
+            raise WrongIDs(np.unique(ts["ID"]))
+        #Check that all dates for each country are sorted
+        for id in np.unique(ts["ID"]):
+            if not ts.loc[ts["ID"] == id]["Day"].sort_values().equals(ts.loc[ts["ID"] == id]["Day"]):
+                raise DatesNotInOrder(id)
         
     return ts
 
@@ -119,6 +129,7 @@ def loads_to_csv(new_loads, tmpdir):
 def unfold_timeseries(lds):
     new_loads = {'Date': [], 'Load': []}
     prev_date = ''
+    print(list(lds)[:10])
     for l in reversed(list(lds)):
         if prev_date != l['date']:
             for key in l:
@@ -134,7 +145,7 @@ def get_loads_from_db(mongo_name):
     db = client['inergy_prod_db']
     collection = db[mongo_name]
     loads = collection
-    lds = loads.find().sort('_id', -1)
+    lds = loads.find().sort('_id', -1).limit(3000)
     return lds
 
 
@@ -203,7 +214,7 @@ def load_raw_data(series_csv, series_uri, day_first, multiple, resolution, from_
 
         print(f'Validating timeseries on local file: {series_csv}')
         logging.info(f'Validating timeseries on local file: {series_csv}')
-        ts = read_and_validate_input(series_csv, day_first, multiple=multiple, resolution=resolution)
+        ts = read_and_validate_input(series_csv, day_first, multiple=multiple, resolution=resolution, from_mongo=from_mongo)
 
 
         local_path = local_path.replace("'", "") if "'" in local_path else local_path

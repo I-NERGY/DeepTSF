@@ -23,6 +23,7 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
         covariates_train = []
         covariates_val = []
         covariates_test = []
+        covariates_return = []
         for covariate in covariates:
             if test_end_date is not None and covariate.time_index[-1].strftime('%Y%m%d') > test_end_date:
                 covariate = covariate.drop_after(
@@ -39,6 +40,7 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
             covariates_train.append(covariate_train)
             covariates_test.append(covariate_test)
             covariates_val.append(covariate_val)
+            covariates_return.append(covariate)
 
         if store_dir is not None:
             #print("covariates", covariates)
@@ -51,24 +53,25 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
             with open(f'{store_dir}/{conf_file_name}', 'w') as outfile:
                 yaml.dump(split_info, outfile, default_flow_style=False)
             if not multiple:
-                covariates[0].to_csv(f"{store_dir}/{name}.csv")
+                covariates_return[0].to_csv(f"{store_dir}/{name}.csv")
             else:
-                multiple_dfs_to_ts_file(covariates, country_l, country_code_l, f"{store_dir}/{name}.csv")
+                multiple_dfs_to_ts_file(covariates_return, country_l, country_code_l, f"{store_dir}/{name}.csv")
         if not multiple:
             covariates_train = covariates_train[0]
             covariates_val = covariates_val[0]
             covariates_test = covariates_test[0]
-            covariates = covariates[0]
+            covariates_return = covariates_return[0]
     else:
         covariates_train = None
         covariates_val = None
         covariates_test = None
+        covariates_return = None
 
 
     return {"train": covariates_train,
             "val": covariates_val,
             "test": covariates_test,
-            "all": covariates
+            "all": covariates_return
            }
 
 def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale=True, multiple=False, country_l=[], country_code_l=[]):

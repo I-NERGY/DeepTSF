@@ -68,16 +68,125 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 # stop training when validation loss does not decrease more than 0.05 (`min_delta`) over
 # a period of 5 epochs (`patience`)
-def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, log_params=False):
-    if len(study.trials_dataframe()[study.trials_dataframe()["state"] == "COMPLETE"]) <= 1: return
+def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False, curr_mape=0, model=None, darts_model=None, scale=False, scalers_dir=None, features_dir=None, past_covariates=None, future_covariates=None):
+    
+    if log_model and (len(study.trials_dataframe()[study.trials_dataframe()["state"] == "COMPLETE"]) < 1 or study.best_trial.values[0] >= curr_mape):
+        if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN']:
+            logs_path = f"./darts_logs/{mlrun.info.run_id}"
+            model_type = "pl"
+        elif darts_model in ['LightGBM', 'RandomForest']:
+            print('\nStoring the model as pkl to MLflow...')
+            logging.info('\nStoring the model as pkl to MLflow...')
+            forest_dir = tempfile.mkdtemp()
 
-    if log_params:
+            pickle.dump(model, open(
+                f"{forest_dir}/_model.pkl", "wb"))
+
+            logs_path = forest_dir
+            model_type = "pkl"
+
+        if scale:
+            source_dir = scalers_dir
+            target_dir = logs_path
+            file_names = os.listdir(source_dir)
+            for file_name in file_names:
+                shutil.move(os.path.join(source_dir, file_name),
+                target_dir)
+            
+        ## Create and move model info in logs path
+        model_info_dict = {
+            "darts_forecasting_model":  model.__class__.__name__,
+            "run_id": mlrun.info.run_id
+        }
+        with open('model_info.yml', mode='w') as outfile:
+            yaml.dump(
+                model_info_dict,
+                outfile,
+                default_flow_style=False)
+
+        
+        shutil.move('model_info.yml', logs_path)
+
+        ## Rename logs path to get rid of run name
+        if model_type == 'pkl':
+            logs_path_new = logs_path.replace(
+            forest_dir.split('/')[-1], mlrun.info.run_id)
+            os.rename(logs_path, logs_path_new)
+        elif model_type == 'pl':
+            logs_path_new = logs_path
+        
+        mlflow_model_root_dir = "pyfunc_model"
+            
+        ## Log MLflow model and code
+        mlflow.pyfunc.log_model(mlflow_model_root_dir,
+                            loader_module="darts_flavor",
+                            data_path=logs_path_new,
+                            code_path=['utils.py', 'inference.py', 'darts_flavor.py'],
+                            conda_env=mlflow_serve_conda_env)
+            
+        shutil.rmtree(logs_path_new)
+
+        print("\nArtifacts are being uploaded to MLflow...")
+        logging.info("\nArtifacts are being uploaded to MLflow...")
+        mlflow.log_artifacts(features_dir, "features")
+
+        if scale:
+            # mlflow.log_artifacts(scalers_dir, f"{mlflow_model_path}/scalers")
+            mlflow.set_tag(
+                'scaler_uri',
+                f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_series.pkl')
+        else:
+            mlflow.set_tag('scaler_uri', 'mlflow_artifact_uri')
+
+
+
+        mlflow.set_tag("run_id", mlrun.info.run_id)
+        mlflow.set_tag("stage", "optuna_search")
+        mlflow.set_tag("model_type", model_type)
+
+        mlflow.set_tag("darts_forecasting_model",
+            model.__class__.__name__)
+        # model_uri
+        mlflow.set_tag('model_uri', mlflow.get_artifact_uri(
+            f"{mlflow_model_root_dir}/data/{mlrun.info.run_id}"))
+        # inference_model_uri
+        mlflow.set_tag('pyfunc_model_folder', mlflow.get_artifact_uri(
+            f"{mlflow_model_root_dir}"))
+
+        mlflow.set_tag('series_uri',
+            f'{mlrun.info.artifact_uri}/features/series.csv')
+
+        if future_covariates is not None:
+            mlflow.set_tag(
+                'future_covariates_uri',
+                f'{mlrun.info.artifact_uri}/features/future_covariates_transformed.csv')
+        else:
+            mlflow.set_tag(
+                'future_covariates_uri',
+                'mlflow_artifact_uri')
+
+        if past_covariates is not None:
+            mlflow.set_tag(
+                'past_covariates_uri',
+                f'{mlrun.info.artifact_uri}/features/past_covariates_transformed.csv')
+        else:
+            mlflow.set_tag('past_covariates_uri',
+                'mlflow_artifact_uri')
+
+        print("\nArtifacts uploaded.")
+        logging.info("\nArtifacts uploaded.")
+    else:
         ######################
         # Log hyperparameters
         mlflow.log_params(study.best_params)
 
         # Log log_metrics
         mlflow.log_metrics(study.best_trial.user_attrs)
+
+
+
+
+    if len(study.trials_dataframe()[study.trials_dataframe()["state"] == "COMPLETE"]) <= 1: return
 
     plt.close()
 
@@ -108,7 +217,6 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
              forecast_horizon, stride, retrain, scale, scale_covs, multiple,
              eval_country, mlrun, trial, study, opt_tmpdir):
 
-                log_optuna(study, opt_tmpdir, hyperparams_entrypoint)
                 hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
@@ -124,8 +232,9 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                 if 'scale' in training_dict:
                      scale = training_dict['scale']
                      del training_dict['scale']
+                     scale = "False"
 
-                model, scaler, train_future_covariates, train_past_covariates = train(
+                model, scaler, train_future_covariates, train_past_covariates, features_dir, scalers_dir = train(
                       series_uri=series_uri,
                       future_covs_uri=future_covs_uri,
                       past_covs_uri=None, # fix that in case REAL Temperatures come -> etl_temp_covs_uri. For forecasts, integrate them into future covariates!!
@@ -141,8 +250,10 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                       training_dict=training_dict,
                       mlrun=mlrun,
                       )
-
-                trial.set_user_attr("epochs_trained", model.epochs_trained)
+                try:
+                    trial.set_user_attr("epochs_trained", model.epochs_trained)
+                except:
+                    pass
                 metrics = validate(
                     series_uri=series_uri,
                     future_covariates=train_future_covariates,
@@ -164,6 +275,8 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                 trial.set_user_attr("mase", float(metrics["mase"]))
                 trial.set_user_attr("mae", float(metrics["mae"]))
                 trial.set_user_attr("rmse", float(metrics["rmse"]))
+
+                log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=True, curr_mape=float(metrics["mape"]), model=model, darts_model=darts_model, scale=scale, scalers_dir=scalers_dir, features_dir=features_dir, past_covariates=train_past_covariates, future_covariates=train_future_covariates)
 
                 return metrics["mape"]
 
@@ -274,6 +387,10 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 time_col=time_col,
                 last_date=test_end_date)
 
+    if scale:
+        scalers_dir = tempfile.mkdtemp()
+    features_dir = tempfile.mkdtemp()
+
     ######################
     # Train / Test split
     print(
@@ -287,6 +404,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         val_start_date_str=cut_date_val,
         test_start_date_str=cut_date_test,
         test_end_date=test_end_date,
+        store_dir=features_dir,        
         name='series',
         multiple=multiple,
         country_l=country_l,
@@ -319,20 +437,30 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     ## scale series
     series_transformed = scale_covariates(
         series_split,
+        store_dir=features_dir,
+        filename_suffix="series_transformed.csv",
         scale=scale,
         multiple=multiple,
         country_l=country_l,
         country_code_l=country_code_l,
         )
+    
+    if scale:
+        pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
+
     ## scale future covariates
     future_covariates_transformed = scale_covariates(
         future_covariates_split,
         scale=scale_covs,
+        store_dir=features_dir,
+        filename_suffix="future_covariates_transformed.csv",
         )
     ## scale past covariates
     past_covariates_transformed = scale_covariates(
         past_covariates_split,
         scale=scale_covs,
+        store_dir=features_dir,
+        filename_suffix="past_covariates_transformed.csv",
         )
     ######################
     # Model training
@@ -352,7 +480,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
         if 'likelihood' in hyperparameters:
             hyperparameters['likelihood'] = eval(hyperparameters['likelihood']+"Likelihood"+"()")
-
+        print(hyperparameters)
         model = eval(darts_model + 'Model')(
             force_reset=True,
             save_checkpoints=True,
@@ -365,13 +493,13 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         # try:
         # print(series_transformed['train'])
         # print(series_transformed['val'])
+        print("SERIES", series_transformed['train'])
         model.fit(series_transformed['train'],
             future_covariates=future_covariates_transformed['train'],
             past_covariates=past_covariates_transformed['train'],
             val_series=series_transformed['val'],
             val_future_covariates=future_covariates_transformed['val'],
             val_past_covariates=past_covariates_transformed['val'])
-
 
         # LightGBM and RandomForest
     elif darts_model in ['LightGBM', 'RandomForest']:
@@ -419,7 +547,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         return_past_covariates = past_covariates_transformed['all']
     else:
         return_past_covariates = None
-    return model, scaler, return_future_covariates, return_past_covariates
+    return model, scaler, return_future_covariates, return_past_covariates, features_dir, scalers_dir
 
 def backtester(model,
                series_transformed,
@@ -478,6 +606,7 @@ def backtester(model,
 
     # Metrix
     test_series = series.drop_before(pd.Timestamp(test_start_date))
+    print("SERIES",test_series)
     metrics = {
         "mape": mape_darts(
             test_series,
@@ -701,7 +830,7 @@ def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs
                        forecast_horizon, stride, retrain, scale, scale_covs,
                        multiple, eval_country, mlrun, trial, study, opt_tmpdir), n_trials=n_trials, n_jobs = 1)
 
-            log_optuna(study, opt_tmpdir, hyperparams_entrypoint, True)
+            log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun)
 
             return
 
