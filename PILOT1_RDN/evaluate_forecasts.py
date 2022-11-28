@@ -117,6 +117,7 @@ def backtester(model,
         print("\nWarning: Scaler not provided. Ensure model provides normal scale predictions")
         logging.info(
             "\n Warning: Scaler not provided. Ensure model provides normal scale predictions")
+    print(backtest_series, series)
 
     # plot all test
     fig1 = plt.figure(figsize=(15, 8))
@@ -649,13 +650,12 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     with mlflow.start_run(run_name='eval', nested=True) as mlrun:
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
-
-
+        print(series_transformed_split['all'])
         evaluation_results = backtester(model=model,
-                                            series_transformed=series_transformed_split['all'][eval_i] \
-                                                               if multiple else series_transformed_split['all'],
-                                            series=series_split['all'][eval_i] if multiple else series_split['all'],
-                                            transformer_ts=scaler[eval_i],
+                                            series_transformed=series_transformed_split['all']\
+                                                               if not multiple else series_transformed_split['all'][eval_i],
+                                            series=series_split['all'] if not multiple else series_split['all'][eval_i],
+                                            transformer_ts=scaler if not multiple else scaler[eval_i],
                                             test_start_date=cut_date_test,
                                             forecast_horizon=forecast_horizon,
                                             stride=stride,

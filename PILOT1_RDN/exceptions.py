@@ -1,12 +1,20 @@
 import numpy as np
 import pandas as pd
 
+class EmptyDataframe(Exception):
+    """
+    Exception raised if dataframe is empty.
+    """
+    def __init__(self, from_mongo):
+        super().__init__("Dataframe provided is empty" + (" or does not exist in mongo database" if from_mongo else ""))
+
+
 class DatesNotInOrder(Exception):
     """
     Exception raised if dates in series_csv are not sorted.
     """
-    def __init__(self):
-        super().__init__("Dates in series_csv are not sorted. Check date format in input csv.")
+    def __init__(self, id=0):
+        super().__init__(f"Dates in series_csv are not sorted for country with id {id}. Check date format in input csv.")
 
 class WrongColumnNames(Exception):
     """
