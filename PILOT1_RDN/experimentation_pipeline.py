@@ -272,13 +272,18 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     type=str,
     help="Which mongo file to read."
 )
+@click.option("--num-workers",
+        type=str,
+        default="4",
+        help="Number of threads that will be used by pytorch")
+
 
 
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-             multiple, eval_country, n_trials, opt_test, from_mongo, mongo_name):
+             multiple, eval_country, n_trials, opt_test, from_mongo, mongo_name, num_workers):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -351,6 +356,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "multiple": multiple,
                 "eval_country": eval_country,
                 "n_trials": n_trials,
+                "num_workers": num_workers,
             }
             optuna_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
 
@@ -369,6 +375,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "scale_covs": scale_covs,
                 "multiple": multiple,
                 "training_dict": None,
+                "num_workers": num_workers,
             }
             train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 

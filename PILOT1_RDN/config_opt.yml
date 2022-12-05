@@ -1,5 +1,20 @@
 hyperparameters:
 
+  lstm_test:
+     model: LSTM
+     n_rnn_layers: ["list", 1, 2, 3]
+     hidden_dim:  ["list", 32, 64]
+     n_epochs: 50
+     input_chunk_length: 6
+     training_length: 6
+     random_state: 0
+     nr_epochs_val_period: 2
+     dropout: 0.3
+     learning_rate: ["list", 0.01, 0.001]
+     # likelihood: Gaussian
+     batch_size: ["list", 16, 32]
+
+
   TCN_val_2020:
     output_chunk_length: 24
     weight_norm: True

@@ -192,7 +192,7 @@ def remove_outliers(ts: pd.DataFrame,
     """
     Reads the input dataframe and replaces its outliers with NaNs by removing
     values that are more than std_dev standard deviations away from their 1 month
-    mean or both. This function works with datasets that have NaN values.
+    mean. This function works with datasets that have NaN values.
 
     Parameters
     ----------

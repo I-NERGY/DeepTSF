@@ -215,7 +215,7 @@ def append(x, y):
 def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, scale, scale_covs, multiple,
-             eval_country, mlrun, trial, study, opt_tmpdir):
+             eval_country, mlrun, trial, study, opt_tmpdir, num_workers):
 
                 hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
@@ -249,6 +249,7 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                       multiple=multiple,
                       training_dict=training_dict,
                       mlrun=mlrun,
+                      num_workers=num_workers,
                       )
                 try:
                     trial.set_user_attr("epochs_trained", model.epochs_trained)
@@ -283,12 +284,15 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
 def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          training_dict, mlrun):
+          training_dict, mlrun, num_workers):
 
 
     # Argument preprocessing
 
     ## test_end_date
+    num_workers = int(num_workers)
+    torch.set_num_threads(num_workers)
+
     my_stopper = EarlyStopping(
         monitor="val_loss",
         patience=10,
@@ -812,10 +816,15 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               type=str,
               default="100",
               help="How many trials optuna will run")
+@click.option("--num-workers",
+        type=str,
+        default="4",
+        help="Number of threads that will be used by pytorch")
+
 
 def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs, darts_model, hyperparams_entrypoint,
            cut_date_val, cut_date_test, test_end_date, device, forecast_horizon, stride, retrain,
-           scale, scale_covs, multiple, eval_country, n_trials):
+           scale, scale_covs, multiple, eval_country, n_trials, num_workers):
 
         n_trials = none_checker(n_trials)
         n_trials = int(n_trials)
@@ -828,7 +837,7 @@ def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs
             study.optimize(lambda trial: objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                        darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
                        forecast_horizon, stride, retrain, scale, scale_covs,
-                       multiple, eval_country, mlrun, trial, study, opt_tmpdir), n_trials=n_trials, n_jobs = 1)
+                       multiple, eval_country, mlrun, trial, study, opt_tmpdir, num_workers), n_trials=n_trials, n_jobs = 1)
 
             log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun)
 

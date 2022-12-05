@@ -54,8 +54,10 @@ entry_points:
       scale_covs: {type: str, default: "true"}
       multiple: {type: str, default: "false"}
       training_dict: {type: str, default: "None"}
+      num_workers: {type: str, default: 4}
+
     command: |
-      python training.py --series-csv {series_csv} --series-uri {series_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --past-covs-csv {past_covs_csv}  --past-covs-uri {past_covs_uri} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --training-dict {training_dict} --cut-date-val {cut_date_val}
+      python training.py --series-csv {series_csv} --series-uri {series_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --past-covs-csv {past_covs_csv}  --past-covs-uri {past_covs_uri} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --training-dict {training_dict} --cut-date-val {cut_date_val} --num-workers {num_workers}
 
   eval:
     parameters:
@@ -104,8 +106,10 @@ entry_points:
       multiple: {type: str, default: "false"}
       eval_country: {type: str, default: "Portugal"}
       n_trials: {type: str, default: 100}
+      num_workers: {type: str, default: 4}
     command: |
-      python optuna_search.py --series-uri {series_uri} --future-covs-uri {future_covs_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --darts-model {darts_model} --hyperparams-entrypoint {hyperparams_entrypoint} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --device {device} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --eval-country {eval_country} --n-trials {n_trials}
+      python optuna_search.py --series-uri {series_uri} --future-covs-uri {future_covs_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --darts-model {darts_model} --hyperparams-entrypoint {hyperparams_entrypoint} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --device {device} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --eval-country {eval_country} --n-trials {n_trials} --num-workers {num_workers}
+
 
 
   exp_pipeline:
@@ -143,10 +147,10 @@ entry_points:
       opt_test: {type: str, default: "false"}
       from_mongo: {type: str, default: "false"}
       mongo_name: {type: str, default: "rdn_load_data"}
-
+      num_workers: {type: str, default: 4}
 
     command: |
-      python experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --shap-data-size {shap_data_size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-country {eval_country} --n-trials {n_trials} --opt-test {opt_test} --from-mongo {from_mongo} --mongo-name {mongo_name}
+      python experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --shap-data-size {shap_data_size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-country {eval_country} --n-trials {n_trials} --opt-test {opt_test} --from-mongo {from_mongo} --mongo-name {mongo_name} --num-workers {num_workers}
 
   inference:
     parameters:
