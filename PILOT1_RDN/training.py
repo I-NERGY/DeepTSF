@@ -146,11 +146,21 @@ my_stopper = EarlyStopping(
         default="None",
         help="In case of an optuna run, the yaml with the dictionary with the current model's hyperparameters")
 
+@click.option("--num-workers",
+        type=str,
+        default="4",
+        help="Number of threads that will be used by pytorch")
+
+
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          training_dict):
+          training_dict, num_workers):
+
+    num_workers = int(num_workers)
+    print(num_workers)
+    torch.set_num_threads(num_workers)
 
     # Argument preprocessing
 

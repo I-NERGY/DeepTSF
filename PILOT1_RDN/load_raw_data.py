@@ -115,8 +115,7 @@ import pandas as pd
 client = MongoClient(MONGO_URL)
 
 def load_data_to_csv(tmpdir, mongo_name):
-    lds = get_loads_from_db(mongo_name)
-    new_loads = unfold_timeseries(lds)
+    new_loads = get_df_from_db(mongo_name)
     loads_to_csv(new_loads, tmpdir)
     client.close()
 
@@ -129,7 +128,7 @@ def loads_to_csv(new_loads, tmpdir):
 def unfold_timeseries(lds):
     new_loads = {'Date': [], 'Load': []}
     prev_date = ''
-    print(list(lds)[:10])
+    print(lds)
     for l in reversed(list(lds)):
         if prev_date != l['date']:
             for key in l:
@@ -141,13 +140,37 @@ def unfold_timeseries(lds):
     return new_loads
 
 
-def get_loads_from_db(mongo_name):
+def get_df_from_db(mongo_name):
     db = client['inergy_prod_db']
     collection = db[mongo_name]
-    loads = collection
-    lds = loads.find().sort('_id', -1).limit(3000)
-    return lds
-
+    df = pd.DataFrame(collection.find()).drop(columns={'_id', ''})
+    if mongo_name == "asm_historical_smart_meters_uc7":
+        #Rename to ts id
+        df["Country"] = df["id"] + " " + df["energy_type"]
+        cols_to_drop = {'date', 'id', 'energy_type'}
+    elif mongo_name == "asm_historical_smart_meters_uc6_current":
+        df["Country"] = df["id"] + " " + df["phase"]
+        cols_to_drop = {'date', 'id', 'phase'}
+    elif mongo_name == "asm_historical_smart_meters_uc6_voltage":
+        df["Country"] = df["id"] + " " + df["voltage_type"]
+        cols_to_drop = {'date', 'id', 'voltage_type'}
+    elif mongo_name == "asm_historical_smart_meters_uc6_power":
+        #df.index = list(range(len(df)))
+        df["Country"] = "0"
+        cols_to_drop = {'date', 'id'}
+    else:
+        return unfold_timeseries(collection.find().sort('_id', -1))
+    df["Country Code"] = df["Country"]
+    unique_ts = pd.unique(df["Country"])
+    name_to_ID = {}
+    for i in range(len(unique_ts)):
+        name_to_ID[unique_ts[i]] = i
+    df["ID"] = df["Country"].apply(lambda x: name_to_ID[x])
+    df["Day"] = df["date"]
+    print(df)
+    df = df.drop(columns=cols_to_drop).sort_values(by=["Day", "ID"])
+    df.to_csv("temp")
+    return df
 
 @click.command(
     help="Downloads the RDN series and saves it as an mlflow artifact "
