@@ -20,8 +20,9 @@ COPY . .
 
 RUN conda env create -f conda.yaml
 
-RUN conda init bash \
-    && conda activate darts_38
+RUN conda init bash
+
+RUN conda activate darts_38
 
 RUN echo -e "import torch: print(torch.cuda.is_available())" | python
 
