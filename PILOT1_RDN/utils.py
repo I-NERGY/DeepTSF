@@ -8,7 +8,7 @@ import pandas as pd
 import yaml
 import darts
 cur_dir = os.path.dirname(os.path.realpath(__file__))
-
+import numpy as np
 load_dotenv()
 
 
@@ -255,7 +255,7 @@ def load_local_model_as_torch(local_path):
     model.device = device
     return model
 
-def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Date', last_date=None, multiple = False):
+def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Date', last_date=None, multiple = False, day_first=True, resolution="15"):
 
     import logging
     import darts
@@ -265,7 +265,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
     try:
         if multiple:
             #TODO Fix this too
-            ts_list, country_l, country_code_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=True)
+            ts_list, source_l, source_code_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=True, resolution=resolution)
             covariate_l  = []
             print("liiiist", local_path)
             print(ts_list[0])
@@ -280,7 +280,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
                 covariate_l.append(covariates)
             covariates = covariate_l
         else:
-            country_code_l, country_l = [], []
+            source_code_l, source_l = [], []
             covariates = darts.TimeSeries.from_csv(
                 local_path, time_col=time_col,
                 fill_missing_dates=True,
@@ -303,7 +303,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
         logging.info(
             f"\nBad {name} file. The model won't include {name}...")
         covariates = None
-    return covariates, country_l, country_code_l
+    return covariates, source_l, source_code_l
 
 
 def parse_uri_prediction_input(model_input: dict, model) -> dict:
@@ -360,7 +360,8 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
     }
 
 def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
-                            day_first: str = "true"):
+                            day_first: bool = True,
+                            resolution: str = "15"):
     ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,
@@ -370,23 +371,23 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      engine='python')
     print("ts", ts, sep="\n")
     res = []
-    country = []
-    country_code = []
-    ts["ID"] = ts["ID"].apply(int)
-    for i in range(max(ts["ID"]) + 1):
-        curr = ts[ts["ID"] == i]
-        curr = pd.melt(curr, id_vars=['Day', 'ID', 'Country', 'Country Code'], var_name='Time', value_name='Load')
+    source = []
+    source_code = []
+    ids = list(np.unique(ts["ID"]))
+    for id in ids:
+        curr = ts[ts["ID"] == id]
+        curr = pd.melt(curr, id_vars=['Day', 'ID', 'Source', 'Source Code'], var_name='Time', value_name='Load')
         curr["Date"] = pd.to_datetime(curr['Day'] + curr['Time'], format='%Y-%m-%d%H:%M:%S')
         curr = curr.set_index("Date")
-        series = curr["Load"].sort_index().dropna().asfreq('60'+'min')#TODO
+        series = curr["Load"].sort_index().dropna().asfreq(resolution+'min')
         res.append(pd.DataFrame({"Load" : series}))
-        country.append(curr["Country"].values[0])
-        country_code.append(curr["Country Code"].values[0])
-    return res, country, country_code
+        source.append(curr["Source"].values[0])
+        source_code.append(curr["Source Code"].values[0])
+    return res, source, source_code
 
-def multiple_dfs_to_ts_file(res_l, country_l, country_code_l, save_dir):
+def multiple_dfs_to_ts_file(res_l, source_l, source_code_l, save_dir):
     ts_list = []
-    for i, (ts, country, country_code) in enumerate(zip(res_l, country_l, country_code_l)):
+    for i, (ts, source, source_code) in enumerate(zip(res_l, source_l, source_code_l)):
         if type(ts) == darts.timeseries.TimeSeries:
             ts = ts.pd_dataframe()
         ts["Day"] = ts.index.date
@@ -394,8 +395,8 @@ def multiple_dfs_to_ts_file(res_l, country_l, country_code_l, save_dir):
         ts = pd.pivot_table(ts, index=["Day"], columns=["Time"])
         ts = ts["Load"]
         ts["ID"] = i
-        ts["Country"] = country
-        ts["Country Code"] = country_code
+        ts["Source"] = source
+        ts["Source Code"] = source_code
         ts_list.append(ts)
     res = pd.concat(ts_list).sort_values(by=["Day", "ID"])
     columns = list(res.columns)[-3:] + list(res.columns)[:-3]
