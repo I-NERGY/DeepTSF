@@ -215,7 +215,7 @@ def append(x, y):
 def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, scale, scale_covs, multiple,
-             eval_country, mlrun, trial, study, opt_tmpdir, num_workers):
+             eval_code, mlrun, trial, study, opt_tmpdir, num_workers, day_first):
 
                 hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
@@ -250,6 +250,8 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                       training_dict=training_dict,
                       mlrun=mlrun,
                       num_workers=num_workers,
+                      day_first=day_first,
+                      resolution=resolution,
                       )
                 try:
                     trial.set_user_attr("epochs_trained", model.epochs_trained)
@@ -267,9 +269,10 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                     stride=stride,
                     retrain=retrain,
                     multiple=multiple,
-                    eval_country=eval_country,
+                    eval_code=eval_code,
                     cut_date_val=cut_date_val,
                     mlrun=mlrun,
+                    resolution=resolution,
                     )
                 trial.set_user_attr("mape", float(metrics["mape"]))
                 trial.set_user_attr("smape", float(metrics["smape"]))
@@ -284,7 +287,7 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
 def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          training_dict, mlrun, num_workers):
+          training_dict, mlrun, num_workers, day_first, resolution):
 
 
     # Argument preprocessing
@@ -372,24 +375,30 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     ######################
     # Load series and covariates datasets
     time_col = "Date"
-    series, country_l, country_code_l = load_local_csv_as_darts_timeseries(
+    series, source_l, source_code_l = load_local_csv_as_darts_timeseries(
                 local_path=series_csv,
                 name='series',
                 time_col=time_col,
                 last_date=test_end_date,
-                multiple=multiple)
+                multiple=multiple,
+                day_first=day_first,
+                resolution=resolution)
     if future_covariates is not None:
         future_covariates, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
-                last_date=test_end_date)
+                last_date=test_end_date,
+                day_first=day_first,
+                resolution=resolution)
     if past_covariates is not None:
         past_covariates, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
-                last_date=test_end_date)
+                last_date=test_end_date,
+                day_first=day_first,
+                resolution=resolution)
 
     if scale:
         scalers_dir = tempfile.mkdtemp()
@@ -411,8 +420,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         store_dir=features_dir,        
         name='series',
         multiple=multiple,
-        country_l=country_l,
-        country_code_l=country_code_l,
+        source_l=source_l,
+        source_code_l=source_code_l,
             )
         ## future covariates
     future_covariates_split = split_dataset(
@@ -445,8 +454,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         filename_suffix="series_transformed.csv",
         scale=scale,
         multiple=multiple,
-        country_l=country_l,
-        country_code_l=country_code_l,
+        source_l=source_l,
+        source_code_l=source_code_l,
         )
     
     if scale:
@@ -636,7 +645,8 @@ def backtester(model,
 
 
 def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_test, test_end_date,
-             model, forecast_horizon, stride, retrain, multiple, eval_country, cut_date_val, mlrun, mode='remote'):
+             model, forecast_horizon, stride, retrain, multiple, eval_code, cut_date_val, mlrun, 
+             resolution, mode='remote'):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -655,10 +665,11 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     ## load series from MLflow
     series_path = download_online_file(
         series_uri, "series.csv") if mode == 'remote' else series_uri
-    series, country_l, country_code_l = load_local_csv_as_darts_timeseries(
+    series, source_l, source_code_l = load_local_csv_as_darts_timeseries(
         local_path=series_path,
         last_date=test_end_date,
-        multiple=multiple)
+        multiple=multiple,
+        resolution=resolution)
 
     if scaler is not None:
         if not multiple:
@@ -676,8 +687,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
             test_start_date_str=cut_date_test,
             test_end_date=test_end_date,
             multiple=multiple,
-            country_l=country_l,
-            country_code_l=country_code_l)
+            source_l=source_l,
+            source_code_l=source_code_l)
 
     series_transformed_split = split_dataset(
             series_transformed,
@@ -685,12 +696,12 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
             test_start_date_str=cut_date_test,
             test_end_date=test_end_date,
             multiple=multiple,
-            country_l=country_l,
-            country_code_l=country_code_l)
+            source_l=source_l,
+            source_code_l=source_code_l)
 
 
     if multiple:
-        eval_i = country_l.index(eval_country)
+        eval_i = source_code_l.index(eval_code)
     else:
         eval_i = 0
     # Evaluate Model
@@ -808,7 +819,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               type=str,
               default="false",
               help="Whether to train on multiple timeseries")
-@click.option("--eval-country",
+@click.option("--eval-code",
               type=str,
               default="Portugal",
               help="On which country to run the backtesting. Only for multiple timeseries")
@@ -820,11 +831,15 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
         type=str,
         default="4",
         help="Number of threads that will be used by pytorch")
+@click.option("--day-first",
+    type=str,
+    default="true",
+    help="Whether the date has the day before the month")
 
 
 def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs, darts_model, hyperparams_entrypoint,
            cut_date_val, cut_date_test, test_end_date, device, forecast_horizon, stride, retrain,
-           scale, scale_covs, multiple, eval_country, n_trials, num_workers):
+           scale, scale_covs, multiple, eval_code, n_trials, num_workers, day_first):
 
         n_trials = none_checker(n_trials)
         n_trials = int(n_trials)
@@ -837,7 +852,7 @@ def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs
             study.optimize(lambda trial: objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                        darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
                        forecast_horizon, stride, retrain, scale, scale_covs,
-                       multiple, eval_country, mlrun, trial, study, opt_tmpdir, num_workers), n_trials=n_trials, n_jobs = 1)
+                       multiple, eval_code, mlrun, trial, study, opt_tmpdir, num_workers, day_first), n_trials=n_trials, n_jobs = 1)
 
             log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun)
 

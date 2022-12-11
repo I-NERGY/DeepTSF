@@ -549,7 +549,7 @@ def call_shap(n_past_covs: int,
     default="false",
     help="Whether to train on multiple timeseries")
 
-@click.option("--eval-country",
+@click.option("--eval-code",
     type=str,
     default="Portugal",
     help="On which country to run the backtesting. Only for multiple timeseries")
@@ -559,9 +559,18 @@ def call_shap(n_past_covs: int,
               default='20210101',
               help="Val set start date [str: 'YYYYMMDD']",
               )
+@click.option("--day-first",
+    type=str,
+    default="true",
+    help="Whether the date has the day before the month")
 
+@click.option("--resolution",
+    default="15",
+    type=str,
+    help="The resolution of the dataset in minutes."
+)
 
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_country, cut_date_val):
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_code, cut_date_val, day_first, resolution):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -586,10 +595,12 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     ## load series from MLflow
     series_path = download_online_file(
         series_uri, "series.csv") if mode == 'remote' else series_uri
-    series, country_l, country_code_l = load_local_csv_as_darts_timeseries(
+    series, source_l, source_code_l = load_local_csv_as_darts_timeseries(
         local_path=series_path,
         last_date=test_end_date,
-        multiple=multiple)
+        multiple=multiple,
+        day_first=day_first,
+        resolution=resolution)
 
 
     if future_covariates_uri is not None:
@@ -629,8 +640,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             test_start_date_str=cut_date_test,
             test_end_date=test_end_date,
             multiple=multiple,
-            country_l=country_l,
-            country_code_l=country_code_l)
+            source_l=source_l,
+            source_code_l=source_code_l)
 
     series_transformed_split = split_dataset(
             series_transformed,
@@ -638,11 +649,11 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             test_start_date_str=cut_date_test,
             test_end_date=test_end_date,
             multiple=multiple,
-            country_l=country_l,
-            country_code_l=country_code_l)
+            source_l=source_l,
+            source_code_l=source_code_l)
 
     if multiple:
-        eval_i = country_l.index(eval_country)
+        eval_i = source_code_l.index(eval_code)
     else:
         eval_i = 0
     # Evaluate Model
@@ -650,7 +661,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     with mlflow.start_run(run_name='eval', nested=True) as mlrun:
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
-        print(series_transformed_split['all'])
+        print("TESTING ON", series_transformed_split['all'][eval_i])
         evaluation_results = backtester(model=model,
                                             series_transformed=series_transformed_split['all']\
                                                                if not multiple else series_transformed_split['all'][eval_i],
@@ -686,7 +697,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             series_split['test'].to_csv(
                 os.path.join(evaltmpdir, "test.csv"))
         else:
-            multiple_dfs_to_ts_file(series_split['test'], country_l, country_code_l, os.path.join(evaltmpdir, "test.csv"))
+            multiple_dfs_to_ts_file(series_split['test'], source_l, source_code_l, os.path.join(evaltmpdir, "test.csv"))
 
         print("\nUploading evaluation results to MLflow server...")
         logging.info("\nUploading evaluation results to MLflow server...")

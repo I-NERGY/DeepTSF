@@ -205,9 +205,11 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 
 @click.option("--max-thr",
               type=str,
-              default="48",
+              default="-1",
               help="If there is a consecutive subseries of NaNs longer than max_thr, \
-                    then it is not imputed and returned with NaN values")
+                    then it is not imputed and returned with NaN values. If -1, every value will\
+                    be imputed regardless of how long the consecutive subseries of NaNs it belongs \
+                    to is.")
 
 @click.option("--a",
               type=str,
@@ -247,7 +249,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     default="false",
     help="Whether to train on multiple timeseries")
 
-@click.option("--eval-country",
+@click.option("--eval-code",
     type=str,
     default="Portugal",
     help="On which country to run the backtesting. Only for multiple timeseries")
@@ -283,7 +285,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-             multiple, eval_country, n_trials, opt_test, from_mongo, mongo_name, num_workers):
+             multiple, eval_code, n_trials, opt_test, from_mongo, mongo_name, num_workers):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -354,9 +356,10 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "scale": scale,
                 "scale_covs": scale_covs,
                 "multiple": multiple,
-                "eval_country": eval_country,
+                "eval_code": eval_code,
                 "n_trials": n_trials,
                 "num_workers": num_workers,
+                "day_first": day_first,
             }
             optuna_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
 
@@ -376,6 +379,8 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "multiple": multiple,
                 "training_dict": None,
                 "num_workers": num_workers,
+                "day_first": day_first,
+                "resolution": resolution,
             }
             train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 
@@ -420,7 +425,9 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "size" : shap_data_size,
                 "analyze_with_shap" : analyze_with_shap,
                 "multiple": multiple,
-                "eval_country": eval_country,
+                "eval_code": eval_code,
+                "day_first": day_first,
+                "resolution": resolution,
             }
 
             if "input_chunk_length" in train_run.data.params:

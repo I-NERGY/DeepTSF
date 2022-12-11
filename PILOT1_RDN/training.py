@@ -150,13 +150,22 @@ my_stopper = EarlyStopping(
         type=str,
         default="4",
         help="Number of threads that will be used by pytorch")
-
+        
+@click.option("--day-first",
+    type=str,
+    default="true",
+    help="Whether the date has the day before the month")
+@click.option("--resolution",
+    default="15",
+    type=str,
+    help="The resolution of the dataset in minutes."
+)
 
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          training_dict, num_workers):
+          training_dict, num_workers, day_first, resolution):
 
     num_workers = int(num_workers)
     print(num_workers)
@@ -237,24 +246,30 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         ######################
         # Load series and covariates datasets
         time_col = "Date"
-        series, country_l, country_code_l = load_local_csv_as_darts_timeseries(
+        series, source_l, source_code_l = load_local_csv_as_darts_timeseries(
                 local_path=series_csv,
                 name='series',
                 time_col=time_col,
                 last_date=test_end_date,
-                multiple=multiple)
+                multiple=multiple,
+                day_first=day_first,
+                resolution=resolution)
         if future_covariates is not None:
             future_covariates, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
-                last_date=test_end_date)
+                last_date=test_end_date,
+                day_first=day_first,
+                resolution=resolution)
         if past_covariates is not None:
             past_covariates, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
-                last_date=test_end_date)
+                last_date=test_end_date,
+                day_first=day_first,
+                resolution=resolution)
 
         print("\nCreating local folders...")
         logging.info("\nCreating local folders...")
@@ -281,8 +296,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             name='series',
             conf_file_name='split_info.yml',
             multiple=multiple,
-            country_l=country_l,
-            country_code_l=country_code_l,
+            source_l=source_l,
+            source_code_l=source_code_l,
             )
         ## future covariates
         future_covariates_split = split_dataset(
@@ -315,8 +330,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             filename_suffix="series_transformed.csv",
             scale=scale,
             multiple=multiple,
-            country_l=country_l,
-            country_code_l=country_code_l,
+            source_l=source_l,
+            source_code_l=source_code_l,
             )
         if scale:
             pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
@@ -363,8 +378,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             )
             ## fit model
             # try:
-            # print(series_transformed['train'])
-            # print(series_transformed['val'])
+            print("TRAIN", series_transformed['train'])
+            print("VAL", series_transformed['val'])
             model.fit(series_transformed['train'],
                 future_covariates=future_covariates_transformed['train'],
                 past_covariates=past_covariates_transformed['train'],
@@ -447,8 +462,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 outfile,
                 default_flow_style=False)
 
-        ###?????###
-        shutil.move('model_info.yml', target_dir)
+        shutil.move('model_info.yml', logs_path)
 
         ## Rename logs path to get rid of run name
         if model_type == 'pkl':

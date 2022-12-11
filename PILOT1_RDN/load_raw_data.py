@@ -44,15 +44,16 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
     Multiple timeseries file format (along with example values):
 
-    Index | Day         | ID | Country | Country Code | 00:00:00 | 00:00:00 + resolution | ... | 24:00:00 - resolution
+    Index | Day         | ID | Source  | Source Code  | 00:00:00 | 00:00:00 + resolution | ... | 24:00:00 - resolution
     0     | 2015-04-09  | 0  | Portugal| PT           | 5248     | 5109                  | ... | 5345
     1     | 2015-04-09  | 1  | Spain   | ES           | 25497    | 23492                 | ... | 25487
     .
     .
 
-    Columns can be in any order and ID must alwaws be convertible to an int, and consequtive. Also, all the above
+    Columns can be in any order and ID must be unique for every series in the file. Also, all the above
     column names must be present in the file, and the hour columns must be consequtive and separated by resolution 
-    minutes. The lines can be at any order as long as the Day column is increasing for each country.
+    minutes. However they can be in any order and still be considered valid. The lines can also be at any order as 
+    long as the Day column is increasing for each source. 
 
     Parameters
     ----------
@@ -74,11 +75,12 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      sep=None,
                      header=0,
                      index_col=0,
-                     parse_dates=True,
+                     parse_dates=(['Day'] if multiple else True),#TODO Make everywere like that?
                      dayfirst=day_first,
                      engine='python')
     print(ts)
     ts.to_csv("temp")
+    #if ts is empty, raise exception
     if ts.empty:
         raise EmptyDataframe(from_mongo)
     if not multiple:
@@ -89,20 +91,14 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Load', 'Date'])
     else:
-        des_columns = list(map(str, ['Day', 'ID', 'Country', 'Country Code'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
-#        print((list(np.unique(ts["ID"])) == list(range(max(ts["ID"]) + 1))))
-        #Check that all columns 'Day', 'ID', 'Country', 'Country Code' and the time columns exist in any order.
+        des_columns = list(map(str, ['Day', 'ID', 'Source', 'Source Code'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
+        #Check that all columns 'Day', 'ID', 'Source', 'Source Code' and the time columns exist in any order.
         if not set(des_columns) == set(ts.columns):
             raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
-        #Check that ID column can be transformed to int
-        try:
-            ts["ID"].apply(int)
-        except:
-            raise WrongIDs(np.unique(ts["ID"]))
         #Check that all ints in ID column are consecutive
-        if not (list(np.unique(ts["ID"])) == list(range(max(ts["ID"]) + 1))):
-            raise WrongIDs(np.unique(ts["ID"]))
-        #Check that all dates for each country are sorted
+        #if not (list(np.unique(ts["ID"])) == list(range(max(ts["ID"]) + 1))):
+        #    raise WrongIDs(np.unique(ts["ID"]))
+        #Check that all dates for each source are sorted
         for id in np.unique(ts["ID"]):
             if not ts.loc[ts["ID"] == id]["Day"].sort_values().equals(ts.loc[ts["ID"] == id]["Day"]):
                 raise DatesNotInOrder(id)
@@ -113,16 +109,6 @@ from pymongo import MongoClient
 import pandas as pd
 
 client = MongoClient(MONGO_URL)
-
-def load_data_to_csv(tmpdir, mongo_name):
-    new_loads = get_df_from_db(mongo_name)
-    loads_to_csv(new_loads, tmpdir)
-    client.close()
-
-
-def loads_to_csv(new_loads, tmpdir):
-    df = pd.DataFrame.from_dict(new_loads)
-    df.to_csv(f'{tmpdir}/load.csv', index=False)
 
 
 def unfold_timeseries(lds):
@@ -140,37 +126,43 @@ def unfold_timeseries(lds):
     return new_loads
 
 
-def get_df_from_db(mongo_name):
+def load_data_to_csv(tmpdir, mongo_name):
     db = client['inergy_prod_db']
     collection = db[mongo_name]
     df = pd.DataFrame(collection.find()).drop(columns={'_id', ''})
     if mongo_name == "asm_historical_smart_meters_uc7":
         #Rename to ts id
-        df["Country"] = df["id"] + " " + df["energy_type"]
+        df["Source"] = df["id"] + " " + df["energy_type"]
         cols_to_drop = {'date', 'id', 'energy_type'}
     elif mongo_name == "asm_historical_smart_meters_uc6_current":
-        df["Country"] = df["id"] + " " + df["phase"]
+        df["Source"] = df["id"] + " " + df["phase"]
         cols_to_drop = {'date', 'id', 'phase'}
     elif mongo_name == "asm_historical_smart_meters_uc6_voltage":
-        df["Country"] = df["id"] + " " + df["voltage_type"]
+        df["Source"] = df["id"] + " " + df["voltage_type"]
         cols_to_drop = {'date', 'id', 'voltage_type'}
     elif mongo_name == "asm_historical_smart_meters_uc6_power":
         #df.index = list(range(len(df)))
-        df["Country"] = "0"
+        df["Source"] = "0"
         cols_to_drop = {'date', 'id'}
     else:
-        return unfold_timeseries(collection.find().sort('_id', -1))
-    df["Country Code"] = df["Country"]
-    unique_ts = pd.unique(df["Country"])
+        df = unfold_timeseries(collection.find().sort('_id', -1))
+        df = pd.DataFrame.from_dict(new_loads)
+        df.to_csv(f'{tmpdir}/load.csv', index=False)
+        client.close()
+        return
+    df["Source Code"] = df["Source"]
+    unique_ts = pd.unique(df["Source"])
     name_to_ID = {}
     for i in range(len(unique_ts)):
         name_to_ID[unique_ts[i]] = i
-    df["ID"] = df["Country"].apply(lambda x: name_to_ID[x])
+    df["ID"] = df["Source"].apply(lambda x: name_to_ID[x])
     df["Day"] = df["date"]
-    print(df)
-    df = df.drop(columns=cols_to_drop).sort_values(by=["Day", "ID"])
-    df.to_csv("temp")
-    return df
+    print("1", df)
+    df = df.sort_values(by=["Day", "ID"], ignore_index=True).drop(columns=cols_to_drop)
+    print("2", df)
+    df.to_csv(f'{tmpdir}/load.csv', index=True)
+    client.close()
+    return
 
 @click.command(
     help="Downloads the RDN series and saves it as an mlflow artifact "
@@ -254,10 +246,9 @@ def load_raw_data(series_csv, series_uri, day_first, multiple, resolution, from_
         ## TODO: Read from APi
 
         # set mlflow tags for next steps
-        ##TODO fix this
         if multiple:
-#            mlflow.set_tag("dataset_start", datetime.strftime(ts["Day"][0], "%Y%m%d"))
-#            mlflow.set_tag("dataset_end", datetime.strftime(ts["Day"][-1], "%Y%m%d"))
+            mlflow.set_tag("dataset_start", datetime.strftime(ts["Day"].iloc[0], "%Y%m%d"))
+            mlflow.set_tag("dataset_end", datetime.strftime(ts["Day"].iloc[-1], "%Y%m%d"))
             pass
         else:
             mlflow.set_tag("dataset_start", datetime.strftime(ts.index[0], "%Y%m%d"))
