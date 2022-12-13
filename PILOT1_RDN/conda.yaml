@@ -1,4 +1,4 @@
-﻿name: darts_38
+name: darts_38
 channels:
   - pytorch
   - defaults
@@ -40,8 +40,6 @@ dependencies:
   - six=1.16.0
   - sqlite=3.38.2
   - tk=8.6.11
-  - torchaudio=0.11.0
-  - torchvision=0.12.0
   - typing_extensions=4.1.1
   - urllib3=1.26.9
   - wheel=0.37.1
@@ -153,4 +151,8 @@ dependencies:
     - shap==0.41.0
     - protobuf==3.19.0
     - shap==0.41.0
-prefix: C:\Users\spele\Miniconda3\envs\darts_38
+    - uvicorn==0.19.0
+# prefix: C:\Users\spele\Miniconda3\envs\darts_38
+
+
+
