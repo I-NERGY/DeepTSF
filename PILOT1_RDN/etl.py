@@ -546,6 +546,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
         res_ = []
         print("ETL MULTIPLE", len(ts_list))
         for ts_num, ts in enumerate(ts_list):
+            res_.append([])
             for comp_num, comp in enumerate(ts):
                 # temporal filtering
                 print(f"\n---> Starting etl of ts {ts_num} / {len(ts_list)-1}, component {comp_num} / {len(ts) - 1} and Source {source_l[ts_num][comp_num]}...")
@@ -640,7 +641,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
                 imputed_values.to_csv(f'{impute_dir}/imputed_values_{source_l[ts_num][comp_num]}.csv')
 
 
-                res_.append(comp_res)
+                res_[-1].append(comp_res)
 
         print("\nCreating local folder to store the datasets as csv...")
         logging.info("\nCreating local folder to store the datasets as csv...")
