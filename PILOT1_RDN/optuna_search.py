@@ -701,7 +701,10 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 
 
     if multiple:
-        eval_i = source_code_l.index(eval_code)
+        for i, comps in enumerate(source_code_l):
+            for comp in comps:
+                if eval_code == comp:
+                    eval_i = i
     else:
         eval_i = 0
     # Evaluate Model

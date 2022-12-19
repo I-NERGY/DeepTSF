@@ -653,7 +653,11 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             source_code_l=source_code_l)
 
     if multiple:
-        eval_i = source_code_l.index(eval_code)
+        eval_i = -1
+        for i, comps in enumerate(source_code_l):
+            for comp in comps:
+                if eval_code == comp:
+                    eval_i = i
     else:
         eval_i = 0
     # Evaluate Model

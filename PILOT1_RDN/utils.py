@@ -268,15 +268,21 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             covariate_l  = []
             print("liiiist", local_path)
             print(ts_list[0])
-            for df in ts_list:
-                covariates = darts.TimeSeries.from_dataframe(
-                             df,
-                             fill_missing_dates=True,
-                             freq=None)
-                covariates = covariates.astype(np.float32)
-                if last_date is not None:
-                    covariates.drop_after(pd.Timestamp(last_date))
-                covariate_l.append(covariates)
+            for comps in ts_list:
+                first = True
+                for df in comps:
+                    covariates = darts.TimeSeries.from_dataframe(
+                                df,
+                                fill_missing_dates=True,
+                                freq=None)
+                    covariates = covariates.astype(np.float32)
+                    if last_date is not None:
+                        covariates.drop_after(pd.Timestamp(last_date))
+                    if first:
+                        first = False
+                        covariate_l.append(covariates)
+                    else:
+                        covariate_l[-1] = covariate_l[-1].stack(covariates)
             covariates = covariate_l
         else:
             source_code_l, source_l = [], []
@@ -395,14 +401,18 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
 def multiple_dfs_to_ts_file(res_l, source_l, source_code_l, save_dir):
     ts_list = []
+#    print("res_l", res_l)
     for ts_num, (ts, source_ts, source_code_ts) in enumerate(zip(res_l, source_l, source_code_l)):
+#        print("ts_num", ts)
+        if type(ts) == darts.timeseries.TimeSeries:
+            ts = [ts.univariate_component(i).pd_dataframe() for i in range(ts.n_components)]
         for comp_num, (comp, source, source_code) in enumerate(zip(ts, source_ts, source_code_ts)):
-            if type(comp) == darts.timeseries.TimeSeries:
-                comp = comp.pd_dataframe()
+ #           print(comp)
+            load_col = comp.columns[0]
             comp["Day"] = comp.index.date
             comp["Time"] = comp.index.time
             comp = pd.pivot_table(comp, index=["Day"], columns=["Time"])
-            comp = comp["Load"]
+            comp = comp[load_col]
             comp["ID"] = ts_num * len(ts) + comp_num
             comp["Timeseries ID"] = ts_num
             comp["Source"] = source
