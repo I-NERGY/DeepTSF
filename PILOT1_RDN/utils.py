@@ -119,8 +119,7 @@ def load_local_pl_model(model_root_dir):
 
     from darts.models.forecasting.gradient_boosted_model import LightGBMModel
     from darts.models.forecasting.random_forest import RandomForest
-    from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
-
+    from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
     print("\nLoading local PL model...")
     model_info_dict = load_yaml_as_dict(
         os.path.join(model_root_dir, 'model_info.yml'))
@@ -373,33 +372,44 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     res = []
     source = []
     source_code = []
-    ids = list(np.unique(ts["ID"]))
-    for id in ids:
-        curr = ts[ts["ID"] == id]
-        curr = pd.melt(curr, id_vars=['Day', 'ID', 'Source', 'Source Code'], var_name='Time', value_name='Load')
-        curr["Date"] = pd.to_datetime(curr['Day'] + curr['Time'], format='%Y-%m-%d%H:%M:%S')
-        curr = curr.set_index("Date")
-        series = curr["Load"].sort_index().dropna().asfreq(resolution+'min')
-        res.append(pd.DataFrame({"Load" : series}))
-        source.append(curr["Source"].values[0])
-        source_code.append(curr["Source Code"].values[0])
+    if "Timeseries ID" not in ts.columns:
+        ts["Timeseries ID"] = ts["ID"]
+    ts_ids = list(np.unique(ts["Timeseries ID"]))
+    for ts_id in ts_ids:
+        curr_ts = ts[ts["Timeseries ID"] == ts_id]
+        ids = list(np.unique(curr_ts["ID"]))
+        res.append([])
+        source.append([])
+        source_code.append([])
+        for id in ids:
+            curr_comp = curr_ts[curr_ts["ID"] == id]
+            curr_comp = pd.melt(curr_comp, id_vars=['Day', 'ID', 'Source', 'Source Code', 'Timeseries ID'], var_name='Time', value_name='Load')
+            curr_comp["Date"] = pd.to_datetime(curr_comp['Day'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
+            curr_comp = curr_comp.set_index("Date")
+            curr_comp.to_csv("test.csv")
+            series = curr_comp["Load"].sort_index().dropna().asfreq(resolution+'min')
+            res[-1].append(pd.DataFrame({"Load" : series}))
+            source[-1].append(curr_comp["Source"].values[0])
+            source_code[-1].append(curr_comp["Source Code"].values[0])
     return res, source, source_code
 
 def multiple_dfs_to_ts_file(res_l, source_l, source_code_l, save_dir):
     ts_list = []
-    for i, (ts, source, source_code) in enumerate(zip(res_l, source_l, source_code_l)):
-        if type(ts) == darts.timeseries.TimeSeries:
-            ts = ts.pd_dataframe()
-        ts["Day"] = ts.index.date
-        ts["Time"] = ts.index.time
-        ts = pd.pivot_table(ts, index=["Day"], columns=["Time"])
-        ts = ts["Load"]
-        ts["ID"] = i
-        ts["Source"] = source
-        ts["Source Code"] = source_code
-        ts_list.append(ts)
+    for ts_num, (ts, source_ts, source_code_ts) in enumerate(zip(res_l, source_l, source_code_l)):
+        for comp_num, (comp, source, source_code) in enumerate(zip(ts, source_ts, source_code_ts)):
+            if type(comp) == darts.timeseries.TimeSeries:
+                comp = comp.pd_dataframe()
+            comp["Day"] = comp.index.date
+            comp["Time"] = comp.index.time
+            comp = pd.pivot_table(comp, index=["Day"], columns=["Time"])
+            comp = comp["Load"]
+            comp["ID"] = ts_num * len(ts) + comp_num
+            comp["Timeseries ID"] = ts_num
+            comp["Source"] = source
+            comp["Source Code"] = source_code
+            ts_list.append(comp)
     res = pd.concat(ts_list).sort_values(by=["Day", "ID"])
-    columns = list(res.columns)[-3:] + list(res.columns)[:-3]
+    columns = list(res.columns)[-4:] + list(res.columns)[:-4]
     res = res[columns].reset_index()
     res.to_csv(save_dir)
 

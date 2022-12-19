@@ -12,7 +12,7 @@ from darts.models import (
     NaiveSeasonal,
 )
 # the following are used through eval(darts_model + 'Model')
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
 # from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.gradient_boosted_model import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
@@ -71,7 +71,7 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False, curr_mape=0, model=None, darts_model=None, scale=False, scalers_dir=None, features_dir=None, past_covariates=None, future_covariates=None):
     
     if log_model and (len(study.trials_dataframe()[study.trials_dataframe()["state"] == "COMPLETE"]) < 1 or study.best_trial.values[0] >= curr_mape):
-        if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN']:
+        if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
             logs_path = f"./darts_logs/{mlrun.info.run_id}"
             model_type = "pl"
         elif darts_model in ['LightGBM', 'RandomForest']:
@@ -175,7 +175,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
 
         print("\nArtifacts uploaded.")
         logging.info("\nArtifacts uploaded.")
-    else:
+    if not log_model:
         ######################
         # Log hyperparameters
         mlflow.log_params(study.best_params)
@@ -348,7 +348,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     ## model
     # TODO: Take care of future covariates (RNN, ...) / past covariates (BlockRNN, NBEATS, ...)
-    if darts_model in ["NBEATS", "BlockRNN", "TCN"]:
+    if darts_model in ["NBEATS", "BlockRNN", "TCN", "NHiTS", "Transformer"]:
         """They do not accept future covariates as they predict blocks all together.
         They won't use initial forecasted values to predict the rest of the block
         So they won't need to additionally feed future covariates during the recurrent process.
@@ -485,7 +485,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                         #  "auto_select_gpus": True,
                          "log_every_n_steps": 10}
     ## choose architecture
-    if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN']:
+    if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'NHiTS', 'Transformer']:
         hparams_to_log = hyperparameters
         if 'learning_rate' in hyperparameters:
             hyperparameters['optimizer_kwargs'] = {'lr': hyperparameters['learning_rate']}
@@ -756,6 +756,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 @click.option("--darts-model",
               type=click.Choice(
                   ['NBEATS',
+                   'NHiTS',
+                   'Transformer',
                    'RNN',
                    'TCN',
                    'BlockRNN',

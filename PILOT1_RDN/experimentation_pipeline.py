@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import tempfile
 import pretty_errors
 from darts.dataprocessing.transformers import Scaler
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, LightGBMModel, RandomForest, TFTModel, TCNModel
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, LightGBMModel, RandomForest, TFTModel, TCNModel, NHiTSModel, TransformerModel
 import mlflow
 import click
 import os
@@ -124,6 +124,8 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 @click.option("--darts-model",
               type=click.Choice(
                   ['NBEATS',
+                   'NHiTS',
+                   'Transformer',
                    'RNN',
                    'TCN',
                    'BlockRNN',

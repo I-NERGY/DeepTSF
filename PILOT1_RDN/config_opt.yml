@@ -1,5 +1,32 @@
 hyperparameters:
 
+  transformer_test:
+    input_chunk_length: ["list", 6, 12, 24, 48, 76]
+    output_chunk_length: 1
+    d_model: ["list", 32, 64]
+    nhead: ["list", 2, 3]
+    num_encoder_layers: 3
+    num_decoder_layers: ["range", 1, 3, 1]
+    dim_feedforward: 512
+    dropout: 0.1 
+    activation: 'relu'
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+
+  nhits_test:
+    input_chunk_length: ["list", 6, 12, 24, 48, 76]
+    output_chunk_length: 1
+    num_stacks: ["range", 1, 5, 1]
+    num_blocks: ["range", 1, 5, 1]
+    num_layers: ["range", 1, 3, 1]
+    layer_widths: 64
+    n_epochs: 1
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+
   lstm_test:
      model: LSTM
      n_rnn_layers: ["list", 1, 2, 3]
@@ -105,12 +132,12 @@ hyperparameters:
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
 
 
-  nbeats_test_final:
-    input_chunk_length: ["range", 3, 6, 3]
+  nbeats_test_3:
+    input_chunk_length: ["range", 3, 12, 3]
     output_chunk_length: 1
-    num_stacks: ["range", 1, 3, 1]
-    num_blocks: ["range", 1, 3, 1]
-    num_layers: ["range", 1, 3, 1]
+    num_stacks: ["range", 1, 12, 1]
+    num_blocks: ["range", 1, 12, 1]
+    num_layers: ["range", 1, 12, 1]
     generic_architecture: True
     layer_widths: 64
     expansion_coefficient_dim: 5

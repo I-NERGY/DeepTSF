@@ -39,3 +39,11 @@ class WrongIDs(Exception):
     def __init__(self, ids):
         self.message = f'ID names provided: {ids}. IDs in a multiple timeseries file must be consecutive integers.'
         super().__init__(self.message)
+
+class DifferentComponentDimensions(Exception):
+    """
+    Exception raised if not all timeseries in a multiple timeseries file have the same number of components.
+    """
+    def __init__(self):
+        self.message = f'Not all timeseries in multiple timeseries file have the same number of components.'
+        super().__init__(self.message)
