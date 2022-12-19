@@ -183,19 +183,32 @@ hyperparameters:
   #   # likelihood: Gaussian
   #   batch_size: 1024
 
-  nhits_test:
-    input_chunk_length: 384
-    output_chunk_length: 96
-    num_stacks: 20
-    num_blocks: 1
-    num_layers: 4
-    generic_architecture: True
-    layer_widths: 64
-    expansion_coefficient_dim: 5
-    n_epochs: 300
+  transformer_test:
+    input_chunk_length: 48
+    output_chunk_length: 1
+    d_model: 64
+    nhead: 4
+    num_encoder_layers: 3
+    num_decoder_layers: 3
+    dim_feedforward: 512
+    dropout: 0.1 
+    activation: 'relu'
+    n_epochs: 2
     random_state: 0
     nr_epochs_val_period: 2
-    batch_size: 1024
+    batch_size: 32
+    
+  nhits_test:
+    input_chunk_length: 48
+    output_chunk_length: 1
+    num_stacks: 3
+    num_blocks: 3
+    num_layers: 3
+    layer_widths: 64
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
 
   lstm_example:
     model: LSTM
