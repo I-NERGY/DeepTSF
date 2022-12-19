@@ -1,5 +1,35 @@
 hyperparameters:
+  nbeats_test:
+    input_chunk_length: 24
+    output_chunk_length: 1
+    num_stacks: 10
+    num_blocks: 1
+    num_layers: 3
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 10
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 16
 
+  lstm0_1:
+     model: LSTM
+     n_rnn_layers: 1
+     hidden_dim:  128
+     n_epochs: 10
+     input_chunk_length: 24
+     training_length: 24
+     random_state: 0
+     nr_epochs_val_period: 2
+     dropout: 0
+     learning_rate: 0.0008
+     likelihood: Gaussian
+     batch_size: 32
+
+
+  arima:
+    
   test:
     model: LSTM
     n_rnn_layers: 1
@@ -152,6 +182,33 @@ hyperparameters:
   #   learning_rate: 0.001
   #   # likelihood: Gaussian
   #   batch_size: 1024
+
+  transformer_test:
+    input_chunk_length: 48
+    output_chunk_length: 1
+    d_model: 64
+    nhead: 4
+    num_encoder_layers: 3
+    num_decoder_layers: 3
+    dim_feedforward: 512
+    dropout: 0.1 
+    activation: 'relu'
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+    
+  nhits_test:
+    input_chunk_length: 48
+    output_chunk_length: 1
+    num_stacks: 3
+    num_blocks: 3
+    num_layers: 3
+    layer_widths: 64
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
 
   lstm_example:
     model: LSTM
