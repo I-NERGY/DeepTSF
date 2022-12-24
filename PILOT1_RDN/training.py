@@ -170,7 +170,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           training_dict, num_workers, day_first, resolution):
 
     num_workers = int(num_workers)
-    print(num_workers)
+    #print(num_workers)
     torch.set_num_threads(num_workers)
 
     # Argument preprocessing
@@ -248,7 +248,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         ######################
         # Load series and covariates datasets
         time_col = "Date"
-        series, source_l, source_code_l = load_local_csv_as_darts_timeseries(
+        series, source_l, source_code_l, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
                 local_path=series_csv,
                 name='series',
                 time_col=time_col,
@@ -257,7 +257,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 day_first=day_first,
                 resolution=resolution)
         if future_covariates is not None:
-            future_covariates, _, _ = load_local_csv_as_darts_timeseries(
+            future_covariates, _, _, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
@@ -265,7 +265,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 day_first=day_first,
                 resolution=resolution)
         if past_covariates is not None:
-            past_covariates, _, _ = load_local_csv_as_darts_timeseries(
+            past_covariates, _, _, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
@@ -287,7 +287,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         logging.info(
              f"\nTrain / Test split: Validation set starts: {cut_date_val} - Test set starts: {cut_date_test} - Test set end: {test_end_date}")
 
-        print(series)
+        #print(series)
         ## series
         series_split = split_dataset(
             series,
@@ -300,7 +300,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             multiple=multiple,
             source_l=source_l,
             source_code_l=source_code_l,
-            )
+            id_l=id_l,
+            ts_id_l=ts_id_l)
         ## future covariates
         future_covariates_split = split_dataset(
             future_covariates,
@@ -334,6 +335,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             multiple=multiple,
             source_l=source_l,
             source_code_l=source_code_l,
+            id_l=id_l,
+            ts_id_l=ts_id_l
             )
         if scale:
             pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
@@ -380,8 +383,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             )
             ## fit model
             # try:
-            print("TRAIN", series_transformed['train'])
-            print("VAL", series_transformed['val'])
+            #print("TRAIN", series_transformed['train'])
+            #print("VAL", series_transformed['val'])
             model.fit(series_transformed['train'],
                 future_covariates=future_covariates_transformed['train'],
                 past_covariates=past_covariates_transformed['train'],
