@@ -78,8 +78,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      parse_dates=(['Day'] if multiple else True),
                      dayfirst=day_first,
                      engine='python')
-    print(ts)
-    ts.to_csv("temp")
+    #print(ts)
+    #ts.to_csv("temp")
     #if ts is empty, raise exception
     if ts.empty:
         raise EmptyDataframe(from_mongo)
@@ -91,19 +91,24 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Load', 'Date'])
     else:
+        if "Timeseries ID" not in ts.columns:
+            ts["Timeseries ID"] = ts["ID"]
+        if "Source Code" not in ts.columns:
+            ts["Source Code"] = ts["ID"]
+        if "Source" not in ts.columns:
+            ts["Source"] = ts["ID"]
         des_columns = list(map(str, ['Day', 'ID', 'Source', 'Source Code', 'Timeseries ID'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
         #Check that all columns 'Day', 'ID', 'Source', 'Source Code' and the time columns exist in any order.
-        if not set(des_columns) == set(list(ts.columns) + ['Timeseries ID']):
+        if not set(des_columns) == set(list(ts.columns)):
             raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
         #Check that all dates for each source are sorted
         for id in np.unique(ts["ID"]):
             if not ts.loc[ts["ID"] == id]["Day"].sort_values().equals(ts.loc[ts["ID"] == id]["Day"]):
-                (ts.loc[ts["ID"] == id]["Day"].sort_values()).to_csv("test.csv")
+                #(ts.loc[ts["ID"] == id]["Day"].sort_values()).to_csv("test.csv")
                 raise DatesNotInOrder(id)
         #Check that all timeseries in a multiple timeseries file have the same number of components
-        if "Timeseries ID" in ts.columns:
-            if len(set(len(np.unique(ts.loc[ts["ID"] == id]["Timeseries ID"])) for id in np.unique(ts["ID"]))) != 1:
-                raise DifferentComponentDimensions()
+        if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
+            raise DifferentComponentDimensions()
             
         
     return ts
@@ -117,7 +122,7 @@ client = MongoClient(MONGO_URL)
 def unfold_timeseries(lds):
     new_loads = {'Date': [], 'Load': []}
     prev_date = ''
-    print(lds)
+    #print(lds)
     for l in reversed(list(lds)):
         if prev_date != l['date']:
             for key in l:
@@ -142,6 +147,7 @@ def load_data_to_csv(tmpdir, mongo_name):
         df["Source"] = df["id"] + " " + df["energy_type"]
         cols_to_drop = {'date', 'id', 'energy_type'}
     elif mongo_name == "asm_historical_smart_meters_uc6":
+        df[2] = df[2].loc[df[2]["id"] != "W1"]
         df[0]["Source"] = df[0]["id"] + " " + df[0]["phase"]
         df[1]["Source"] = df[1]["id"] + " " + df[1]["voltage_type"]
         df[2]["Source"] = df[2]["id"] + " " + df[2]["power_type"]
@@ -180,11 +186,11 @@ def load_data_to_csv(tmpdir, mongo_name):
         df["Timeseries ID"] = df["id"].apply(lambda x: name_to_ID[x])
 
     df["Day"] = df["date"]
-    print("1", df)
+    #print("1", df)
     df = df.drop_duplicates(subset=["Day", "ID"]).\
             sort_values(by=["Day", "ID"], ignore_index=True).\
             drop(columns=cols_to_drop)
-    print("2", df)
+    #print("2", df)
     df.to_csv(f'{tmpdir}/load.csv', index=True)
     client.close()
     return
