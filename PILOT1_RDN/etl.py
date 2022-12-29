@@ -582,8 +582,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
             res_.append([])
             for comp_num, comp in enumerate(ts):
                 # temporal filtering
-                print(f"\n---> Starting etl of ts {ts_num} / {len(ts_list)-1}, component {comp_num} / {len(ts) - 1}, id {id_l[ts_num][comp_num]}, Source {source_l[ts_num][comp_num]}...")
-                logging.info(f"\n---> Starting etl of ts {ts_num} / {len(ts_list)-1}, component {comp_num} / {len(ts) - 1}, id {id_l[ts_num][comp_num]}, Source {source_l[ts_num][comp_num]}...")
+                print(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}, Source {source_l[ts_num][comp_num]}...")
+                logging.info(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}, Source {source_l[ts_num][comp_num]}...")
 
                 print(f"\nTemporal filtering...")
                 logging.info(f"\nTemporal filtering...")
