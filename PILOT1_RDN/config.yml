@@ -214,7 +214,7 @@ hyperparameters:
     model: LSTM
     n_rnn_layers: 2
     hidden_dim:  64 #128
-    n_epochs: 100
+    n_epochs: 1
     input_chunk_length: 672
     training_length: 672
     random_state: 0

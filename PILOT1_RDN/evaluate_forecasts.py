@@ -33,7 +33,7 @@ from typing import Union
 from typing import List
 import darts
 import json
-
+import statistics
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
@@ -282,7 +282,8 @@ def build_shap_dataset(size: Union[int, float],
 #    print(data[-1].flatten())
         if first_iter:
             columns.extend([str(i) + " timestep" for i in range(input_chunk_length)])
-            background.extend([train.median(axis=0).values()[0,0] for _ in range(input_chunk_length)])
+            median_of_train = statistics.median(map(lambda x : x.median(axis=0).values()[0,0], train))
+            background.extend([median_of_train for _ in range(input_chunk_length)])
         if past_covs != None:
             for ii in range(past_covs.n_components):
                 data[-1] = np.concatenate([data[-1], past_covs.univariate_component(ii)[i:i + input_chunk_length].random_component_values(copy=False).flatten()])
@@ -344,7 +345,9 @@ def predict(x: darts.TimeSeries,
         provided, and its column number is equal to output_chunk_length.
     """
 
-    res = []
+    series_list = []
+    past_covs_list = []
+    future_covs_list = []
     for sample in x:
     #    print(sample)
         index = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(input_chunk_length)]
@@ -371,6 +374,10 @@ def predict(x: darts.TimeSeries,
                     past_covs = past_covs.stack(scaler_list[i//input_chunk_length].transform(temp))
                 else:
                     past_covs = past_covs.stack(temp)
+        if past_covs == None: 
+            past_covs_list = None 
+        else:
+            past_covs_list.append(past_covs)
         for i in range(input_chunk_length*(n_past_covs+1), input_chunk_length*(n_past_covs+1) + (input_chunk_length + output_chunk_length)*n_future_covs, input_chunk_length + output_chunk_length):
 #            print(i, "f")
             data = sample[i:i+input_chunk_length+output_chunk_length]
@@ -385,12 +392,17 @@ def predict(x: darts.TimeSeries,
                     future_covs = future_covs.stack(scaler_list[scale_index].transform(temp))
                 else:
                     future_covs = future_covs.stack(temp)
-    #    print("asdssd", past_covs, future_covs)
-        ts = model.predict(output_chunk_length, ts, past_covariates=past_covs, future_covariates=future_covs)
-        if scale:
-            res.append(scaler_list[0].inverse_transform(ts).univariate_values())
+        if future_covs == None:
+            future_covs_list = None
         else:
-            res.append(ts.univariate_values())
+            future_covs_list.append(future_covs)
+        series_list.append(ts)
+    #    print("asdssd", past_covs, future_covs)
+    res = model.predict(output_chunk_length, series_list, past_covariates=past_covs_list, future_covariates=future_covs_list)
+    if scale:
+        res = list(map(lambda elem : scaler_list[0].inverse_transform(elem).univariate_values(), res))
+    else:
+        res = list(map(lambda elem : elem.univariate_values(), res))
    #     print("max", np.array(res).max(), np.array(res).min())
     #print(np.array(res))
     return np.array(res)
@@ -708,8 +720,9 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             path_to_save_backtest=evaltmpdir)
         if analyze_with_shap:
             data, background = build_shap_dataset(size=size,
-                                                train=series_split['train'],
-                                                test=series_split['test'],
+                                                train=series_transformed_split['train'],
+                                                test=series_transformed_split['test']\
+                                                     if not multiple else series_transformed_split['test'][eval_i],
                                                 input_chunk_length=input_chunk_length,
                                                 output_chunk_length=output_chunk_length,
                                                 future_covs=future_covariates,
@@ -721,10 +734,10 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                     input_chunk_length=input_chunk_length,
                     output_chunk_length=output_chunk_length,
                     model=model,
-                    scaler_list=[scaler],
+                    scaler_list=[scaler if not multiple else scaler[eval_i]],
                     background=background,
                     data=data,
-                    scale=(scaler is not None))
+                    scale=(scaler != None))
         if not multiple:
             series_split['test'].to_csv(
                 os.path.join(evaltmpdir, "test.csv"))
