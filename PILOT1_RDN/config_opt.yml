@@ -15,7 +15,7 @@ hyperparameters:
     nr_epochs_val_period: 2
     batch_size: 32
 
-  nhits_test_:
+  nhits_test_new:
     input_chunk_length: ["list", 6, 12, 24, 48, 76]
     output_chunk_length: 1
     num_stacks: ["range", 1, 5, 1]

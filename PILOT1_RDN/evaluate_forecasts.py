@@ -91,7 +91,7 @@ def backtester(model,
 
     # produce list of forecasts
     #print("backtesting starting at", test_start_date, "series:", series_transformed)
-    print("EVALUATIING ON SERIES:", series_transformed)
+    #print("EVALUATIING ON SERIES:", series_transformed)
     backtest_series_transformed = model.historical_forecasts(series_transformed,
                                                              future_covariates=future_covariates,
                                                              past_covariates=past_covariates,
@@ -117,7 +117,7 @@ def backtester(model,
         print("\nWarning: Scaler not provided. Ensure model provides normal scale predictions")
         logging.info(
             "\n Warning: Scaler not provided. Ensure model provides normal scale predictions")
-    print(backtest_series, series)
+    #print(backtest_series, series)
 
     # plot all test
     fig1 = plt.figure(figsize=(15, 8))

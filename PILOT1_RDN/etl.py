@@ -606,7 +606,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
                 if rmv_outliers:
                     print("\nPerfrorming Outlier Detection...")
                     logging.info("\nPerfrorming Outlier Detection...")
-                    comp_res.to_csv("1.csv")
                     comp_res, removed = remove_outliers(ts=comp_res,
                                                         name=source_l[ts_num][comp_num],
                                                         std_dev=std_dev,

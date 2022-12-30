@@ -309,13 +309,19 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     default="mape",
     help="Loss function to use for optuna")
 
+@click.option("--evaluate-all-ts",
+    type=str,
+    default="false",
+    help="Whether to validate the models for all timeseries, and return the mean of their metrics")
+
+
 
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_series, n_trials, opt_test, from_mongo, mongo_name, num_workers, eval_method,
-             l_interpolation, rmv_outliers, loss_function):
+             l_interpolation, rmv_outliers, loss_function, evaluate_all_ts):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -394,6 +400,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "day_first": day_first,
                 "eval_method": eval_method,
                 "loss_function": loss_function,
+                "evaluate_all_ts": evaluate_all_ts,
             }
             optuna_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
 
