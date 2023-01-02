@@ -504,6 +504,17 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                         #  "gpus": 1,
                         #  "auto_select_gpus": True,
                          "log_every_n_steps": 10}
+
+    print("\nTraining on series:\n")
+    logging.info("\nTraining on series:\n")
+    if multiple:
+        for i, series in enumerate(series_transformed['train']):
+            print(f"Timeseries ID: {ts_id_l[i][0]} starting at {series.time_index[0]} and ending at {series.time_index[-1]}")
+            logging.info(f"Timeseries ID: {ts_id_l[i][0]} starting at {series.time_index[0]} and ending at {series.time_index[-1]}")
+    else:
+        print(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
+        logging.info(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
+    print("")
     ## choose architecture
     if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'NHiTS', 'Transformer']:
         hparams_to_log = hyperparameters
@@ -741,6 +752,9 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
             #print("testing on", eval_i, backtest_series_transformed)
             print(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
             logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
+            print(f"Validating from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
+            logging.info(f"Validating from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
+            print("")
             validation_results = backtester(model=model,
                                             series_transformed=backtest_series_transformed,
                                             series=backtest_series,
@@ -786,8 +800,14 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
         backtest_series_transformed = darts.timeseries.concatenate([series_transformed_split['train'][eval_i], series_transformed_split['val'][eval_i]]) if multiple else \
                         darts.timeseries.concatenate([series_transformed_split['train'], series-transformed_split['val']])
         #print("testing on", eval_i, backtest_series_transformed)
-        print(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
-        logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
+        if multiple:
+            print(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
+            logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
+
+        print(f"Validating from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
+        logging.info(f"Validating from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
+        print("")
+
         validation_results = backtester(model=model,
                                         series_transformed=backtest_series_transformed,
                                         series=backtest_series,

@@ -448,7 +448,7 @@ def utc_to_local(df, country_code):
 
     df.index.name = "Date"
 
-    print(df)
+    #print(df)
 
 
 @click.command(

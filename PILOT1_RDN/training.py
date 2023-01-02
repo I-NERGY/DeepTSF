@@ -364,6 +364,16 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                             #  "gpus": 1,
                             #  "auto_select_gpus": True,
                              "log_every_n_steps": 10}
+        print("\nTraining on series:\n")
+        logging.info("\nTraining on series:\n")
+        if multiple:
+            for i, series in enumerate(series_transformed['train']):
+                print(f"Timeseries ID: {ts_id_l[i][0]} starting at {series.time_index[0]} and ending at {series.time_index[-1]}")
+                logging.info(f"Timeseries ID: {ts_id_l[i][0]} starting at {series.time_index[0]} and ending at {series.time_index[-1]}")
+        else:
+            print(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
+            logging.info(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
+        print("")
 
         ## choose architecture
         if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:

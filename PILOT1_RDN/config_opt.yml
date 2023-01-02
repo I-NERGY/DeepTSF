@@ -57,8 +57,8 @@ hyperparameters:
 
 #An ta layers bgainoun symantikotero karfwse ta 4
 #kai 19 kai 20
-  NBEATS_val_2020:
-    input_chunk_length: ["range", 24, 480, 24]
+  NBEATS_multiple:
+    input_chunk_length: ["range", 120, 312, 24]
     output_chunk_length: 24
     num_stacks: ["range", 1, 25, 1]
     num_blocks: ["range", 1, 20, 1]
@@ -66,10 +66,11 @@ hyperparameters:
     generic_architecture: True
     layer_widths: 64
     expansion_coefficient_dim: 5
-    n_epochs: 300
+    n_epochs: 1
+    #300
     random_state: 0
     nr_epochs_val_period: 2
-    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+    batch_size: 1024
 
   BlockLSTM_val_2020_:
     model: LSTM
