@@ -704,11 +704,19 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
         #print("TESTING ON", eval_i, series_transformed_split['all'][eval_i])
-        print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
-        logging.info(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
+        if multiple:
+            print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
+            logging.info(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
+
+        backtest_series_transformed = series_transformed_split['all'] if not multiple else series_transformed_split['all'][eval_i],
+        
+        print(f"Testing from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
+        logging.info(f"Testing from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
+
+        print("")
+
         evaluation_results = backtester(model=model,
-                                            series_transformed=series_transformed_split['all']\
-                                                               if not multiple else series_transformed_split['all'][eval_i],
+                                            series_transformed=backtest_series_transformed,
                                             series=series_split['all'] if not multiple else series_split['all'][eval_i],
                                             transformer_ts=scaler if not multiple else scaler[eval_i],
                                             test_start_date=cut_date_test,
