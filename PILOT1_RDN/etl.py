@@ -23,6 +23,7 @@ from pytz import timezone
 import pytz
 import numpy as np
 from tqdm import tqdm
+from pytz import country_timezones
 
 # get environment variables
 from dotenv import load_dotenv
@@ -417,6 +418,37 @@ def impute(ts: pd.DataFrame,
 
     return res, imputed_values
 
+def utc_to_local(df, country_code):
+    # Get dictionary of countries and their timezones
+    timezone_countries = {country: timezone 
+                            for country, timezones in country_timezones.items()
+                            for timezone in timezones}
+    local_timezone = timezone_countries[country_code]
+
+
+
+    # convert dates to given timezone, get timezone info
+    #print(df.index.to_series().tz_localize("UTC"))
+    df['Local Datetime'] = df.index.to_series().dt.tz_localize("UTC").dt.tz_convert(local_timezone)
+
+    # remove timezone information-naive, because next localize() recquires it 
+    # but keep dates to local timezone
+    df['Local Datetime'] = df['Local Datetime'].dt.tz_localize(None)
+
+    # localize based on timezone, ignore daylight saving time, shift forward if ambiguous datetimes
+    df['Local Datetime'] = df['Local Datetime'].dt.tz_localize(local_timezone,
+                                                        ambiguous=np.array([False] * df.shape[0]),
+                                                        nonexistent='shift_forward')
+
+    df['Local Datetime'] = df['Local Datetime'].dt.tz_localize(None)
+
+
+    #set index to local time
+    df.set_index('Local Datetime', inplace=True)
+
+    df.index.name = "Date"
+
+    print(df)
 
 
 @click.command(
@@ -512,9 +544,16 @@ def impute(ts: pd.DataFrame,
     type=str,
     default="true",
     help="Whether to remove outliers")
+@click.option("--convert-to-local-tz",
+    type=str,
+    default="true",
+    help="Whether to convert time")
 
 
-def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, l_interpolation, rmv_outliers):
+
+def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, 
+        country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, 
+        l_interpolation, rmv_outliers, convert_to_local_tz):
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
     # Also check if current transformations are ok
@@ -533,6 +572,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
     ydcutoff = int(ydcutoff)
     l_interpolation = truth_checker(l_interpolation)
     rmv_outliers = truth_checker(rmv_outliers)
+    convert_to_local_tz = truth_checker(convert_to_local_tz)
 
     # Time col check
     time_covs = none_checker(time_covs)
@@ -584,6 +624,22 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
                 # temporal filtering
                 print(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}, Source {source_l[ts_num][comp_num]}...")
                 logging.info(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}, Source {source_l[ts_num][comp_num]}...")
+                if convert_to_local_tz:
+                    print(f"\nConverting to local Timezone...")
+                    logging.info(f"\nConverting to local Timezone...")
+                    utc_to_local(comp, source_code_l[ts_num][comp_num])
+                    try:
+                        #utc_to_local(comp, source_code_l[ts_num][comp_num])
+                        pass
+                    except:
+                        try:
+                            print(f"\nSource Code not a country code, trying country argument...")
+                            logging.info(f"\nSource Code not a country code, trying country argument...")
+                            utc_to_local(comp, country)
+                        except:
+                            print(f"\nError occured, keeping time provided by the file...")
+                            logging.info(f"\nError occured, keeping time provided by the file...")
+
 
                 print(f"\nTemporal filtering...")
                 logging.info(f"\nTemporal filtering...")
