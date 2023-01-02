@@ -475,6 +475,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "day_first": day_first,
                 "resolution": resolution,
                 "eval_method": eval_method,
+                "evaluate_all_ts": evaluate_all_ts,
             }
 
             if "input_chunk_length" in train_run.data.params:
