@@ -595,7 +595,12 @@ def call_shap(n_past_covs: int,
     help="What ID type is speciffied in eval_series: \
     if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at Source Code column ")
 
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_series, cut_date_val, day_first, resolution, eval_method):
+@click.option("--evaluate-all-ts",
+    type=str,
+    default="false",
+    help="Whether to validate the models for all timeseries, and return the mean of their metrics")
+
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_series, cut_date_val, day_first, resolution, eval_method, evaluate_all_ts):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -704,18 +709,47 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
         #print("TESTING ON", eval_i, series_transformed_split['all'][eval_i])
-        if multiple:
-            print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
-            logging.info(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
+        if evaluate_all_ts and multiple:
+            eval_results = {}
+            ts_n = len(ts_id_l)
+            for eval_i in range(ts_n):
+                backtest_series_transformed = series_transformed_split['all'] if not multiple else series_transformed_split['all'][eval_i]
+                #print("testing on", eval_i, backtest_series_transformed)
+                print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
+                logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
+                print(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
+                logging.info(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
+                print("")
+                evaluation_results = backtester(model=model,
+                                            series_transformed=backtest_series_transformed,
+                                            series=series_split['all'] if not multiple else series_split['all'][eval_i],
+                                            transformer_ts=scaler if not multiple else scaler[eval_i],
+                                            test_start_date=cut_date_test,
+                                            forecast_horizon=forecast_horizon,
+                                            stride=stride,
+                                            retrain=retrain,
+                                            future_covariates=future_covariates,
+                                            past_covariates=past_covariates,
+                                            path_to_save_backtest=f"{evaltmpdir}/{ts_id_l[eval_i][0]}")
 
-        backtest_series_transformed = series_transformed_split['all'] if not multiple else series_transformed_split['all'][eval_i],
+                eval_results[eval_i] = list(map(str, ts_id_l[eval_i])) + list(evaluation_results["metrics"].values())
+            eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape"])
+            save_path = f"{evaltmpdir}/evaluation_results_all_ts.csv"
+            eval_results.to_csv(save_path)
+            evaluation_results["metrics"] = eval_results.mean(axis=0, numeric_only=True).to_dict()
+        else:
+            if multiple:
+                print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
+                logging.info(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
+
+            backtest_series_transformed = series_transformed_split['all'] if not multiple else series_transformed_split['all'][eval_i],
         
-        print(f"Testing from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
-        logging.info(f"Testing from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
+            print(f"Testing from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
+            logging.info(f"Testing from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
 
-        print("")
+            print("")
 
-        evaluation_results = backtester(model=model,
+            evaluation_results = backtester(model=model,
                                             series_transformed=backtest_series_transformed,
                                             series=series_split['all'] if not multiple else series_split['all'][eval_i],
                                             transformer_ts=scaler if not multiple else scaler[eval_i],
@@ -726,8 +760,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             future_covariates=future_covariates,
                                             past_covariates=past_covariates,
                                             path_to_save_backtest=evaltmpdir)
-        if analyze_with_shap:
-            data, background = build_shap_dataset(size=size,
+            if analyze_with_shap:
+                data, background = build_shap_dataset(size=size,
                                                 train=series_transformed_split['train'],
                                                 test=series_transformed_split['test']\
                                                      if not multiple else series_transformed_split['test'][eval_i],
@@ -736,8 +770,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                                 future_covs=future_covariates,
                                                 past_covs=past_covariates)
 
-        #print(data, background)
-            call_shap(n_past_covs=0 if past_covariates == None else past_covariates.n_components,
+                #print(data, background)
+                call_shap(n_past_covs=0 if past_covariates == None else past_covariates.n_components,
                     n_future_covs=0 if future_covariates == None else future_covariates.n_components,
                     input_chunk_length=input_chunk_length,
                     output_chunk_length=output_chunk_length,
@@ -748,7 +782,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                     scale=(scaler != None))
         if not multiple:
             series_split['test'].to_csv(
-                os.path.join(evaltmpdir, "test.csv"))
+                    os.path.join(evaltmpdir, "test.csv"))
         else:
             multiple_dfs_to_ts_file(series_split['test'], source_l, source_code_l, id_l, ts_id_l, os.path.join(evaltmpdir, "test.csv"))
 
