@@ -251,7 +251,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     default="false",
     help="Whether to train on multiple timeseries")
 
-@click.option("--eval-code",
+@click.option("--eval-series",
     type=str,
     default="Portugal",
     help="On which country to run the backtesting. Only for multiple timeseries")
@@ -281,13 +281,51 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
         default="4",
         help="Number of threads that will be used by pytorch")
 
+@click.option("--eval-method",
+    type=click.Choice(
+        ['ts_ID',
+         'ts_code']),
+    default="ts_ID",
+    help="What ID type is speciffied in eval_series: \
+    if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at Source Code column ")
+
+@click.option("--l-interpolation",
+    type=str,
+    default="false",
+    help="Whether to only use linear interpolation")
+
+@click.option("--rmv-outliers",
+    type=str,
+    default="true",
+    help="Whether to remove outliers")
+
+@click.option("--loss-function",
+    type=click.Choice(
+        ["mape",
+         "smape",
+         "mase", 
+         "mae",
+         "rmse"]),
+    default="mape",
+    help="Loss function to use for optuna")
+
+@click.option("--evaluate-all-ts",
+    type=str,
+    default="false",
+    help="Whether to validate the models for all timeseries, and return the mean of their metrics")
+
+@click.option("--convert-to-local-tz",
+    type=str,
+    default="true",
+    help="Whether to convert time")
 
 
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-             multiple, eval_code, n_trials, opt_test, from_mongo, mongo_name, num_workers):
+             multiple, eval_series, n_trials, opt_test, from_mongo, mongo_name, num_workers, eval_method,
+             l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -329,7 +367,10 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                       "wncutoff": wncutoff,
                       "ycutoff": ycutoff,
                       "ydcutoff": ydcutoff,
-                      "multiple": multiple}
+                      "multiple": multiple,
+                      "l_interpolation": l_interpolation,
+                      "rmv_outliers": rmv_outliers,
+                      "convert_to_local_tz": convert_to_local_tz}
 
         etl_run = _get_or_run("etl", etl_params, git_commit, ignore_previous_runs)
 
@@ -358,10 +399,13 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "scale": scale,
                 "scale_covs": scale_covs,
                 "multiple": multiple,
-                "eval_code": eval_code,
+                "eval_series": eval_series,
                 "n_trials": n_trials,
                 "num_workers": num_workers,
                 "day_first": day_first,
+                "eval_method": eval_method,
+                "loss_function": loss_function,
+                "evaluate_all_ts": evaluate_all_ts,
             }
             optuna_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
 
@@ -427,9 +471,10 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "size" : shap_data_size,
                 "analyze_with_shap" : analyze_with_shap,
                 "multiple": multiple,
-                "eval_code": eval_code,
+                "eval_series": eval_series,
                 "day_first": day_first,
                 "resolution": resolution,
+                "eval_method": eval_method,
             }
 
             if "input_chunk_length" in train_run.data.params:
