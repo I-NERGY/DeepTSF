@@ -641,6 +641,13 @@ hyperparameters:
     future_covs_as_tuple: false
     random_state: 0
 
+  lgbm_7d_5_mins:
+    lags: 2016
+    lags_past_covariates: null
+    lags_future_covariates: None
+    future_covs_as_tuple: false
+    random_state: 0
+
   lgbm_3d:
     lags: 288
     lags_past_covariates: null

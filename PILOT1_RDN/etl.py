@@ -588,13 +588,13 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     if multiple:
         ts_list, source_l, source_code_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, resolution)
     else:
-        ts_list = [pd.read_csv(series_csv,
+        ts_list = [[pd.read_csv(series_csv,
                          delimiter=',',
                          header=0,
                          index_col=0,
                          parse_dates=True,
-                         dayfirst=day_first)]
-        source_l = [country]
+                         dayfirst=day_first)]]
+        source_l, source_code_l, id_l, ts_id_l = [[country]], [[country]], [[country]], [[country]]
 
     # Year range handling
     if none_checker(year_range) is None:
@@ -627,10 +627,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 if convert_to_local_tz:
                     print(f"\nConverting to local Timezone...")
                     logging.info(f"\nConverting to local Timezone...")
-                    utc_to_local(comp, source_code_l[ts_num][comp_num])
                     try:
-                        #utc_to_local(comp, source_code_l[ts_num][comp_num])
-                        pass
+                        utc_to_local(comp, source_code_l[ts_num][comp_num])
                     except:
                         try:
                             print(f"\nSource Code not a country code, trying country argument...")
