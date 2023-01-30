@@ -289,7 +289,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
                         covariate_l[-1] = covariate_l[-1].stack(covariates)
             covariates = covariate_l
         else:
-            source_code_l, source_l, id_l, ts_id_l = [], [], [], []
+            source_code_l, source_l, id_l, ts_id_l = [[]], [[]], [[]], [[]]
             covariates = darts.TimeSeries.from_csv(
                 local_path, time_col=time_col,
                 fill_missing_dates=True,

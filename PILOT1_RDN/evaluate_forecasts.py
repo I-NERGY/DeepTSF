@@ -742,8 +742,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                 print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
                 logging.info(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
 
-            backtest_series_transformed = series_transformed_split['all'] if not multiple else series_transformed_split['all'][eval_i],
-        
+            backtest_series_transformed = series_transformed_split['all'] if not multiple else series_transformed_split['all'][eval_i]
             print(f"Testing from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
             logging.info(f"Testing from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
 

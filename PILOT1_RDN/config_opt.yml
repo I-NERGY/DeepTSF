@@ -66,7 +66,21 @@ hyperparameters:
     generic_architecture: True
     layer_widths: 64
     expansion_coefficient_dim: 5
-    n_epochs: 300
+    n_epochs: 200
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  NBEATS_testt:
+    input_chunk_length: ["range", 120, 312, 24]
+    output_chunk_length: 24
+    num_stacks: ["range", 1, 10, 1]
+    num_blocks: ["range", 1, 6, 1]
+    num_layers: ["range", 1, 10, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 2
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: 1024

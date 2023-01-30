@@ -748,7 +748,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
             backtest_series = darts.timeseries.concatenate([series_split['train'][eval_i], series_split['val'][eval_i]]) if multiple else \
                             darts.timeseries.concatenate([series_split['train'], series_split['val']])
             backtest_series_transformed = darts.timeseries.concatenate([series_transformed_split['train'][eval_i], series_transformed_split['val'][eval_i]]) if multiple else \
-                            darts.timeseries.concatenate([series_transformed_split['train'], series-transformed_split['val']])
+                            darts.timeseries.concatenate([series_transformed_split['train'], series_transformed_split['val']])
             #print("testing on", eval_i, backtest_series_transformed)
             print(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
             logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
@@ -798,7 +798,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
         backtest_series = darts.timeseries.concatenate([series_split['train'][eval_i], series_split['val'][eval_i]]) if multiple else \
                         darts.timeseries.concatenate([series_split['train'], series_split['val']])
         backtest_series_transformed = darts.timeseries.concatenate([series_transformed_split['train'][eval_i], series_transformed_split['val'][eval_i]]) if multiple else \
-                        darts.timeseries.concatenate([series_transformed_split['train'], series-transformed_split['val']])
+                        darts.timeseries.concatenate([series_transformed_split['train'], series_transformed_split['val']])
         #print("testing on", eval_i, backtest_series_transformed)
         if multiple:
             print(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
