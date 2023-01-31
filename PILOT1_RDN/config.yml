@@ -1,5 +1,35 @@
 hyperparameters:
+  nbeats_test:
+    input_chunk_length: 24
+    output_chunk_length: 1
+    num_stacks: 10
+    num_blocks: 1
+    num_layers: 3
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 10
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 16
 
+  lstm0_1:
+     model: LSTM
+     n_rnn_layers: 1
+     hidden_dim:  128
+     n_epochs: 10
+     input_chunk_length: 24
+     training_length: 24
+     random_state: 0
+     nr_epochs_val_period: 2
+     dropout: 0
+     learning_rate: 0.0008
+     likelihood: Gaussian
+     batch_size: 32
+
+
+  arima:
+    
   test:
     model: LSTM
     n_rnn_layers: 1
@@ -153,17 +183,46 @@ hyperparameters:
   #   # likelihood: Gaussian
   #   batch_size: 1024
 
+  transformer_test:
+    input_chunk_length: 48
+    output_chunk_length: 1
+    d_model: 64
+    nhead: 4
+    num_encoder_layers: 3
+    num_decoder_layers: 3
+    dim_feedforward: 512
+    dropout: 0.1 
+    activation: 'relu'
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+    
+  nhits_test:
+    input_chunk_length: 48
+    output_chunk_length: 1
+    num_stacks: 3
+    num_blocks: 3
+    num_layers: 3
+    layer_widths: 64
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+
+# Seasonal naive models 
   naive_d:
     days_seasonality: 1
 
   naive_w:
     days_seasonality: 7
 
+# LSTM
   lstm_example:
     model: LSTM
     n_rnn_layers: 2
     hidden_dim:  64 #128
-    n_epochs: 100
+    n_epochs: 1
     input_chunk_length: 672
     training_length: 672
     random_state: 0
@@ -590,6 +649,13 @@ hyperparameters:
     future_covs_as_tuple: false
     random_state: 0
 
+  lgbm_7d_5_mins:
+    lags: 2016
+    lags_past_covariates: null
+    lags_future_covariates: None
+    future_covs_as_tuple: false
+    random_state: 0
+  
   lgbm_288_covs_1_1:
     lags: 288
     lags_past_covariates: null

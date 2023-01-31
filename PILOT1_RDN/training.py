@@ -3,7 +3,7 @@ from utils import none_checker, ConfigParser, download_online_file, load_local_c
 from preprocessing import scale_covariates, split_dataset
 
 # the following are used through eval(darts_model + 'Model')
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
 # from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.gradient_boosted_model import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
@@ -91,6 +91,8 @@ my_stopper = EarlyStopping(
 @click.option("--darts-model",
               type=click.Choice(
                   ['NBEATS',
+                   'Transformer',
+                   'NHiTS',
                    'TCN',
                    'RNN',
                    'BlockRNN',
@@ -143,21 +145,35 @@ my_stopper = EarlyStopping(
     default="false",
     help="Whether to train on multiple timeseries")
 
-@click.option("--opt-test",
-    type=str,
-    default="false",
-    help="Whether we are running optuna")
-
 @click.option("--training-dict",
         type=str,
         default="None",
         help="In case of an optuna run, the yaml with the dictionary with the current model's hyperparameters")
 
+@click.option("--num-workers",
+        type=str,
+        default="4",
+        help="Number of threads that will be used by pytorch")
+        
+@click.option("--day-first",
+    type=str,
+    default="true",
+    help="Whether the date has the day before the month")
+@click.option("--resolution",
+    default="15",
+    type=str,
+    help="The resolution of the dataset in minutes."
+)
+
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          opt_test, training_dict):
+          training_dict, num_workers, day_first, resolution):
+
+    num_workers = int(num_workers)
+    #print(num_workers)
+    torch.set_num_threads(num_workers)
 
     # Argument preprocessing
 
@@ -170,13 +186,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
     multiple = truth_checker(multiple)
 
-    opt_test = truth_checker(opt_test)
 
     ## hyperparameters
-    if opt_test:
-        hyperparameters = load_yaml_as_dict(training_dict)
-    else:
-        hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
+    hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
 
     ## device
     #print("param", hyperparameters)
@@ -208,7 +220,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
     ## model
     # TODO: Take care of future covariates (RNN, ...) / past covariates (BlockRNN, NBEATS, ...)
-    if darts_model in ["NBEATS", "BlockRNN", "TCN"]:
+    if darts_model in ["NBEATS", "BlockRNN", "TCN", "NHiTS", "Transformer"]:
         """They do not accept future covariates as they predict blocks all together.
         They won't use initial forecasted values to predict the rest of the block
         So they won't need to additionally feed future covariates during the recurrent process.
@@ -243,24 +255,30 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         ######################
         # Load series and covariates datasets
         time_col = "Date"
-        series, country_l, country_code_l = load_local_csv_as_darts_timeseries(
+        series, source_l, source_code_l, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
                 local_path=series_csv,
                 name='series',
                 time_col=time_col,
                 last_date=test_end_date,
-                multiple=multiple)
+                multiple=multiple,
+                day_first=day_first,
+                resolution=resolution)
         if future_covariates is not None:
-            future_covariates, _, _ = load_local_csv_as_darts_timeseries(
+            future_covariates, _, _, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
-                last_date=test_end_date)
+                last_date=test_end_date,
+                day_first=day_first,
+                resolution=resolution)
         if past_covariates is not None:
-            past_covariates, _, _ = load_local_csv_as_darts_timeseries(
+            past_covariates, _, _, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
-                last_date=test_end_date)
+                last_date=test_end_date,
+                day_first=day_first,
+                resolution=resolution)
 
         print("\nCreating local folders...")
         logging.info("\nCreating local folders...")
@@ -275,7 +293,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             f"\nTrain / Test split: Validation set starts: {cut_date_val} - Test set starts: {cut_date_test} - Test set end: {test_end_date}")
         logging.info(
              f"\nTrain / Test split: Validation set starts: {cut_date_val} - Test set starts: {cut_date_test} - Test set end: {test_end_date}")
-
+             
         ## series
         series_split = split_dataset(
             series,
@@ -286,9 +304,10 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             name='series',
             conf_file_name='split_info.yml',
             multiple=multiple,
-            country_l=country_l,
-            country_code_l=country_code_l,
-            )
+            source_l=source_l,
+            source_code_l=source_code_l,
+            id_l=id_l,
+            ts_id_l=ts_id_l)
         ## future covariates
         future_covariates_split = split_dataset(
             future_covariates,
@@ -320,8 +339,10 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             filename_suffix="series_transformed.csv",
             scale=scale,
             multiple=multiple,
-            country_l=country_l,
-            country_code_l=country_code_l,
+            source_l=source_l,
+            source_code_l=source_code_l,
+            id_l=id_l,
+            ts_id_l=ts_id_l
             )
         if scale:
             pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
@@ -349,11 +370,20 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                             #  "gpus": 1,
                             #  "auto_select_gpus": True,
                              "log_every_n_steps": 10}
+        print("\nTraining on series:\n")
+        logging.info("\nTraining on series:\n")
+        if multiple:
+            for i, series in enumerate(series_transformed['train']):
+                print(f"Timeseries ID: {ts_id_l[i][0]} starting at {series.time_index[0]} and ending at {series.time_index[-1]}")
+                logging.info(f"Timeseries ID: {ts_id_l[i][0]} starting at {series.time_index[0]} and ending at {series.time_index[-1]}")
+        else:
+            print(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
+            logging.info(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
+        print("")
 
         ## choose architecture
-        if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN']:
+        if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
             print(f'\nTrained Model: {darts_model}Model')
-
             hparams_to_log = hyperparameters
             if 'learning_rate' in hyperparameters:
                 hyperparameters['optimizer_kwargs'] = {'lr': hyperparameters['learning_rate']}
@@ -361,7 +391,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             if 'likelihood' in hyperparameters:
                 hyperparameters['likelihood'] = eval(hyperparameters['likelihood']+"Likelihood"+"()")
-
             model = eval(darts_model + 'Model')(
                 save_checkpoints=True,
                 log_tensorboard=False,
@@ -371,8 +400,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             )
             ## fit model
             # try:
-            # print(series_transformed['train'])
-            # print(series_transformed['val'])
+            #print("TRAIN", series_transformed['train'])
+            #print("VAL", series_transformed['val'])
             model.fit(series_transformed['train'],
                 future_covariates=future_covariates_transformed['train'],
                 past_covariates=past_covariates_transformed['train'],
@@ -467,7 +496,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 model_info_dict,
                 outfile,
                 default_flow_style=False)
-        shutil.move('model_info.yml', target_dir)
+
+        shutil.move('model_info.yml', logs_path)
 
         ## Rename logs path to get rid of run name
         if model_type == 'pkl':
