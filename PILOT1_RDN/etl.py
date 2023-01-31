@@ -617,7 +617,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
     with mlflow.start_run(run_name='etl', nested=True) as mlrun:
         res_ = []
-        #print("ETL MULTIPLE", len(ts_list))
         for ts_num, ts in enumerate(ts_list):
             res_.append([])
             for comp_num, comp in enumerate(ts):
@@ -681,15 +680,15 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 logging.info("\nPerfrorming Imputation of the Dataset...")
                 #print(comp_res)
                 comp_res, imputed_values = impute(ts=comp_res,
-                                            holidays=country_holidays,
-                                            max_thr=max_thr,
-                                            a=a,
-                                            wncutoff=wncutoff,
-                                            ycutoff=ycutoff,
-                                            ydcutoff=ydcutoff,
-                                            resolution=resolution,
-                                            name=source_l[ts_num][comp_num],
-                                            l_interpolation=l_interpolation)
+                                                  holidays=country_holidays,
+                                                  max_thr=max_thr,
+                                                  a=a,
+                                                  wncutoff=wncutoff,
+                                                  ycutoff=ycutoff,
+                                                  ydcutoff=ydcutoff,
+                                                  resolution=resolution,
+                                                  name=source_l[ts_num][comp_num],
+                                                  l_interpolation=l_interpolation)
 
                 print("\nCreating darts data frame...")
                 logging.info("\nCreating darts data frame...")

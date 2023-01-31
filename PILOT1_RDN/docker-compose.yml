@@ -1,0 +1,14 @@
+version: '3.0'
+services:
+  backend:
+    container_name: load-forecasting-pipeline
+    image: load-forecasting-pipeline
+    build: .
+    restart: always
+    ports:
+      - '8080:8080'
+    expose:
+      - '8080'
+    stdin_open: true
+    env_file:
+      - .env

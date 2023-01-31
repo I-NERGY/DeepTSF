@@ -483,6 +483,11 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
 
             if "output_chunk_length" in train_run.data.params:
                 eval_params["output_chunk_length"] = train_run.data.params["output_chunk_length"]
+            
+            # Naive models require retrain=True
+            if "naive" in [train_run.data.params["darts_model"].lower()]:
+                eval_params["retrain"] = True
+                print("\Warning: Switching retrain flag to True as Naive models require...\n")
 
 
             eval_run = _get_or_run("eval", eval_params, git_commit)

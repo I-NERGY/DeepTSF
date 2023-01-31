@@ -98,7 +98,6 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale
                     transformer.transform(covariates, n_jobs=-1)
                 transformers = transformer
             else:
-                #print("baaad")
                 transformers = []
                 covariates_train_transformed = []
                 covariates_val_transformed = []
