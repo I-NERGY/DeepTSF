@@ -131,6 +131,60 @@ hyperparameters:
     nr_epochs_val_period: 2
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
 
+  NBEATS_15min:
+    input_chunk_length: ["range", 96, 1344, 96]
+    output_chunk_length: 96
+    num_stacks: ["range", 1, 25, 1]
+    num_blocks: ["range", 1, 20, 1]
+    num_layers: ["range", 1, 10, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 500
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: ["list", 256, 512, 1024]
+
+  NHiTS_15min:
+    input_chunk_length: ["range", 96, 1344, 96]
+    output_chunk_length: 96
+    num_stacks: ["range", 1, 25, 1]
+    num_blocks: ["range", 1, 20, 1]
+    num_layers: ["range", 1, 10, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 500
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: ["list", 256, 512, 1024]
+
+  TCN_15min:
+    output_chunk_length: 96
+    weight_norm: True
+    dropout: 0
+    nr_epochs_val_period: 2
+    n_epochs: 500
+    random_state: 0
+    input_chunk_length: ["range", 192, 1344, 96]
+    kernel_size: ["range", 2, 6, 1]
+    num_filters: ["range", 2, 12, 1]
+    dilation_base: ["list", 2, 4, 8, 16, 32]
+    batch_size: ["list", 256, 512, 1024]
+
+  BlockLSTM_15min:
+    model: LSTM
+    n_rnn_layers: ["range", 1, 4, 1]
+    input_chunk_length: ["range", 96, 1344, 96]
+    output_chunk_length: 96
+    hidden_size:  ["range", 96, 960, 96] 
+    n_epochs: 500
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    batch_size: ["list", 256, 512, 1024]
+
   NBEATS_val_2020_17_23:
     input_chunk_length: ["range", 408, 552, 24]
     output_chunk_length: 24
