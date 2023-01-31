@@ -90,7 +90,7 @@ hyperparameters:
     n_rnn_layers: ["range", 1, 4, 1] #kospe an yparxei thema
     input_chunk_length: ["range", 24, 480, 24]
     output_chunk_length: 24
-    hidden_size:  ["range", 24, 240, 24] #hmerisio???
+    hidden_dim:  ["range", 24, 240, 24] #hmerisio???
     n_epochs: 2
     random_state: 0
     nr_epochs_val_period: 2
@@ -177,7 +177,7 @@ hyperparameters:
     n_rnn_layers: ["range", 1, 4, 1]
     input_chunk_length: ["range", 96, 1344, 96]
     output_chunk_length: 96
-    hidden_size:  ["range", 96, 960, 96] 
+    hidden_dim:  ["range", 96, 960, 96] 
     n_epochs: 500
     random_state: 0
     nr_epochs_val_period: 2
