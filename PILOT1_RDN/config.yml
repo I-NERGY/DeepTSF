@@ -210,6 +210,14 @@ hyperparameters:
     nr_epochs_val_period: 2
     batch_size: 32
 
+# Seasonal naive models 
+  naive_d:
+    days_seasonality: 1
+
+  naive_w:
+    days_seasonality: 7
+
+# LSTM
   lstm_example:
     model: LSTM
     n_rnn_layers: 2
@@ -613,28 +621,28 @@ hyperparameters:
     nr_epochs_val_period: 2
     batch_size: 1024
 
-  lgbm_4_d_w:
+  lgbm_1_2_3_4_96_672_covs_1_1:
     lags: [-1, -2, -3, -4, -96, -672]
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  lgbm_4d:
+  lgbm_384_covs_1_1:
     lags: 384
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  lgbm_7d_none:
+  lgbm_672_covs_1_1:
     lags: 672
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  lgbm_7d:
+  lgbm_672_nocovs:
     lags: 672
     lags_past_covariates: null
     lags_future_covariates: None
@@ -647,57 +655,57 @@ hyperparameters:
     lags_future_covariates: None
     future_covs_as_tuple: false
     random_state: 0
-
-  lgbm_3d:
+  
+  lgbm_288_covs_1_1:
     lags: 288
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  lgbm_w:
+  lgbm_672_covs_1_1:
     lags: 672
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  lgbm_d:
+  lgbm_96_covs_1_1:
     lags: 96
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  rf_4_d_w:
+  rf_1_2_3_4_96_672_covs_1_1:
     lags: [-1, -2, -3, -4, -96, -672]
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  rf_w:
+  rf_672_covs_1_1:
     lags: 672
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  rf_4d:
+  rf_384_covs_1_1:
     lags: 384
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  rf_3d:
+  rf_288_covs_1_1:
     lags: 288
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  rf_d:
+  rf_96_covs_1_1:
     lags: 96
     lags_past_covariates: null
     lags_future_covariates: [1, 1]

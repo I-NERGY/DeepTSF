@@ -19,6 +19,7 @@ import pickle
 import tempfile
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import shutil
+import pandas as pd
 
 # Inference requirements to be stored with the darts flavor !!
 from sys import version_info
@@ -97,7 +98,8 @@ my_stopper = EarlyStopping(
                    'BlockRNN',
                    'TFT',
                    'LightGBM',
-                   'RandomForest']),
+                   'RandomForest',
+                   'Naive']),
               multiple=False,
               default='RNN',
               help="The base architecture of the model to be trained"
@@ -237,7 +239,12 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         past_covs_csv = None
         # TODO: when actual weather comes extend it, now the stage only accepts future covariates as argument.
     #elif: extend for other models!! (time_covariates are always future covariates, but some models can't handle them as so)
-
+    
+    elif darts_model=='Naive':
+        past_covs_csv = None
+        future_covs_csv = None
+        scale = False
+    
     future_covariates = none_checker(future_covs_csv)
     past_covariates = none_checker(past_covs_csv)
 
@@ -286,8 +293,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             f"\nTrain / Test split: Validation set starts: {cut_date_val} - Test set starts: {cut_date_test} - Test set end: {test_end_date}")
         logging.info(
              f"\nTrain / Test split: Validation set starts: {cut_date_val} - Test set starts: {cut_date_test} - Test set end: {test_end_date}")
-
-        #print(series)
+             
         ## series
         series_split = split_dataset(
             series,
@@ -377,6 +383,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
         ## choose architecture
         if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
+            print(f'\nTrained Model: {darts_model}Model')
             hparams_to_log = hyperparameters
             if 'learning_rate' in hyperparameters:
                 hyperparameters['optimizer_kwargs'] = {'lr': hyperparameters['learning_rate']}
@@ -406,9 +413,23 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             model_type = "pl"
             # TODO: Implement this step without tensorboard (fix utils.py: get_training_progress_by_tag)
             # log_curves(tensorboard_event_folder=f"./darts_logs/{mlrun.info.run_id}/logs", output_dir='training_curves')
+        
+        # Naive Models    
+        elif darts_model == 'Naive':
+            # Identify resolution
+            daily_timesteps = int(24 * 60 // (pd.to_timedelta(series_transformed['train'].time_index[1]-series_transformed['train'].time_index[0]).seconds//60))
+            seasonality_timesteps = daily_timesteps * int(hyperparameters['days_seasonality'])
+            print(f'\nTrained Model: NaiveSeasonal, with seasonality (in timesteps): {seasonality_timesteps}') 
+
+            hparams_to_log = hyperparameters
+
+            model = NaiveSeasonal(K = seasonality_timesteps)
+            model.fit(series_transformed['train'])
+            model_type = 'pkl'
 
         # LightGBM and RandomForest
         elif darts_model in ['LightGBM', 'RandomForest']:
+            print(f'\nTrained Model: {darts_model}') 
 
             if "lags_future_covariates" in hyperparameters:
                 if truth_checker(str(hyperparameters["future_covs_as_tuple"])):
@@ -440,16 +461,14 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 # val_future_covariates=future_covariates_transformed['val'],
                 # val_past_covariates=past_covariates_transformed['val']
                 )
-
-            print('\nStoring the model as pkl to MLflow...')
-            logging.info('\nStoring the model as pkl to MLflow...')
-            forest_dir = tempfile.mkdtemp()
-
-            pickle.dump(model, open(
-                f"{forest_dir}/_model.pkl", "wb"))
-
-            logs_path = forest_dir
             model_type = "pkl"
+        
+        if model_type == 'pkl':
+            model_dir = tempfile.mkdtemp()
+            pickle.dump(model, open(
+                f"{model_dir}/_model.pkl", "wb"))
+            logs_path = model_dir
+            
 
         ######################
         # Log hyperparameters
@@ -457,10 +476,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
         ######################
         # Log artifacts
+        target_dir = logs_path
+        
         ## Move scaler in logs path
         if scale:
             source_dir = scalers_dir
-            target_dir = logs_path
             file_names = os.listdir(source_dir)
             for file_name in file_names:
                 shutil.move(os.path.join(source_dir, file_name),
@@ -482,7 +502,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         ## Rename logs path to get rid of run name
         if model_type == 'pkl':
             logs_path_new = logs_path.replace(
-            forest_dir.split('/')[-1], mlrun.info.run_id)
+            model_dir.split('/')[-1], mlrun.info.run_id)
             os.rename(logs_path, logs_path_new)
         elif model_type == 'pl':
             logs_path_new = logs_path

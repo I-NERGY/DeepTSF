@@ -541,7 +541,8 @@ def call_shap(n_past_covs: int,
               default="None")
 @click.option("--retrain",
               type=str,
-              default="false")
+              default="false",
+              help="Whether to retrain model during backtesting")
 
 @click.option("--input-chunk-length",
              type=str,
