@@ -22,6 +22,8 @@ from calendar import isleap
 from pytz import timezone
 import pytz
 import numpy as np
+from tqdm import tqdm
+from pytz import country_timezones
 
 # get environment variables
 from dotenv import load_dotenv
@@ -184,6 +186,20 @@ def get_time_covariates(series, country_code='PT'):
 
     return covariates
 
+def cut_extra_samples(ts_list):
+    print("\nMaking all components of each ts start and end on the same timestep...")
+    logging.info("\nnMaking all components of each ts start and end on the same timestep...")
+    ts_list_cut = []
+
+    for i, ts in enumerate(ts_list):
+        earliest_end = min(comp.index[-1] for comp in ts)
+        latest_beginning = max(comp.index[0] for comp in ts)
+
+        print(f"\nMaking series {i} \ {len(ts_list) - 1} start on {latest_beginning} and end on {earliest_end}...")
+        logging.info(f"\nMaking series {i} \ {len(ts_list) - 1} start on {latest_beginning} and end on {earliest_end}...")
+        ts_list_cut.append(list(comp[(comp.index <= earliest_end) & (comp.index >= latest_beginning)] for comp in ts))
+    return ts_list_cut
+
 def remove_outliers(ts: pd.DataFrame,
                     name: str = "Portugal",
                     std_dev: float = 4.5,
@@ -192,7 +208,7 @@ def remove_outliers(ts: pd.DataFrame,
     """
     Reads the input dataframe and replaces its outliers with NaNs by removing
     values that are more than std_dev standard deviations away from their 1 month
-    mean or both. This function works with datasets that have NaN values.
+    mean. This function works with datasets that have NaN values.
 
     Parameters
     ----------
@@ -236,25 +252,27 @@ def remove_outliers(ts: pd.DataFrame,
     ax.plot(ts.index, ts['Load'], color='black', label = f'Load of {name}')
     ax.scatter(a.index, a['Load'], color='blue', label = 'Removed Outliers')
     plt.legend()
-    mlflow.log_figure(fig, 'removed_outliers.png')
+    mlflow.log_figure(fig, f'outlier_detection_results/removed_outliers_{name}.png')
 
     res = ts.drop(index=a.index)
     fig, ax = plt.subplots(figsize=(8,5))
-    ax.plot(res.index, res['Load'], color='black', label = f'Load of {name}')
+    ax.plot(res.index, res['Load'], color='black', label = f'Load of {name} after Outlier Detection')
     plt.legend()
-    mlflow.log_figure(fig, 'new_series.png')
+    mlflow.log_figure(fig, f'outlier_detection_results/outlier_free_series_{name}.png')
 
     return res.asfreq(resolution+'min'), a
 
 def impute(ts: pd.DataFrame,
            holidays,
-           max_thr: int = 48,
+           max_thr: int = -1,
            a: float = 0.3,
            wncutoff: float = 0.000694,
            ycutoff: int = 3,
            ydcutoff: int = 30,
            resolution: str = "15",
-           debug: bool = False):
+           debug: bool = False,
+           name: str = "Portugal",
+           l_interpolation: bool = False):
     """
     Reads the input dataframe and imputes the timeseries using a weighted average of historical data
     and simple interpolation. The weights of each method are exponentially dependent on the distance
@@ -271,7 +289,9 @@ def impute(ts: pd.DataFrame,
         The holidays of the country this timeseries belongs to
     max_thr
         If there is a consecutive subseries of NaNs longer than max_thr,
-        then it is not imputed and returned with NaN values
+        then it is not imputed and returned with NaN values. If -1, every 
+        value will be imputed regardless of how long the consecutive 
+        subseries of NaNs it belongs to is
     a
         The weight that shows how quickly simple interpolation's weight decreases as
         the distacne to the nearest non NaN value increases
@@ -288,6 +308,8 @@ def impute(ts: pd.DataFrame,
         The resolution of the dataset
     debug
         If true it will print helpfull intermediate results
+    l_interpolation
+        Whether to only use linear interpolation 
 
     Returns
     -------
@@ -295,98 +317,138 @@ def impute(ts: pd.DataFrame,
         The imputed dataframe
     """
 
-    #Returning calendar of the country ts belongs to
-    calendar = create_calendar(ts, int(resolution), holidays, timezone("UTC"))
-    calendar.index = calendar["datetime"]
+    if max_thr == -1: max_thr = len(ts)
+    if l_interpolation: 
+        res = ts.interpolate(inplace=False)
+        imputed_values = res[ts["Load"].isnull()]
+    else:
+        #Returning calendar of the country ts belongs to
+        calendar = create_calendar(ts, int(resolution), holidays, timezone("UTC"))
+        calendar.index = calendar["datetime"]
 
-    imputed_values = ts[ts["Load"].isnull()]
+        imputed_values = ts[ts["Load"].isnull()]
 
-    #null_dates: Series with all null dates to be imputed
-    null_dates = imputed_values.index
+        #null_dates: Series with all null dates to be imputed
+        null_dates = imputed_values.index
 
-
-    if debug:
-        for date in null_dates:
-            print(date)
-
-    #isnull: An array which stores whether each value is null or not
-    isnull = ts["Load"].isnull().values
-
-    #d: List with distances to the nearest non null value
-    d = [len(null_dates) for _ in range(len(null_dates))]
-
-    #leave_nan: List with all the values to be left NaN because there are
-    #more that max_thr consecutive ones
-    leave_nan = [False for _ in range(len(null_dates))]
-
-    #Calculating the distances to the nearest non null value that is earlier in the series
-    count = 1
-    for i in range(len(null_dates)):
-        d[i] = min(d[i], count)
-        if i < len(null_dates) - 1:
-            if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(minutes=int(resolution)):
-                count += 1
-            else:
-                count = 1
-
-    #Calculating the distances to the nearest non null value that is later in the series
-    count = 1
-    for i in range(len(null_dates)-1, -1, -1):
-        d[i] = min(d[i], count)
-        if i > 0:
-            if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(minutes=int(resolution)):
-                count += 1
-            else:
-                count = 1
-
-    #If d[i] >= max_thr // 2, that means we have a consecutive subseries of NaNs longer than max_thr.
-    #We mark this subseries so that it does not get imputed
-    for i in range(len(null_dates)):
-        if d[i] == max_thr // 2:
-            for ii in range(max(0, i - max_thr // 2 + 1), min(i + max_thr // 2, len(null_dates))):
-                leave_nan[ii] = True
-        elif d[i] > max_thr // 2:
-            leave_nan[i] = True
-
-    #This is the interpolated version of the time series
-    ts_interpolatied = ts.interpolate(inplace=False)
-
-    #We copy the time series so that we don't change it while iterating
-    res = ts.copy()
-
-    for i, null_date in enumerate(null_dates):
-        if leave_nan[i]: continue
-
-        #WN: Day of the week + hour/24 + minute/(24*60). Holidays are handled as
-        #either Saturdays(if the real day is a Friday) or Sundays(in every other case)
-        currWN = calendar.loc[null_date]['WN']
-        currYN = calendar.loc[null_date]['yearday']
-        currY = calendar.loc[null_date]['year']
-
-        #weight of interpolated series, decreases as distance to nearest known value increases
-        w = np.e ** (-a * d[i])
-
-        #Historical value is calculated as the mean of values that have at most wncutoff distance to the current null value's
-        #WN, ycutoff distance to its year, and ydcutoff distance to its yearday
-        historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
-                                    (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
-                                    (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
-                                    ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Load"]
-
-        if debug: print("~~~~~~Date~~~~~~~",null_date, "~~~~~~~Dates summed~~~~~~~~~~",historical,sep="\n")
-
-        historical = historical.mean()
-
-        #imputed value is calculated as a wheighted average of the histrorical value and the value from intrepolation
-        res.loc[null_date] = w * ts_interpolatied.loc[null_date] + (1 - w) * historical
-
-        imputed_values.loc[null_date] = res.loc[null_date]
 
         if debug:
-            print(res.loc[null_date])
+            for date in null_dates:
+                print(date)
+
+        #isnull: An array which stores whether each value is null or not
+        isnull = ts["Load"].isnull().values
+
+        #d: List with distances to the nearest non null value
+        d = [len(null_dates) for _ in range(len(null_dates))]
+
+        #leave_nan: List with all the values to be left NaN because there are
+        #more that max_thr consecutive ones
+        leave_nan = [False for _ in range(len(null_dates))]
+
+        #Calculating the distances to the nearest non null value that is earlier in the series
+        count = 1
+        for i in range(len(null_dates)):
+            d[i] = min(d[i], count)
+            if i < len(null_dates) - 1:
+                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(minutes=int(resolution)):
+                    count += 1
+                else:
+                    count = 1
+
+        #Calculating the distances to the nearest non null value that is later in the series
+        count = 1
+        for i in range(len(null_dates)-1, -1, -1):
+            d[i] = min(d[i], count)
+            if i > 0:
+                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(minutes=int(resolution)):
+                    count += 1
+                else:
+                    count = 1
+
+        #If d[i] >= max_thr // 2, that means we have a consecutive subseries of NaNs longer than max_thr.
+        #We mark this subseries so that it does not get imputed
+        for i in range(len(null_dates)):
+            if d[i] == max_thr // 2:
+                for ii in range(max(0, i - max_thr // 2 + 1), min(i + max_thr // 2, len(null_dates))):
+                    leave_nan[ii] = True
+            elif d[i] > max_thr // 2:
+                leave_nan[i] = True
+
+        #This is the interpolated version of the time series
+        ts_interpolatied = ts.interpolate(inplace=False)
+
+        #We copy the time series so that we don't change it while iterating
+        res = ts.copy()
+        for i, null_date in tqdm(list(enumerate(null_dates))):
+            if leave_nan[i]: continue
+
+            #WN: Day of the week + hour/24 + minute/(24*60). Holidays are handled as
+            #either Saturdays(if the real day is a Friday) or Sundays(in every other case)
+            currWN = calendar.loc[null_date]['WN']
+            currYN = calendar.loc[null_date]['yearday']
+            currY = calendar.loc[null_date]['year']
+
+            #weight of interpolated series, decreases as distance to nearest known value increases
+            w = np.e ** (-a * d[i])
+
+            #Historical value is calculated as the mean of values that have at most wncutoff distance to the current null value's
+            #WN, ycutoff distance to its year, and ydcutoff distance to its yearday
+            historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
+                                        (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
+                                        (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
+                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Load"]
+
+            if debug: print("~~~~~~Date~~~~~~~",null_date, "~~~~~~~Dates summed~~~~~~~~~~",historical,sep="\n")
+
+            historical = historical.mean()
+
+            #imputed value is calculated as a wheighted average of the histrorical value and the value from intrepolation
+            res.loc[null_date] = w * ts_interpolatied.loc[null_date] + (1 - w) * historical
+
+            imputed_values.loc[null_date] = res.loc[null_date]
+
+            if debug:
+                print(res.loc[null_date])
+
+    fig, ax = plt.subplots(figsize=(8,5))
+    ax.plot(res.index, res['Load'], color='black', label = f'Load of {name} after Imputation')
+    plt.legend()
+    mlflow.log_figure(fig, f'imputation_results/imputed_series_{name}.png')
 
     return res, imputed_values
 
+def utc_to_local(df, country_code):
+    # Get dictionary of countries and their timezones
+    timezone_countries = {country: timezone 
+                            for country, timezones in country_timezones.items()
+                            for timezone in timezones}
+    local_timezone = timezone_countries[country_code]
+
+
+
+    # convert dates to given timezone, get timezone info
+    #print(df.index.to_series().tz_localize("UTC"))
+    df['Local Datetime'] = df.index.to_series().dt.tz_localize("UTC").dt.tz_convert(local_timezone)
+
+    # remove timezone information-naive, because next localize() recquires it 
+    # but keep dates to local timezone
+    df['Local Datetime'] = df['Local Datetime'].dt.tz_localize(None)
+
+    # localize based on timezone, ignore daylight saving time, shift forward if ambiguous datetimes
+    df['Local Datetime'] = df['Local Datetime'].dt.tz_localize(local_timezone,
+                                                        ambiguous=np.array([False] * df.shape[0]),
+                                                        nonexistent='shift_forward')
+
+    df['Local Datetime'] = df['Local Datetime'].dt.tz_localize(None)
+
+
+    #set index to local time
+    df.set_index('Local Datetime', inplace=True)
+
+    df.index.name = "Date"
+
+    #print(df)
 
 
 @click.command(
@@ -438,11 +500,12 @@ def impute(ts: pd.DataFrame,
           a cut-off value as described above")
 
 @click.option("--max-thr",
-    type=str,
-    default="48",
-    help="If there is a consecutive subseries of NaNs longer than max_thr, \
-          then it is not imputed and returned with NaN values")
-
+              type=str,
+              default="-1",
+              help="If there is a consecutive subseries of NaNs longer than max_thr, \
+                    then it is not imputed and returned with NaN values. If -1, every value will\
+                    be imputed regardless of how long the consecutive subseries of NaNs it belongs \
+                    to is")
 @click.option("--a",
     type=str,
     default="0.3",
@@ -471,8 +534,26 @@ def impute(ts: pd.DataFrame,
     type=str,
     default="false",
     help="Whether to train on multiple timeseries")
+     
+@click.option("--l-interpolation",
+    type=str,
+    default="false",
+    help="Whether to only use linear interpolation")
 
-def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple):
+@click.option("--rmv-outliers",
+    type=str,
+    default="true",
+    help="Whether to remove outliers")
+@click.option("--convert-to-local-tz",
+    type=str,
+    default="true",
+    help="Whether to convert time")
+
+
+
+def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, 
+        country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, 
+        l_interpolation, rmv_outliers, convert_to_local_tz):
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
     # Also check if current transformations are ok
@@ -489,6 +570,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
     wncutoff = float(wncutoff)
     ycutoff = int(ycutoff)
     ydcutoff = int(ydcutoff)
+    l_interpolation = truth_checker(l_interpolation)
+    rmv_outliers = truth_checker(rmv_outliers)
+    convert_to_local_tz = truth_checker(convert_to_local_tz)
 
     # Time col check
     time_covs = none_checker(time_covs)
@@ -502,15 +586,15 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
     logging.info("\nLoading source dataset..")
 
     if multiple:
-        ts_list, country_l, country_code_l = multiple_ts_file_to_dfs(series_csv, day_first)
+        ts_list, source_l, source_code_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, resolution)
     else:
-        ts_list = [pd.read_csv(series_csv,
+        ts_list = [[pd.read_csv(series_csv,
                          delimiter=',',
                          header=0,
                          index_col=0,
                          parse_dates=True,
-                         dayfirst=day_first)]
-        country_l = [country]
+                         dayfirst=day_first)]]
+        source_l, source_code_l, id_l, ts_id_l = [[country]], [[country]], [[country]], [[country]]
 
     # Year range handling
     if none_checker(year_range) is None:
@@ -528,129 +612,155 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, co
 
     # Tempdir for artifacts
     tmpdir = tempfile.mkdtemp()
+    outlier_dir = tempfile.mkdtemp()
+    impute_dir = tempfile.mkdtemp()
 
     with mlflow.start_run(run_name='etl', nested=True) as mlrun:
         res_ = []
-        for i, ts in enumerate(ts_list):
-            # temporal filtering
-            print(f"\nStarting etl of ts {i}, and country {country_l[i]}...")
-            logging.info(f"\Starting etl of ts {i}, and country {country_l[i]}...")
-
-            print(f"\nTemporal filtering...")
-            logging.info(f"\nTemporal filtering...")
-            ts = ts[ts.index >= pd.Timestamp(str(year_min) + '0101 00:00:00')]
-            ts = ts[ts.index <= pd.Timestamp(str(year_max) + '1231 23:59:59')]
-
-            # ts.to_csv(f'{tmpdir}/1_filtered.csv')
-
-            if resolution != "15":
-                print(f"\nResampling as given frequencyis different than 15 minutes")
-                logging.info(f"\nResampling as given frequency is different than 15 minutes")
-                ts_res = ts.resample(resolution+'min').sum()
-            else:
-                ts_res = ts
-
-            # ts_res.to_csv(f'{tmpdir}/2_resampled.csv')
-
-            # drop duplicate index entries, keeping the first
-            print("\nDropping duplicate time index entries, keeping first one...")
-            logging.info("\nDropping duplicate time index entries, keeping first one...")
-
-            ts_res = ts_res[~ts_res.index.duplicated(keep='first')]
-
-            # ts_res.to_csv(f'{tmpdir}/3_dropped_duplicates.csv')
-
-            print("\nperforming Outlier Detection...")
-            logging.info("\nperforming Outlier Detection...")
-
-            ts_res, removed = remove_outliers(ts=ts_res,
-                                              name=country,
-                                              std_dev=std_dev,
-                                              resolution=resolution)
-            #holidays_: The holidays of country
-            try:
-                code = compile(f"holidays.{country_l[i]}()", "<string>", "eval")
-                country_holidays = eval(code)
-            except:
-                raise CountryDoesNotExist()
-
-            print("\nPerforming Imputation of the Dataset...")
-            logging.info("\nPerforming Imputation of the Dataset...")
-
-            ts_res, imputed_values = impute(ts=ts_res,
-                                            holidays=country_holidays,
-                                            max_thr=max_thr,
-                                            a=a,
-                                            wncutoff=wncutoff,
-                                            ycutoff=ycutoff,
-                                            ydcutoff=ydcutoff,
-                                            resolution=resolution)
-
-            print("\nCreating darts data frame...")
-            logging.info("\nCreating darts data frame...")
-
-            # explicitly redefine frequency
-            ts_res = ts_res.asfreq(resolution+'min')
-
-            # ts_res.to_csv(f'{tmpdir}/4_asfreq.csv')
-
-            # darts dataset creation
-            ts_res_darts = darts.TimeSeries.from_dataframe(ts_res)
-
-            # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
+        for ts_num, ts in enumerate(ts_list):
+            res_.append([])
+            for comp_num, comp in enumerate(ts):
+                # temporal filtering
+                print(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}, Source {source_l[ts_num][comp_num]}...")
+                logging.info(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}, Source {source_l[ts_num][comp_num]}...")
+                if convert_to_local_tz:
+                    print(f"\nConverting to local Timezone...")
+                    logging.info(f"\nConverting to local Timezone...")
+                    try:
+                        utc_to_local(comp, source_code_l[ts_num][comp_num])
+                    except:
+                        try:
+                            print(f"\nSource Code not a country code, trying country argument...")
+                            logging.info(f"\nSource Code not a country code, trying country argument...")
+                            utc_to_local(comp, country)
+                        except:
+                            print(f"\nError occured, keeping time provided by the file...")
+                            logging.info(f"\nError occured, keeping time provided by the file...")
 
 
-            # ts_res_darts.to_csv(f'{tmpdir}/5_filled_na.csv')
+                print(f"\nTemporal filtering...")
+                logging.info(f"\nTemporal filtering...")
+                comp = comp[comp.index >= pd.Timestamp(str(year_min) + '0101 00:00:00')]
+                comp = comp[comp.index <= pd.Timestamp(str(year_max) + '1231 23:59:59')]
 
-            # time variables creation
+                if resolution != "15":
+                    print(f"\nResampling as given frequency different than 15 minutes")
+                    logging.info(f"\nResampling as given frequency is different than 15 minutes")
+                    comp_res = comp.resample(resolution+'min').sum()
+                else:
+                    comp_res = comp
 
-            #TODO: Make training happen withot outlier detection
-            ##TODO fix multiple with covariates
-            if time_covs is not None:
-                print("\nCreating time covariates dataset...")
-                logging.info("\nCreating time covariates dataset...")
-                time_covariates = get_time_covariates(ts_res_darts, time_covs)
-            else:
-                print("\nSkipping the creation of time covariates")
-                logging.info("\nSkipping the creation of time covariates")
-                time_covariates = None
+                # drop duplicate index entries, keeping the first
+                print("\nDropping duplicate time index entries, keeping first one...")
+                logging.info("\nDropping duplicate time index entries, keeping first one...")
 
-            res_.append(ts_res)
+                comp_res = comp_res[~comp_res.index.duplicated(keep='first')]
 
-        ##TODO store removed values and imputation result for multiple ts
+                if rmv_outliers:
+                    print("\nPerfrorming Outlier Detection...")
+                    logging.info("\nPerfrorming Outlier Detection...")
+                    comp_res, removed = remove_outliers(ts=comp_res,
+                                                        name=source_l[ts_num][comp_num],
+                                                        std_dev=std_dev,
+                                                        resolution=resolution)
+                #holidays_: The holidays of country
+                try:
+                    code = compile(f"holidays.{source_l[ts_num][comp_num]}()", "<string>", "eval")
+                    country_holidays = eval(code)
+                except:
+                    country_holidays = []
+                    print("\nSource column does not specify valid country. Using country argument instead")
+                    logging.info("\nSource column does not specify valid country. Using country argument instead")
+                    try:
+                        code = compile(f"holidays.{country}()", "<string>", "eval")
+                        country_holidays = eval(code)
+                    except:
+                        raise CountryDoesNotExist()
+                print("\nPerfrorming Imputation of the Dataset...")
+                logging.info("\nPerfrorming Imputation of the Dataset...")
+                #print(comp_res)
+                comp_res, imputed_values = impute(ts=comp_res,
+                                                  holidays=country_holidays,
+                                                  max_thr=max_thr,
+                                                  a=a,
+                                                  wncutoff=wncutoff,
+                                                  ycutoff=ycutoff,
+                                                  ydcutoff=ydcutoff,
+                                                  resolution=resolution,
+                                                  name=source_l[ts_num][comp_num],
+                                                  l_interpolation=l_interpolation)
+
+                print("\nCreating darts data frame...")
+                logging.info("\nCreating darts data frame...")
+
+                # explicitly redefine frequency
+                comp_res = comp_res.asfreq(resolution+'min')
+
+                # ts_res.to_csv(f'{tmpdir}/4_asfreq.csv')
+
+                # darts dataset creation
+                comp_res_darts = darts.TimeSeries.from_dataframe(comp_res)
+
+                # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
+
+
+                # ts_res_darts.to_csv(f'{tmpdir}/5_filled_na.csv')
+
+                # time variables creation
+
+                #TODO: Make training happen without outlier detection
+                ##TODO fix multiple with covariates
+                if time_covs is not None:
+                    print("\nCreating time covariates dataset...")
+                    logging.info("\nCreating time covariates dataset...")
+                    time_covariates = get_time_covariates(comp_res_darts, time_covs)
+                else:
+                    print("\nSkipping the creation of time covariates")
+                    logging.info("\nSkipping the creation of time covariates")
+                    time_covariates = None
+                if rmv_outliers:
+                    print("\nStoring removed values from outlier detection as csv locally...")
+                    logging.info("\nStoring removed values from outlier detection as csv...")
+                    removed.to_csv(f'{outlier_dir}/removed_{source_l[ts_num][comp_num]}.csv')
+
+                print("\nStoring imputed dates and their values as csv locally...")
+                logging.info("\nStoring imputed dates and their values as csv locally...")
+                imputed_values.to_csv(f'{impute_dir}/imputed_values_{source_l[ts_num][comp_num]}.csv')
+
+
+                res_[-1].append(comp_res)
+        if multiple:
+            res_ = cut_extra_samples(res_)
         print("\nCreating local folder to store the datasets as csv...")
         logging.info("\nCreating local folder to store the datasets as csv...")
         if not multiple:
             # store locally as csv in folder
-            ts_res_darts.to_csv(f'{tmpdir}/series.csv')
-
-            print("\nStoring removed values from outlier detection as csv locally...")
-            logging.info("\nStoring removed values from outlier detection as csv...")
-            removed.to_csv(f'{tmpdir}/removed.csv')
-
-            print("\nStoring imputed dates and their values as csv locally...")
-            logging.info("\nStoring imputed dates and their values as csv locally...")
-            imputed_values.to_csv(f'{tmpdir}/imputed_values.csv')
+            comp_res_darts.to_csv(f'{tmpdir}/series.csv')
 
             print("\nStoring datasets locally...")
             logging.info("\nStoring datasets...")
             if time_covariates is not None:
                 time_covariates.to_csv(f'{tmpdir}/time_covariates.csv')
         else:
-            multiple_dfs_to_ts_file(res_, country_l, country_code_l, f'{tmpdir}/series.csv')
+            multiple_dfs_to_ts_file(res_, source_l, source_code_l, id_l, ts_id_l, f'{tmpdir}/series.csv')
 
         print("\nUploading features to MLflow server...")
         logging.info("\nUploading features to MLflow server...")
         mlflow.log_artifacts(tmpdir, "features")
+        mlflow.log_artifacts(outlier_dir, "outlier_detection_results")
+        mlflow.log_artifacts(impute_dir, "imputation_results")
 
         print("\nArtifacts uploaded. Deleting local copies...")
         logging.info("\nArtifacts uploaded. Deleting local copies...")
         shutil.rmtree(tmpdir)
+        shutil.rmtree(outlier_dir)
+        shutil.rmtree(impute_dir)
 
         print("\nETL succesful.")
         logging.info("\nETL succesful.")
 
         # mlflow tags
+        #TODO tags for outliers and imputation?
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "etl")
         mlflow.set_tag('series_uri', f'{mlrun.info.artifact_uri}/features/series.csv')
