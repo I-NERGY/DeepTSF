@@ -13,6 +13,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
 from utils import load_artifacts
 import psutil, nvsmi
+import os
+from dotenv import load_dotenv
+load_dotenv()
+# explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
+MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+
 
 # allows automated type check with pydantic
 #class ModelName(str, Enum):
