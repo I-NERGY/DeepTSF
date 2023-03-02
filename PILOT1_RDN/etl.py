@@ -643,13 +643,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 comp = comp[comp.index >= pd.Timestamp(str(year_min) + '0101 00:00:00')]
                 comp = comp[comp.index <= pd.Timestamp(str(year_max) + '1231 23:59:59')]
 
-                if resolution != "15":
-                    print(f"\nResampling as given frequency different than 15 minutes")
-                    logging.info(f"\nResampling as given frequency is different than 15 minutes")
-                    comp_res = comp.resample(resolution+'min').sum()
-                else:
-                    comp_res = comp
-
+                comp_res = comp
                 # drop duplicate index entries, keeping the first
                 print("\nDropping duplicate time index entries, keeping first one...")
                 logging.info("\nDropping duplicate time index entries, keeping first one...")
@@ -689,6 +683,12 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   resolution=resolution,
                                                   name=source_l[ts_num][comp_num],
                                                   l_interpolation=l_interpolation)
+                
+                if resolution != "15":
+                    print(f"\nResampling as given frequency different than 15 minutes")
+                    logging.info(f"\nResampling as given frequency is different than 15 minutes")
+                    comp_res = comp_res.resample(resolution+'min').sum()
+                    
 
                 print("\nCreating darts data frame...")
                 logging.info("\nCreating darts data frame...")

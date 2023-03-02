@@ -57,7 +57,7 @@ hyperparameters:
 
 #An ta layers bgainoun symantikotero karfwse ta 4
 #kai 19 kai 20
-  NBEATS_multiple:
+  NBEATS_thesis:
     input_chunk_length: ["range", 120, 312, 24]
     output_chunk_length: 24
     num_stacks: ["range", 1, 10, 1]
@@ -70,6 +70,43 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: 1024
+
+  NBEATS_thesis_multiple:
+    input_chunk_length: ["range", 120, 312, 24]
+    output_chunk_length: 24
+    num_stacks: ["range", 1, 10, 1]
+    num_blocks: ["range", 1, 6, 1]
+    num_layers: ["range", 1, 10, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 200
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+    scale:  ["list", "True", "False"]
+
+  NBEATS_uc7_mase:
+    input_chunk_length: ["range", 120, 312, 24]
+    output_chunk_length: 24
+    num_stacks: ["range", 1, 10, 1]
+    num_blocks: ["range", 1, 6, 1]
+    num_layers: ["range", 1, 10, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 200
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  LightGBM_thesis_multiple:
+    lags: ["range", 120, 312, 24]
+    lags_past_covariates: null
+    lags_future_covariates: None
+    future_covs_as_tuple: true
+    random_state: 0
+    scale: ["list", "True", "False"]
 
   NBEATS_testt:
     input_chunk_length: ["range", 120, 312, 24]
@@ -148,8 +185,8 @@ hyperparameters:
   NBEATS_15min:
     input_chunk_length: ["range", 96, 672, 96]
     output_chunk_length: 96
-    num_stacks: ["range", 1, 10, 1]
-    num_blocks: ["range", 1, 10, 1]
+    num_stacks: ["range", 1, 20, 2]
+    num_blocks: ["range", 1, 5, 1]
     num_layers: ["range", 1, 5, 1]
     generic_architecture: True
     layer_widths: 64
@@ -162,12 +199,10 @@ hyperparameters:
   NHiTS_15min:
     input_chunk_length: ["range", 96, 672, 96]
     output_chunk_length: 96
-    num_stacks: ["range", 1, 10, 1]
-    num_blocks: ["range", 1, 10, 1]
+    num_stacks: ["range", 1, 20, 2]
+    num_blocks: ["range", 1, 5, 1]
     num_layers: ["range", 1, 5, 1]
-    generic_architecture: True
     layer_widths: 64
-    expansion_coefficient_dim: 5
     n_epochs: 500
     random_state: 0
     nr_epochs_val_period: 2
@@ -182,8 +217,8 @@ hyperparameters:
     random_state: 0
     input_chunk_length: ["range", 192, 672, 96]
     kernel_size: ["range", 2, 5, 1]
-    num_filters: ["range", 2, 12, 2]
-    dilation_base: ["list", 4, 8, 16]
+    num_filters: ["range", 2, 6, 1]
+    dilation_base: ["list", 2, 3, 4]
     batch_size: 1024
 
   BlockLSTM_15min:
@@ -191,7 +226,7 @@ hyperparameters:
     n_rnn_layers: ["range", 2, 4, 1]
     input_chunk_length: ["range", 96, 672, 96]
     output_chunk_length: 96
-    hidden_dim:  ["list", 32, 64, 128, 256] 
+    hidden_dim:  ["list", 16, 32, 64, 128] 
     n_epochs: 500
     random_state: 0
     nr_epochs_val_period: 2
@@ -200,20 +235,20 @@ hyperparameters:
     batch_size: 1024
     
   MLP_15min:
-    hidden_layer_sizes : # n_layers=[1, 4, 1], n_neur=[16, 32, 64, 128, 256]
-    activation: relu
-    solver: 'adam'
-    alpha: 0.0001
-    batch_size: 'auto' #print and save the batch size
-    learning_rate: 'constant'
-    learning_rate_init: ["range", 0.0005, 0.002, 0.0005] #asto karfwmeno
-    max_iter: 200
-    shuffle: ["list", "True", "False"]
-    random_state: 0
-    verbose: True
-    early_stopping: True
-    validation_fraction: 0.13
-    tolerance: 1e-06
+    #hidden_layer_sizes : # n_layers=[1, 4, 1], n_neur=[16, 32, 64, 128, 256]
+    #activation: relu
+    #solver: 'adam'
+    #alpha: 0.0001
+    #batch_size: 'auto' #print and save the batch size
+    #learning_rate: 'constant'
+    #learning_rate_init: ["range", 0.0005, 0.002, 0.0005] #asto karfwmeno
+    #max_iter: 200
+    #shuffle: ["list", "True", "False"]
+    #random_state: 0
+    #verbose: True
+    #early_stopping: True
+    #validation_fraction: 0.13
+    #tolerance: 1e-06
     n_iter_no_change: 10
 
   nbeats_test_3:

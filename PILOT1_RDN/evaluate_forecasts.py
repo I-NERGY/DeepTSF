@@ -156,10 +156,6 @@ def backtester(model,
         "smape": smape_darts(
             test_series,
             backtest_series),
-        "mase": mase_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
-            backtest_series,
-            insample=series.drop_after(pd.Timestamp(test_start_date))),
         "mae": mae_darts(
             series.drop_before(pd.Timestamp(test_start_date)),
             backtest_series),
@@ -175,6 +171,16 @@ def backtester(model,
         print("\nModel result or testing series not strictly positive. Setting mape to NaN...")
         logging.info("\nModel result or testing series not strictly positive. Setting mape to NaN...")
         metrics["mape"] = np.nan
+    try:
+        metrics["mase"] = mase_darts(
+            series.drop_before(pd.Timestamp(test_start_date)),
+            backtest_series,
+            insample=series.drop_after(pd.Timestamp(test_start_date)))
+    except:
+        print("\nSeries is periodical. Setting mase to NaN...")
+        logging.info("\nModel result or testing series not strictly positive. Setting mape to NaN...")
+        metrics["mase"] = np.nan
+
 
     for key, value in metrics.items():
         print(key, ': ', value)
@@ -271,7 +277,6 @@ def build_shap_dataset(size: Union[int, float],
             samples.add(r)
 
     for i in samples:
-
         curr = test[i:i + input_chunk_length]
         curr_date = int(curr.time_index[0].timestamp())
         curr_values = curr.random_component_values(copy=False)
@@ -283,6 +288,7 @@ def build_shap_dataset(size: Union[int, float],
         if first_iter:
             columns.extend([str(i) + " timestep" for i in range(input_chunk_length)])
             median_of_train = statistics.median(map(lambda x : x.median(axis=0).values()[0,0], train))
+#            print("median of train", median_of_train)
             background.extend([median_of_train for _ in range(input_chunk_length)])
         if past_covs != None:
             for ii in range(past_covs.n_components):
@@ -398,13 +404,17 @@ def predict(x: darts.TimeSeries,
             future_covs_list.append(future_covs)
         series_list.append(ts)
     #    print("asdssd", past_covs, future_covs)
-    res = model.predict(output_chunk_length, series_list, past_covariates=past_covs_list, future_covariates=future_covs_list)
+    try:
+        res = model.predict(output_chunk_length, series_list, past_covariates=past_covs_list, future_covariates=future_covs_list)
+    except:
+        res = model.predict(output_chunk_length, series_list)
     if scale:
         res = list(map(lambda elem : scaler_list[0].inverse_transform(elem).univariate_values(), res))
     else:
         res = list(map(lambda elem : elem.univariate_values(), res))
    #     print("max", np.array(res).max(), np.array(res).min())
-    #print(np.array(res))
+#    print("result 1", np.array(res)[0])
+#    print("sample 1", x[0])
     return np.array(res)
 #lambda x: model_rnn.predict(TimeSeries.from_dataframe(pd.DataFrame(index=(x[-1] + pd.offsets.DateOffset(hours=i) for i in range(96)), data=x[:-1])))
 
@@ -459,8 +469,11 @@ def call_shap(n_past_covs: int,
     """
 
     shap.initjs()
+#    print("background", background)
     explainer = shap.KernelExplainer(lambda x : predict(x, n_past_covs, n_future_covs, input_chunk_length, output_chunk_length, model, scaler_list, scale), background)
+#    print("all samples", data)
     shap_values = explainer.shap_values(data, nsamples="auto", normalize=False)
+#    print("values for 0 output", shap_values[0])
     plt.close()
     interprtmpdir = tempfile.mkdtemp()
     sample = random.randint(0, len(data) - 1)
@@ -470,12 +483,16 @@ def call_shap(n_past_covs: int,
         shap.summary_plot(shap_values[out], data, show=False)
         plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
         plt.close()
+        os.remove(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
+        shap.summary_plot(shap_values[out], data, show=False)
+        plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
+        plt.close()
         shap.summary_plot(shap_values[out], data, plot_type='bar', show=False)
         plt.savefig(f"{interprtmpdir}/summary_plot_bar_graph_out_{out}.png")
         plt.close()
         bar_plot_store_json(shap_values[out], data, f"{interprtmpdir}/summary_plot_bar_data_out_{out}.json")
         shap.force_plot(explainer.expected_value[out],shap_values[out][sample,:], data.iloc[sample,:],  matplotlib = True, show = False)
-        plt.savefig(f"{interprtmpdir}/force_plot_of_{sample}_sample_{out}_output.png")
+        plt.savefig(f"{interprtmpdir}/force_plot_of_{sample}_sample_starting_at_{datetime.datetime.utcfromtimestamp(data.iloc[sample][-1])}_{out}_output.png")
         plt.close()
 
         print("\nUploading SHAP interpretation results to MLflow server...")
@@ -614,6 +631,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     multiple = truth_checker(multiple)
     future_covariates_uri = none_checker(future_covs_uri)
     past_covariates_uri = none_checker(past_covs_uri)
+    evaluate_all_ts = truth_checker(evaluate_all_ts)
     try:
         size = int(size)
     except:
@@ -724,7 +742,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                 evaluation_results = backtester(model=model,
                                             series_transformed=backtest_series_transformed,
                                             series=series_split['all'] if not multiple else series_split['all'][eval_i],
-                                            transformer_ts=scaler if not multiple else scaler[eval_i],
+                                            transformer_ts=scaler if (not multiple or (scaler == None)) else scaler[eval_i],
                                             test_start_date=cut_date_test,
                                             forecast_horizon=forecast_horizon,
                                             stride=stride,
@@ -732,8 +750,12 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             future_covariates=future_covariates,
                                             past_covariates=past_covariates,
                                             path_to_save_backtest=f"{evaltmpdir}/{ts_id_l[eval_i][0]}")
+                eval_results[eval_i] = list(map(str, ts_id_l[eval_i][:1])) + [evaluation_results["metrics"]["smape"],
+                                                                              evaluation_results["metrics"]["mase"],
+                                                                              evaluation_results["metrics"]["mae"],
+                                                                              evaluation_results["metrics"]["rmse"],
+                                                                              evaluation_results["metrics"]["mape"]]
 
-                eval_results[eval_i] = list(map(str, ts_id_l[eval_i])) + list(evaluation_results["metrics"].values())
             eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape"])
             save_path = f"{evaltmpdir}/evaluation_results_all_ts.csv"
             eval_results.to_csv(save_path)
@@ -744,15 +766,15 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                 logging.info(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
 
             backtest_series_transformed = series_transformed_split['all'] if not multiple else series_transformed_split['all'][eval_i]
-            print(f"Testing from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
-            logging.info(f"Testing from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
+            print(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
+            logging.info(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
 
             print("")
 
             evaluation_results = backtester(model=model,
                                             series_transformed=backtest_series_transformed,
                                             series=series_split['all'] if not multiple else series_split['all'][eval_i],
-                                            transformer_ts=scaler if not multiple else scaler[eval_i],
+                                            transformer_ts=scaler if (not multiple or (scaler == None)) else scaler[eval_i],
                                             test_start_date=cut_date_test,
                                             forecast_horizon=forecast_horizon,
                                             stride=stride,
@@ -762,9 +784,9 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             path_to_save_backtest=evaltmpdir)
             if analyze_with_shap:
                 data, background = build_shap_dataset(size=size,
-                                                train=series_transformed_split['train'],
-                                                test=series_transformed_split['test']\
-                                                     if not multiple else series_transformed_split['test'][eval_i],
+                                                train=series_split['train'],
+                                                test=series_split['test']\
+                                                     if not multiple else series_split['test'][eval_i],
                                                 input_chunk_length=input_chunk_length,
                                                 output_chunk_length=output_chunk_length,
                                                 future_covs=future_covariates,
@@ -776,7 +798,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                     input_chunk_length=input_chunk_length,
                     output_chunk_length=output_chunk_length,
                     model=model,
-                    scaler_list=[scaler if not multiple else scaler[eval_i]],
+                    scaler_list=[scaler if (not multiple or (scaler == None)) else scaler[eval_i],],
                     background=background,
                     data=data,
                     scale=(scaler != None))

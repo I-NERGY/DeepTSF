@@ -319,13 +319,23 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     default="true",
     help="Whether to convert time")
 
+@click.option("--grid-search",
+    type=str,
+    default="false",
+    help="Whether to run a grid search or use tpe in optuna")
+
+@click.option("--input-chunk-length",
+             type=str,
+             default="None",
+             help="input_chunk_length of samples of SHAP. Is taken into account only if not evaluating a global forecasting model")
+
 
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_series, n_trials, opt_test, from_mongo, mongo_name, num_workers, eval_method,
-             l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz):
+             l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, input_chunk_length):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -406,6 +416,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "eval_method": eval_method,
                 "loss_function": loss_function,
                 "evaluate_all_ts": evaluate_all_ts,
+                "grid_search" : grid_search,
             }
             optuna_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
 
@@ -480,9 +491,13 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
 
             if "input_chunk_length" in train_run.data.params:
                 eval_params["input_chunk_length"] = train_run.data.params["input_chunk_length"]
+            else:
+                eval_params["input_chunk_length"] = input_chunk_length
 
             if "output_chunk_length" in train_run.data.params:
                 eval_params["output_chunk_length"] = train_run.data.params["output_chunk_length"]
+            else:
+                eval_params["output_chunk_length"] = forecast_horizon
             
             # Naive models require retrain=True
             if "naive" in [train_run.data.params["darts_model"].lower()]:
