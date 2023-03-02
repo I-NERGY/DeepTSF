@@ -98,9 +98,9 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         if "Source" not in ts.columns:
             ts["Source"] = ts["ID"]
         des_columns = list(map(str, ['Day', 'ID', 'Source', 'Source Code', 'Timeseries ID'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
-        #Check that all columns 'Day', 'ID', 'Source', 'Source Code' and the time columns exist in any order.
-        if not set(des_columns) == set(list(ts.columns)):
-            raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
+        #Check that all columns 'Day', 'ID', 'Source', 'Source Code' 'Timeseries' and the time columns exist in any order.
+        #if not set(des_columns) == set(list(ts.columns)):
+        #    raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
         #Check that all dates for each source are sorted
         for id in np.unique(ts["ID"]):
             if not ts.loc[ts["ID"] == id]["Day"].sort_values().equals(ts.loc[ts["ID"] == id]["Day"]):
@@ -144,6 +144,7 @@ def load_data_to_csv(tmpdir, mongo_name):
         df = pd.DataFrame(collection.find()).drop(columns={'_id', ''}, errors='ignore')
     if mongo_name == "asm_historical_smart_meters_uc7":
         #Rename to ts id
+        #df = df.loc[(df["energy_type"] == "active_sum") | (df["energy_type"] == "reactive_sum")]
         df["Source"] = df["id"] + " " + df["energy_type"]
         cols_to_drop = {'date', 'id', 'energy_type'}
     elif mongo_name == "asm_historical_smart_meters_uc6":
@@ -184,6 +185,9 @@ def load_data_to_csv(tmpdir, mongo_name):
         for i in range(len(unique_ts)):
             name_to_ID[unique_ts[i]] = i
         df["Timeseries ID"] = df["id"].apply(lambda x: name_to_ID[x])
+
+    if mongo_name == "asm_historical_smart_meters_uc7":
+        df["Timeseries ID"] = df["id"]
 
     df["Day"] = df["date"]
     #print("1", df)

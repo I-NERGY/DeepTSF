@@ -27,7 +27,6 @@ hyperparameters:
      likelihood: Gaussian
      batch_size: 32
 
-
   arima:
     
   test:
@@ -337,6 +336,20 @@ hyperparameters:
     learning_rate: 0.001
     batch_size: 1024
 
+  nbeats_uc_5d:
+    input_chunk_length: 1440
+    output_chunk_length: 288
+    num_stacks: 20
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+    
   nbeats0_4:
     input_chunk_length: 384
     output_chunk_length: 96
@@ -729,5 +742,12 @@ hyperparameters:
     lags: 672
     lags_past_covariates: null
     lags_future_covariates_opt_test: ["list", [1, 1], [2, 2]]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  lgbm_thesis:
+    lags: 120
+    lags_past_covariates: null
+    lags_future_covariates: [1,1]
     future_covs_as_tuple: true
     random_state: 0

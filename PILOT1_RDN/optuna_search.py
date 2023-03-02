@@ -70,8 +70,8 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 # stop training when validation loss does not decrease more than 0.05 (`min_delta`) over
 # a period of 5 epochs (`patience`)
-def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False, curr_loss=0, model=None, darts_model=None, scale=False, scalers_dir=None, features_dir=None, opt_all_results=None, past_covariates=None, future_covariates=None, evaluate_all_ts=False):
-
+def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False, curr_loss=0, model=None, darts_model=None, scale="False", scalers_dir=None, features_dir=None, opt_all_results=None, past_covariates=None, future_covariates=None, evaluate_all_ts=False):
+    scale = truth_checker(scale)
     if evaluate_all_ts: 
         mlflow.log_artifacts(opt_all_results, "optuna_val_results_all_timeseries")
     
@@ -183,7 +183,11 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
     if not log_model:
         ######################
         # Log hyperparameters
-        mlflow.log_params(study.best_params)
+        best_params = study.best_params
+        if "scale" in best_params:
+            best_params["scale_optuna"] = best_params["scale"]
+            del best_params["scale"]
+        mlflow.log_params(best_params)
 
         # Log log_metrics
         mlflow.log_metrics(study.best_trial.user_attrs)
@@ -239,7 +243,6 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                 if 'scale' in training_dict:
                      scale = training_dict['scale']
                      del training_dict['scale']
-                     scale = "False"
 
                 model, scaler, train_future_covariates, train_past_covariates, features_dir, scalers_dir = train(
                       series_uri=series_uri,
@@ -290,7 +293,6 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                 trial.set_user_attr("mase", float(metrics["mase"]))
                 trial.set_user_attr("mae", float(metrics["mae"]))
                 trial.set_user_attr("rmse", float(metrics["rmse"]))
-
                 log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, 
                     log_model=True, curr_loss=float(metrics[loss_function]), 
                     model=model, darts_model=darts_model, scale=scale, scalers_dir=scalers_dir, 
@@ -400,7 +402,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 day_first=day_first,
                 resolution=resolution)
     if future_covariates is not None:
-        future_covariates, _, _, _ = load_local_csv_as_darts_timeseries(
+        future_covariates, _, _, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
@@ -408,7 +410,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 day_first=day_first,
                 resolution=resolution)
     if past_covariates is not None:
-        past_covariates, _, _, _ = load_local_csv_as_darts_timeseries(
+        past_covariates, _, _, _, _ = load_local_csv_as_darts_timeseries(
                 local_path=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
@@ -418,6 +420,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     if scale:
         scalers_dir = tempfile.mkdtemp()
+    else:
+        scalers_dir = None
     features_dir = tempfile.mkdtemp()
 
     ######################
@@ -758,7 +762,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
             validation_results = backtester(model=model,
                                             series_transformed=backtest_series_transformed,
                                             series=backtest_series,
-                                            transformer_ts=scaler if not multiple else scaler[eval_i],
+                                            transformer_ts=scaler if (not multiple or (scaler == None)) else scaler[eval_i],
                                             test_start_date=cut_date_val,
                                             forecast_horizon=forecast_horizon,
                                             stride=stride,
@@ -766,7 +770,12 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                             future_covariates=future_covariates,
                                             past_covariates=past_covariates,
                                             )
-            eval_results[eval_i] = list(map(str, ts_id_l[eval_i])) + list(validation_results["metrics"].values())
+            eval_results[eval_i] = list(map(str, ts_id_l[eval_i])) + [validation_results["metrics"]["smape"],
+                                                                      validation_results["metrics"]["mase"],
+                                                                      validation_results["metrics"]["mae"],
+                                                                      validation_results["metrics"]["rmse"],
+                                                                      validation_results["metrics"]["mape"]]
+
         eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape"])
         trial_num = len(study.trials_dataframe()) - 1
         save_path = f"{opt_all_results}/trial_{trial_num}.csv"
@@ -811,7 +820,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
         validation_results = backtester(model=model,
                                         series_transformed=backtest_series_transformed,
                                         series=backtest_series,
-                                        transformer_ts=scaler if not multiple else scaler[eval_i],
+                                        transformer_ts=scaler if (not multiple or (scaler == None)) else scaler[eval_i],
                                         test_start_date=cut_date_val,
                                         forecast_horizon=forecast_horizon,
                                         stride=stride,
@@ -967,17 +976,34 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     default="false",
     help="Whether to validate the models for all timeseries, and return the mean of their metrics")
 
+@click.option("--grid-search",
+    type=str,
+    default="false",
+    help="Whether to run a grid search or use tpe in optuna")
+
 
 def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs, darts_model, hyperparams_entrypoint,
            cut_date_val, cut_date_test, test_end_date, device, forecast_horizon, stride, retrain,
-           scale, scale_covs, multiple, eval_series, n_trials, num_workers, day_first, eval_method, loss_function, evaluate_all_ts):
+           scale, scale_covs, multiple, eval_series, n_trials, num_workers, day_first, eval_method, loss_function, evaluate_all_ts, grid_search):
 
         n_trials = none_checker(n_trials)
         n_trials = int(n_trials)
         evaluate_all_ts = truth_checker(evaluate_all_ts)
         with mlflow.start_run(run_name=f'optuna_test_{darts_model}', nested=True) as mlrun:
-
-            study = optuna.create_study(storage="sqlite:///memory.db", study_name=hyperparams_entrypoint, load_if_exists=True)
+            if grid_search:
+                hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
+                training_dict = {}
+                for param, value in hyperparameters.items():
+                    if type(value) == list and value and value[0] == "range":
+                        if type(value[1]) == int:
+                            training_dict[param] = list(range(value[1], value[2], value[3]))
+                        else:
+                            training_dict[param] = list(range(value[1], value[2], value[3]))
+                    elif type(value) == list and value and value[0] == "list":
+                        training_dict[param] = value[1:]
+                study = optuna.create_study(storage="sqlite:///memory.db", study_name=hyperparams_entrypoint, load_if_exists=True, sampler=optuna.samplers.GridSampler(training_dict))
+            else:
+                study = optuna.create_study(storage="sqlite:///memory.db", study_name=hyperparams_entrypoint, load_if_exists=True)
 
             opt_tmpdir = tempfile.mkdtemp()
 

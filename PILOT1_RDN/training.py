@@ -316,7 +316,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             test_end_date=test_end_date,
             # store_dir=features_dir,
             name='future_covariates',
-            )
+            multiple=multiple,
+            source_l=source_l,
+            source_code_l=source_code_l,
+            id_l=id_l,
+            ts_id_l=ts_id_l)
         ## past covariates
         past_covariates_split = split_dataset(
             past_covariates,
@@ -325,7 +329,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             test_end_date=test_end_date,
             # store_dir=features_dir,
             name='past_covariates',
-            )
+            multiple=multiple,
+            source_l=source_l,
+            source_code_l=source_code_l,
+            id_l=id_l,
+            ts_id_l=ts_id_l)
 
         #################
         # Scaling
@@ -352,6 +360,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             store_dir=features_dir,
             filename_suffix="future_covariates_transformed.csv",
             scale=scale_covs,
+            multiple=multiple,
+            source_l=source_l,
+            source_code_l=source_code_l,
+            id_l=id_l,
+            ts_id_l=ts_id_l
             )
         ## scale past covariates
         past_covariates_transformed = scale_covariates(
@@ -359,6 +372,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             store_dir=features_dir,
             filename_suffix="past_covariates_transformed.csv",
             scale=scale_covs,
+            multiple=multiple,
+            source_l=source_l,
+            source_code_l=source_code_l,
+            id_l=id_l,
+            ts_id_l=ts_id_l
             )
 
         ######################
