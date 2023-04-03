@@ -1,5 +1,34 @@
 hyperparameters:
+  nbeats_test:
+    input_chunk_length: 24
+    output_chunk_length: 1
+    num_stacks: 10
+    num_blocks: 1
+    num_layers: 3
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 10
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 16
 
+  lstm0_1:
+     model: LSTM
+     n_rnn_layers: 1
+     hidden_dim:  128
+     n_epochs: 10
+     input_chunk_length: 24
+     training_length: 24
+     random_state: 0
+     nr_epochs_val_period: 2
+     dropout: 0
+     learning_rate: 0.0008
+     likelihood: Gaussian
+     batch_size: 32
+
+  arima:
+    
   test:
     model: LSTM
     n_rnn_layers: 1
@@ -13,7 +42,7 @@ hyperparameters:
     learning_rate: 0.009
     # likelihood: Gaussian
     batch_size: 2048
-  
+
   test2:
     model: LSTM
     n_rnn_layers: 1
@@ -54,7 +83,7 @@ hyperparameters:
   #   learning_rate: 0.0008
   #   # likelihood: Gaussian
   #   batch_size: 1024
-  
+
   # lstm0_3:
   #   model: LSTM
   #   n_rnn_layers: 1
@@ -153,11 +182,46 @@ hyperparameters:
   #   # likelihood: Gaussian
   #   batch_size: 1024
 
+  transformer_test:
+    input_chunk_length: 48
+    output_chunk_length: 1
+    d_model: 64
+    nhead: 4
+    num_encoder_layers: 3
+    num_decoder_layers: 3
+    dim_feedforward: 512
+    dropout: 0.1 
+    activation: 'relu'
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+    
+  nhits_test:
+    input_chunk_length: 48
+    output_chunk_length: 1
+    num_stacks: 3
+    num_blocks: 3
+    num_layers: 3
+    layer_widths: 64
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+
+# Seasonal naive models 
+  naive_d:
+    days_seasonality: 1
+
+  naive_w:
+    days_seasonality: 7
+
+# LSTM
   lstm_example:
     model: LSTM
     n_rnn_layers: 2
     hidden_dim:  64 #128
-    n_epochs: 100
+    n_epochs: 1
     input_chunk_length: 672
     training_length: 672
     random_state: 0
@@ -188,6 +252,19 @@ hyperparameters:
     output_chunk_length: 96
     hidden_size:  20
     n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.0008
+    batch_size: 1024
+
+  testrnnshap:
+    model: LSTM
+    n_rnn_layers: 1
+    input_chunk_length: 384
+    output_chunk_length: 96
+    hidden_size:  20
+    n_epochs: 1
     random_state: 0
     nr_epochs_val_period: 2
     dropout: 0
@@ -258,7 +335,21 @@ hyperparameters:
     dropout: 0
     learning_rate: 0.001
     batch_size: 1024
-  
+
+  nbeats_uc_5d:
+    input_chunk_length: 1440
+    output_chunk_length: 288
+    num_stacks: 20
+    num_blocks: 1
+    num_layers: 4
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+    
   nbeats0_4:
     input_chunk_length: 384
     output_chunk_length: 96
@@ -286,7 +377,7 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: 1024
-  
+
   nbeats0_10:
     input_chunk_length: 960
     output_chunk_length: 96
@@ -342,7 +433,7 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: 1024
-  
+
   nbeats2_4:
     input_chunk_length: 384
     output_chunk_length: 96
@@ -393,6 +484,19 @@ hyperparameters:
     dilation_base: 2
     weight_norm: True
     dropout: 0
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 1
+    batch_size: 1024
+
+  testtcnshap:
+    input_chunk_length: 96
+    output_chunk_length: 24
+    kernel_size: 3
+    num_filters: 3
+    dilation_base: 2
+    weight_norm: True
+    dropout: 0
     n_epochs: 1
     random_state: 0
     nr_epochs_val_period: 1
@@ -438,7 +542,7 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: 1024
-  
+
   tcn0_10:
     input_chunk_length: 960
     output_chunk_length: 96
@@ -477,7 +581,7 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: 1024
-  
+
   tcn1_10:
     input_chunk_length: 960
     output_chunk_length: 96
@@ -516,7 +620,7 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: 1024
-  
+
   tcn3_10:
     input_chunk_length: 960
     output_chunk_length: 96
@@ -530,86 +634,120 @@ hyperparameters:
     nr_epochs_val_period: 2
     batch_size: 1024
 
-  lgbm_4_d_w:
+  lgbm_1_2_3_4_96_672_covs_1_1:
     lags: [-1, -2, -3, -4, -96, -672]
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  lgbm_4d:
+  lgbm_384_covs_1_1:
     lags: 384
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  lgbm_7d_none:
+  lgbm_672_covs_1_1:
     lags: 672
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
-  
-  lgbm_7d:
+
+  lgbm_672_nocovs:
     lags: 672
     lags_past_covariates: null
     lags_future_covariates: None
     future_covs_as_tuple: false
     random_state: 0
+
+  lgbm_7d_5_mins:
+    lags: 2016
+    lags_past_covariates: null
+    lags_future_covariates: None
+    future_covs_as_tuple: false
+    random_state: 0
   
-  lgbm_3d:
+  lgbm_288_covs_1_1:
     lags: 288
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  lgbm_w:
+  lgbm_672_covs_1_1:
     lags: 672
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
-  
-  lgbm_d:
+
+  lgbm_96_covs_1_1:
     lags: 96
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
-  
-  rf_4_d_w:
+
+  rf_1_2_3_4_96_672_covs_1_1:
     lags: [-1, -2, -3, -4, -96, -672]
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  rf_w:
+  rf_672_covs_1_1:
     lags: 672
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  rf_4d:
+  rf_384_covs_1_1:
     lags: 384
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  rf_3d:
+  rf_288_covs_1_1:
     lags: 288
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
 
-  rf_d:
+  rf_96_covs_1_1:
     lags: 96
     lags_past_covariates: null
     lags_future_covariates: [1, 1]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  tcn_interpretability_test:
+    input_chunk_length: 96
+    output_chunk_length: 24
+    kernel_size: 3
+    num_filters: 3
+    dilation_base: 2
+    weight_norm: True
+    dropout: 0
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 1024
+
+  lgbm_w_opt_test:
+    lags: 672
+    lags_past_covariates: null
+    lags_future_covariates_opt_test: ["list", [1, 1], [2, 2]]
+    future_covs_as_tuple: true
+    random_state: 0
+
+  lgbm_thesis:
+    lags: 120
+    lags_past_covariates: null
+    lags_future_covariates: [1,1]
     future_covs_as_tuple: true
     random_state: 0
