@@ -4,11 +4,14 @@ import tempfile
 import pretty_errors
 import os
 import mlflow
-
+import pandas as pd
+import yaml
+import darts
 cur_dir = os.path.dirname(os.path.realpath(__file__))
-
+import numpy as np
 load_dotenv()
-
+from tqdm import tqdm
+import logging
 
 class ConfigParser:
     def __init__(self, config_file_path=f'{cur_dir}/config.yml'):
@@ -50,6 +53,9 @@ def load_yaml_as_dict(filepath):
             print(exc)
             return
 
+def save_dict_as_yaml(filepath, data):
+    with open(filepath, 'w') as savefile:
+        yaml.dump(data, savefile, default_flow_style=False)
 
 def load_local_pkl_as_object(local_path):
     import pickle
@@ -114,8 +120,7 @@ def load_local_pl_model(model_root_dir):
 
     from darts.models.forecasting.gradient_boosted_model import LightGBMModel
     from darts.models.forecasting.random_forest import RandomForest
-    from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel
-
+    from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
     print("\nLoading local PL model...")
     model_info_dict = load_yaml_as_dict(
         os.path.join(model_root_dir, 'model_info.yml'))
@@ -250,8 +255,7 @@ def load_local_model_as_torch(local_path):
     model.device = device
     return model
 
-
-def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Date', last_date=None):
+def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Date', last_date=None, multiple = False, day_first=True, resolution="15"):
 
     import logging
     import darts
@@ -259,20 +263,56 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
     import pandas as pd
 
     try:
-        covariates = darts.TimeSeries.from_csv(
-            local_path, time_col=time_col,
-            fill_missing_dates=True,
-            freq=None)
-        covariates = covariates.astype(np.float32)
-        if last_date is not None:
-            covariates.drop_after(pd.Timestamp(last_date))
+        if multiple:
+            #TODO Fix this too
+            ts_list, source_l, source_code_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=True, resolution=resolution)
+            covariate_l  = []
+            #print("liiiist", local_path)
+            #print(ts_list[0])
+            print("\nTurning dataframes to timeseries...")
+            logging.info("\nTurning dataframes to timeseries...")
+            for comps in tqdm(ts_list):
+                first = True
+                for df in comps:
+                    covariates = darts.TimeSeries.from_dataframe(
+                                df,
+                                fill_missing_dates=True,
+                                freq=None)
+                    covariates = covariates.astype(np.float32)
+                    if last_date is not None:
+                        #print(last_date)
+                        covariates.drop_after(pd.Timestamp(last_date))
+                    if first:
+                        first = False
+                        covariate_l.append(covariates)
+                    else:
+                        covariate_l[-1] = covariate_l[-1].stack(covariates)
+            covariates = covariate_l
+        else:
+            source_code_l, source_l, id_l, ts_id_l = [[]], [[]], [[]], [[]]
+            covariates = darts.TimeSeries.from_csv(
+                local_path, time_col=time_col,
+                fill_missing_dates=True,
+                freq=None)
+            covariates = covariates.astype(np.float32)
+            if last_date is not None:
+                covariates.drop_after(pd.Timestamp(last_date))
+#=======
+#        covariates = darts.TimeSeries.from_csv(
+#            local_path, time_col=time_col,
+#            fill_missing_dates=True,
+#            freq=None)
+#        covariates = covariates.astype(np.float32)
+#        if last_date is not None:
+#            covariates.drop_after(pd.Timestamp(last_date))
+#>>>>>>> dev
     except (FileNotFoundError, PermissionError) as e:
         print(
             f"\nBad {name} file.  The model won't include {name}...")
         logging.info(
             f"\nBad {name} file. The model won't include {name}...")
         covariates = None
-    return covariates
+    return covariates, source_l, source_code_l, id_l, ts_id_l
 
 
 def parse_uri_prediction_input(model_input: dict, model) -> dict:
@@ -327,6 +367,74 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
         "past_covariates": past_covariates,
         "batch_size": batch_size,
     }
+
+def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
+                            day_first: bool = True,
+                            resolution: str = "15"):
+    ts = pd.read_csv(series_csv,
+                     sep=None,
+                     header=0,
+                     index_col=0,
+                     parse_dates=True,
+                     dayfirst=day_first,
+                     engine='python')
+    #print("ts", ts, sep="\n")
+    res = []
+    source = []
+    source_code = []
+    id_l = []
+    ts_id_l = []
+    ts_ids = list(np.unique(ts["Timeseries ID"]))
+    print("\nTurning multiple ts file to dataframe list...")
+    logging.info("\nTurning multiple ts file to dataframe list...")
+    for ts_id in tqdm(ts_ids):
+        curr_ts = ts[ts["Timeseries ID"] == ts_id]
+        ids = list(np.unique(curr_ts["ID"]))
+        res.append([])
+        source.append([])
+        source_code.append([])
+        id_l.append([])
+        ts_id_l.append([])
+        for id in ids:
+            curr_comp = curr_ts[curr_ts["ID"] == id]
+            curr_comp = pd.melt(curr_comp, id_vars=['Day', 'ID', 'Source', 'Source Code', 'Timeseries ID'], var_name='Time', value_name='Load')
+            curr_comp["Date"] = pd.to_datetime(curr_comp['Day'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
+            curr_comp = curr_comp.set_index("Date")
+            series = curr_comp["Load"].sort_index().dropna().asfreq(resolution+'min')
+            res[-1].append(pd.DataFrame({"Load" : series}))
+            source[-1].append(curr_comp["Source"].values[0])
+            source_code[-1].append(curr_comp["Source Code"].values[0])
+            id_l[-1].append(id)
+            ts_id_l[-1].append(ts_id)
+    return res, source, source_code, id_l, ts_id_l
+
+def multiple_dfs_to_ts_file(res_l, source_l, source_code_l, id_l, ts_id_l, save_dir):
+    ts_list = []
+    print("\nTurning dataframe list to multiple ts file...")
+    logging.info("\nTurning dataframe list to multiple ts file...")
+    for ts_num, (ts, source_ts, source_code_ts, id_ts, ts_id_ts) in tqdm(list(enumerate(zip(res_l, source_l, source_code_l, id_l, ts_id_l)))):
+#        print("ts_num", ts)
+        if type(ts) == darts.timeseries.TimeSeries:
+            ts = [ts.univariate_component(i).pd_dataframe() for i in range(ts.n_components)]
+        for comp_num, (comp, source, source_code, id, ts_id) in enumerate(zip(ts, source_ts, source_code_ts, id_ts, ts_id_ts)):
+ #           print(comp)
+            load_col = comp.columns[0]
+            comp["Day"] = comp.index.date
+            comp["Time"] = comp.index.time
+            comp = pd.pivot_table(comp, index=["Day"], columns=["Time"])
+            comp = comp[load_col]
+            comp["ID"] = id
+            comp["Timeseries ID"] = ts_id
+            comp["Source"] = source
+            comp["Source Code"] = source_code
+            ts_list.append(comp)
+    res = pd.concat(ts_list).sort_values(by=["Day", "ID"])
+    columns = list(res.columns)[-4:] + list(res.columns)[:-4]
+    res = res[columns].reset_index()
+    res.to_csv(save_dir)
+
+#epestrepse kai IDs
+#prwta psakse ID meta SC
 #TODO: Fix it. It does not get any progress any more
 # def get_training_progress_by_tag(fn, tag):
 #     # assert(os.path.isdir(output_dir))
@@ -411,5 +519,3 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
     # print("Artifacts uploaded. Deleting local copies...")
     # logging.info("Artifacts uploaded. Deleting local copies...")
     # shutil.rmtree(output_dir)
-
-    # return
