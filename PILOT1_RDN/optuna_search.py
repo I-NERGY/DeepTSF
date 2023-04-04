@@ -126,7 +126,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
         mlflow.pyfunc.log_model(mlflow_model_root_dir,
                             loader_module="darts_flavor",
                             data_path=logs_path_new,
-                            code_path=['utils.py', 'inference.py', 'darts_flavor.py'],
+                            code_path=['../utils.py', '../inference.py', '../darts_flavor.py'],
                             conda_env=mlflow_serve_conda_env)
             
         shutil.rmtree(logs_path_new)

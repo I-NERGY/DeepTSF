@@ -1,3 +1,5 @@
+import sys
+sys.path.append('..')
 import pretty_errors
 from utils import none_checker
 import os

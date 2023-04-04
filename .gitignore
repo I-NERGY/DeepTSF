@@ -50,6 +50,7 @@ nodeLanguageServer.*/**
 
 # darts
 */darts_logs/*
+**/darts_logs
 
 # ignore dots except gitignore
 .*

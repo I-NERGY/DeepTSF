@@ -3,7 +3,7 @@ from utils import none_checker, ConfigParser, download_online_file, load_local_c
 from preprocessing import scale_covariates, split_dataset
 
 # the following are used through eval(darts_model + 'Model')
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel#, NHiTSModel, TransformerModel
 # from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.gradient_boosted_model import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
@@ -530,7 +530,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         mlflow.pyfunc.log_model(mlflow_model_root_dir,
                                 loader_module="darts_flavor",
                                 data_path=logs_path_new,
-                                code_path=['utils.py', 'inference.py', 'darts_flavor.py'],
+                                code_path=['../utils.py', '../inference.py', '../darts_flavor.py'],
                                 conda_env=mlflow_serve_conda_env)
         # elif model_type == 'pkl':
         #     mlflow.pyfunc.log_model(mlflow_model_root_dir,

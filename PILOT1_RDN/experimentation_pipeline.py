@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import tempfile
 import pretty_errors
 from darts.dataprocessing.transformers import Scaler
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, LightGBMModel, RandomForest, TFTModel, TCNModel, NHiTSModel, TransformerModel
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, LightGBMModel, RandomForest, TFTModel, TCNModel#, NHiTSModel, TransformerModel
 import mlflow
 import click
 import os
@@ -288,7 +288,6 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     default="ts_ID",
     help="What ID type is speciffied in eval_series: \
     if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at Source Code column ")
-
 @click.option("--l-interpolation",
     type=str,
     default="false",

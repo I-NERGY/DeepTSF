@@ -636,7 +636,10 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         size = int(size)
     except:
         size = float(size)
-    input_chunk_length = int(input_chunk_length)
+    try:
+        input_chunk_length = int(input_chunk_length)
+    except:
+        pass
     output_chunk_length = int(output_chunk_length)
 
     # Load model / datasets / scalers from Mlflow server
