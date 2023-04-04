@@ -4,15 +4,15 @@ import uvicorn
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends
 import pandas as pd
 import mlflow
-from utils import ConfigParser, truth_checker
+from general.utils import ConfigParser, truth_checker
 import tempfile
 import os
-from load_raw_data import read_and_validate_input
-from exceptions import DatesNotInOrder, WrongColumnNames
+from general.load_raw_data import read_and_validate_input
+from general.exceptions import DatesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils import load_artifacts
+from general.utils import load_artifacts
 import psutil, nvsmi
 import os
 from dotenv import load_dotenv

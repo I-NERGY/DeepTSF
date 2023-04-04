@@ -6,6 +6,8 @@ import tempfile
 import os
 import mlflow
 import click
+import sys
+sys.path.append('..')
 from utils import ConfigParser
 import logging
 import pandas as pd
@@ -118,59 +120,12 @@ import pandas as pd
 
 client = MongoClient(MONGO_URL)
 
-
-def unfold_timeseries(lds):
-    new_loads = {'Date': [], 'Load': []}
-    prev_date = ''
-    #print(lds)
-    for l in reversed(list(lds)):
-        if prev_date != l['date']:
-            for key in l:
-                if key != '_id' and key != 'date':
-                    new_date = l['date'] + ' ' + key
-                    new_loads['Date'].append(new_date)
-                    new_loads['Load'].append(l[key])
-        prev_date = l['date']
-    return new_loads
-
-
 def load_data_to_csv(tmpdir, mongo_name):
     db = client['inergy_prod_db']
-    if mongo_name == "asm_historical_smart_meters_uc6":
-        df = list(map(lambda x: pd.DataFrame(x.find()).drop(columns={'_id', ''}, errors='ignore'), 
-                 [db[mongo_name + "_current"], db[mongo_name + "_voltage"], db[mongo_name + "_power"]]))
-    else:
-        collection = db[mongo_name]
-        df = pd.DataFrame(collection.find()).drop(columns={'_id', ''}, errors='ignore')
-    if mongo_name == "asm_historical_smart_meters_uc7":
-        #Rename to ts id
-        #df = df.loc[(df["energy_type"] == "active_sum") | (df["energy_type"] == "reactive_sum")]
-        df["Source"] = df["id"] + " " + df["energy_type"]
-        cols_to_drop = {'date', 'id', 'energy_type'}
-    elif mongo_name == "asm_historical_smart_meters_uc6":
-        df[2] = df[2].loc[df[2]["id"] != "W1"]
-        df[0]["Source"] = df[0]["id"] + " " + df[0]["phase"]
-        df[1]["Source"] = df[1]["id"] + " " + df[1]["voltage_type"]
-        df[2]["Source"] = df[2]["id"] + " " + df[2]["power_type"]
-        cols_to_drop = {'date', 'id', 'power_type', 'voltage_type', 'phase'}
-        df = pd.concat(df) 
-
-    elif mongo_name == "asm_historical_smart_meters_uc6_current":
-        df["Source"] = df["id"] + " " + df["phase"]
-        cols_to_drop = {'date', 'id', 'phase'}
-    elif mongo_name == "asm_historical_smart_meters_uc6_voltage":
-        df["Source"] = df["id"] + " " + df["voltage_type"]
-        cols_to_drop = {'date', 'id', 'voltage_type'}
-    elif mongo_name == "asm_historical_smart_meters_uc6_power":
-        #df.index = list(range(len(df)))
-        df["Source"] = df["id"] + " " + df["power_type"]
-        cols_to_drop = {'date', 'id', 'power_type'}
-    else:
-        df = unfold_timeseries(collection.find().sort('_id', -1))
-        df = pd.DataFrame.from_dict(new_loads)
-        df.to_csv(f'{tmpdir}/load.csv', index=False)
-        client.close()
-        return
+    collection = db[mongo_name]
+    df = pd.DataFrame(collection.find()).drop(columns={'_id', ''}, errors='ignore')
+    df["Source"] = df["id"] + " " + df["energy_type"]
+    cols_to_drop = {'date', 'id', 'energy_type'}
     df["Source Code"] = df["Source"]
     
     unique_ts = pd.unique(df["Source"])
@@ -178,19 +133,9 @@ def load_data_to_csv(tmpdir, mongo_name):
     for i in range(len(unique_ts)):
         name_to_ID[unique_ts[i]] = i
     df["ID"] = df["Source"].apply(lambda x: name_to_ID[x])
-
-    if mongo_name == "asm_historical_smart_meters_uc6":
-        unique_ts = pd.unique(df["id"])
-        name_to_ID = {}
-        for i in range(len(unique_ts)):
-            name_to_ID[unique_ts[i]] = i
-        df["Timeseries ID"] = df["id"].apply(lambda x: name_to_ID[x])
-
-    if mongo_name == "asm_historical_smart_meters_uc7":
-        df["Timeseries ID"] = df["id"]
+    df["Timeseries ID"] = df["Source"]
 
     df["Day"] = df["date"]
-    #print("1", df)
     df = df.drop_duplicates(subset=["Day", "ID"]).\
             sort_values(by=["Day", "ID"], ignore_index=True).\
             drop(columns=cols_to_drop)
@@ -238,6 +183,7 @@ def load_data_to_csv(tmpdir, mongo_name):
 )
 
 def load_raw_data(series_csv, series_uri, day_first, multiple, resolution, from_mongo, mongo_name):
+    mongo_name = "asm_historical_smart_meters_uc7"
 
     from_mongo = truth_checker(from_mongo)
     tmpdir = tempfile.mkdtemp()

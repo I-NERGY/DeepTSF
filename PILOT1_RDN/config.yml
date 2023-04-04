@@ -345,7 +345,7 @@ hyperparameters:
     generic_architecture: True
     layer_widths: 64
     expansion_coefficient_dim: 5
-    n_epochs: 300
+    n_epochs: 2
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: 1024
@@ -751,3 +751,35 @@ hyperparameters:
     lags_future_covariates: [1,1]
     future_covs_as_tuple: true
     random_state: 0
+
+  nbeats_best_thesis:
+    input_chunk_length : 264
+    output_chunk_length : 24
+    num_stacks : 6
+    num_blocks : 1
+    num_layers : 2
+    generic_architecture : True
+    layer_widths : 64 
+    expansion_coefficient_dim : 5
+    n_epochs : 200 
+    random_state : 0
+    nr_epochs_val_period : 2 
+    batch_size : 1024
+  light_gbm_thesis:
+    lags: 216
+    lags_past_covariates : null 
+    lags_future_covariates : None 
+    future_covs_as_tuple : True 
+    random_state : 0 
+  TCN_serving:
+    output_chunk_length: 24
+    weight_norm: True
+    dropout: 0
+    nr_epochs_val_period: 2
+    n_epochs: 500
+    random_state: 0
+    input_chunk_length: 240
+    kernel_size: 4
+    num_filters: 10
+    dilation_base: 8
+    batch_size: 1024
