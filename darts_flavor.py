@@ -19,6 +19,11 @@ class _MLflowPLDartsModelWrapper:
         
         Dataframe
         """
+        try:
+            model_input = model_input[0]
+            batched = True
+        except:
+            batched = False
         # Parse
         model_input = parse_uri_prediction_input(model_input, self.model)
 
@@ -44,7 +49,11 @@ class _MLflowPLDartsModelWrapper:
             predictions = self.transformer.inverse_transform(predictions)
 
         # Return as DataFrame
-        return predictions.pd_dataframe()
+        print(predictions[0].pd_dataframe())
+        if batched:
+            return [predictions[0].pd_dataframe()]
+        else:
+            return predictions[0].pd_dataframe()
 
 def _load_pyfunc(model_folder):
     """
