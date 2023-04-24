@@ -546,16 +546,22 @@ def utc_to_local(df, country_code):
     type=str,
     default="true",
     help="Whether to remove outliers")
+
 @click.option("--convert-to-local-tz",
     type=str,
     default="true",
     help="Whether to convert time")
 
 
+@click.option("--ts-used-id",
+    type=str,
+    default="None",
+    help="If not None, only ts with this id will be used for training and evaluation. Applicable only on multiple ts files")
+
 
 def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, 
         country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, 
-        l_interpolation, rmv_outliers, convert_to_local_tz):
+        l_interpolation, rmv_outliers, convert_to_local_tz, ts_used_id):
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
     # Also check if current transformations are ok
@@ -583,12 +589,23 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     day_first = truth_checker(day_first)
 
     multiple = truth_checker(multiple)
+    
+    ts_used_id = none_checker(ts_used_id)
 
     print("\nLoading source dataset..")
     logging.info("\nLoading source dataset..")
 
     if multiple:
         ts_list, source_l, source_code_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, resolution)
+        if ts_used_id != None:
+            index = ts_id_l.index(ts_used_id)
+            #TODO: return error if not found
+            ts_list = [ts_list[index]]
+            source_l = [source_l[index]]
+            source_code_l = [source_code_l[index]]
+            id_l = [id_l[index]]
+            ts_id_l = [ts_id_l[index]]
+
     else:
         ts_list = [[pd.read_csv(series_csv,
                          delimiter=',',
