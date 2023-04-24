@@ -328,13 +328,19 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
              default="None",
              help="input_chunk_length of samples of SHAP. Is taken into account only if not evaluating a global forecasting model")
 
+@click.option("--ts-used-id",
+    type=str,
+    default="None",
+    help="If not None, only ts with this id will be used for training and evaluation. Applicable only on multiple ts files")
+
 
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_series, n_trials, opt_test, from_mongo, mongo_name, num_workers, eval_method,
-             l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, input_chunk_length):
+             l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, input_chunk_length,
+             ts_used_id):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -379,7 +385,8 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                       "multiple": multiple,
                       "l_interpolation": l_interpolation,
                       "rmv_outliers": rmv_outliers,
-                      "convert_to_local_tz": convert_to_local_tz}
+                      "convert_to_local_tz": convert_to_local_tz,
+                      "ts_used_id": ts_used_id}
 
         etl_run = _get_or_run("etl", etl_params, git_commit, ignore_previous_runs)
 
