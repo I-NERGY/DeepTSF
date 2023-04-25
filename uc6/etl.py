@@ -235,8 +235,9 @@ def remove_outliers(ts: pd.DataFrame,
 
     #Dates with NaN values are removed from the dataframe
     ts = ts.dropna()
-    #Removing all non postive values
-    a = ts.loc[ts["Load"] <= 0]
+    #Removing all zero values if no negative values are present
+    if not (ts["Load"] < 0).any:
+        a = ts.loc[ts["Load"] <= 0]
     #Calculating monthly mean and standard deviation and removing values
     #that are more than std_dev standard deviations away from the mean
     mean_per_month = ts.groupby(lambda x: x.month).mean().to_numpy()
@@ -558,10 +559,16 @@ def utc_to_local(df, country_code):
     default="None",
     help="If not None, only ts with this id will be used for training and evaluation. Applicable only on multiple ts files")
 
+@click.option("--infered-resolution",
+    type=str,
+    default="15",
+    help="infered resolution of the dataset from load_raw_data")
 
 def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, 
         country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, 
-        l_interpolation, rmv_outliers, convert_to_local_tz, ts_used_id):
+        l_interpolation, rmv_outliers, convert_to_local_tz, ts_used_id,
+        infered_resolution):
+
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
     # Also check if current transformations are ok
@@ -596,9 +603,13 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     logging.info("\nLoading source dataset..")
 
     if multiple:
-        ts_list, source_l, source_code_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, resolution)
+        ts_list, source_l, source_code_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, infered_resolution)
         if ts_used_id != None:
-            index = ts_id_l.index(ts_used_id)
+            try:
+                ts_used_id = int(ts_used_id)
+            except:
+                pass
+            index = ts_id_l.index([ts_used_id for _ in range(len(ts_id_l[0]))])
             #TODO: return error if not found
             ts_list = [ts_list[index]]
             source_l = [source_l[index]]
@@ -675,7 +686,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                     comp_res, removed = remove_outliers(ts=comp_res,
                                                         name=source_l[ts_num][comp_num],
                                                         std_dev=std_dev,
-                                                        resolution=resolution)
+                                                        resolution=infered_resolution)
                 #holidays_: The holidays of country
                 try:
                     code = compile(f"holidays.{source_l[ts_num][comp_num]}()", "<string>", "eval")
@@ -699,7 +710,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   wncutoff=wncutoff,
                                                   ycutoff=ycutoff,
                                                   ydcutoff=ydcutoff,
-                                                  resolution=resolution,
+                                                  resolution=infered_resolution,
                                                   name=source_l[ts_num][comp_num],
                                                   l_interpolation=l_interpolation)
                 
@@ -708,7 +719,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                     logging.info(f"\nResampling as given frequency is different than 15 minutes")
                     comp_res = comp_res.resample(resolution+'min').sum()
                     
-
+                print("NULL", comp.isnull().sum().sum())
                 print("\nCreating darts data frame...")
                 logging.info("\nCreating darts data frame...")
 

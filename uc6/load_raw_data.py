@@ -74,6 +74,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     pandas.DataFrame
         The resulting dataframe from series_csv
     """
+
     ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,
@@ -100,10 +101,21 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             ts["Source Code"] = ts["ID"]
         if "Source" not in ts.columns:
             ts["Source"] = ts["ID"]
+
+        #infering resolution
+        times = []
+        for elem in list(ts.columns):
+            try:
+                times.append(pd.Timestamp(elem))
+            except:
+                pass
+        times.sort()
+        print(times)
+        resolution = (times[1] - times[0]).seconds // 60
         des_columns = list(map(str, ['Day', 'ID', 'Source', 'Source Code', 'Timeseries ID'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
         #Check that all columns 'Day', 'ID', 'Source', 'Source Code' 'Timeseries' and the time columns exist in any order.
-        #if not set(des_columns) == set(list(ts.columns)):
-        #    raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
+        if not set(des_columns) == set(list(ts.columns)):
+            raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
         #Check that all dates for each source are sorted
         for id in np.unique(ts["ID"]):
             if not ts.loc[ts["ID"] == id]["Day"].sort_values().equals(ts.loc[ts["ID"] == id]["Day"]):
@@ -112,6 +124,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         #Check that all timeseries in a multiple timeseries file have the same number of components
         if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
             raise DifferentComponentDimensions()
+
+    mlflow.set_tag('infered_resolution', resolution)
             
         
     return ts
@@ -195,7 +209,6 @@ def load_data_to_csv(tmpdir, mongo_name):
 )
 
 def load_raw_data(series_csv, series_uri, day_first, multiple, resolution, from_mongo, mongo_name):
-    mongo_name = "asm_historical_smart_meters_uc6"
 
     from_mongo = truth_checker(from_mongo)
     tmpdir = tempfile.mkdtemp()
