@@ -360,7 +360,6 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                                 "series_uri": series_uri, 
                                 "day_first": day_first, 
                                 "multiple": multiple, 
-                                "resolution": resolution,
                                 "from_mongo": from_mongo,
                                 "mongo_name": mongo_name}
         
@@ -368,6 +367,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
         # series_uri = f"{load_raw_data_run.info.artifact_uri}/raw_data/series.csv" \
         #                 .replace("s3:/", S3_ENDPOINT_URL)
         load_data_series_uri = load_raw_data_run.data.tags['dataset_uri'].replace("s3:/", S3_ENDPOINT_URL)
+        infered_resolution = load_raw_data_run.data.tags['infered_resolution']
 
         # 2. ETL
         etl_params = {"series_uri": load_data_series_uri,
@@ -386,7 +386,8 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                       "l_interpolation": l_interpolation,
                       "rmv_outliers": rmv_outliers,
                       "convert_to_local_tz": convert_to_local_tz,
-                      "ts_used_id": ts_used_id}
+                      "ts_used_id": ts_used_id,
+                      "infered_resolution": infered_resolution}
 
         etl_run = _get_or_run("etl", etl_params, git_commit, ignore_previous_runs)
 
