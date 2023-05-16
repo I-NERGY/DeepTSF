@@ -238,6 +238,8 @@ def remove_outliers(ts: pd.DataFrame,
     #Removing all zero values if no negative values are present
     if not (ts["Load"] < 0).any:
         a = ts.loc[ts["Load"] <= 0]
+    else:
+        a = ts.loc[ts["Load"] < min(ts["Load"])]
     #Calculating monthly mean and standard deviation and removing values
     #that are more than std_dev standard deviations away from the mean
     mean_per_month = ts.groupby(lambda x: x.month).mean().to_numpy()
@@ -319,7 +321,7 @@ def impute(ts: pd.DataFrame,
     pandas.DataFrame
         The imputed dataframe
     """
-
+    print(resolution)
     if max_thr == -1: max_thr = len(ts)
     if l_interpolation: 
         res = ts.interpolate(inplace=False)
@@ -453,6 +455,29 @@ def utc_to_local(df, country_code):
 
     #print(df)
 
+def save_consecutive_nans(ts, resolution, tmpdir, name):
+    resolution = int(resolution)
+    output = "Consecutive nans left in df:\n"
+    null_dates = ts[ts["Load"].isnull()].index
+    print(null_dates)
+    prev = null_dates[0]
+    output = output + str(prev) + " - "
+    for null_date in null_dates[1:]:
+        if (null_date - prev).seconds // 60 != resolution:
+            output = output + str(prev) + "\n" + str(null_date) + " - "
+        prev = null_date
+    output = output + str(null_date)
+    
+    f = open(f'{tmpdir}/cons_nans_left_{name}.txt', "w")
+    f.write(output)
+    f.close()
+    return output
+
+def sum_wo_nans(arraylike):
+    if np.isnan(arraylike).any():
+        return np.nan
+    else:
+        return np.sum(arraylike)
 
 @click.command(
     help="Given a timeseries CSV file (see load_raw_data), resamples it, "
@@ -703,6 +728,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 print("\nPerfrorming Imputation of the Dataset...")
                 logging.info("\nPerfrorming Imputation of the Dataset...")
                 #print(comp_res)
+                #comp_res.to_csv(f"../../notebooks/{source_l[ts_num][comp_num]}.csv")
                 comp_res, imputed_values = impute(ts=comp_res,
                                                   holidays=country_holidays,
                                                   max_thr=max_thr,
@@ -714,12 +740,14 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   name=source_l[ts_num][comp_num],
                                                   l_interpolation=l_interpolation)
                 
-                if resolution != "15":
-                    print(f"\nResampling as given frequency different than 15 minutes")
-                    logging.info(f"\nResampling as given frequency is different than 15 minutes")
-                    comp_res = comp_res.resample(resolution+'min').sum()
+                if resolution != infered_resolution:
+                    print(f"\nResampling as given frequency different than infered resolution")
+                    logging.info(f"\nResampling as given frequency is different than infered resolution")
+                    comp_res = comp_res.resample(resolution+'min').apply(sum_wo_nans)
+                
+                if comp_res.isnull().sum().sum() > 0:
+                    save_consecutive_nans(comp_res, resolution, impute_dir, source_l[ts_num][comp_num])
                     
-                print("NULL", comp.isnull().sum().sum())
                 print("\nCreating darts data frame...")
                 logging.info("\nCreating darts data frame...")
 
@@ -730,6 +758,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
                 # darts dataset creation
                 comp_res_darts = darts.TimeSeries.from_dataframe(comp_res)
+                #print("NULL VALUES", comp_res_darts.pd_dataframe().isnull().sum().sum())
 
                 # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
 

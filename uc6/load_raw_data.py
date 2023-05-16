@@ -137,14 +137,11 @@ client = MongoClient(MONGO_URL)
 
 def load_data_to_csv(tmpdir, mongo_name):
     db = client['inergy_prod_db']
-    df = list(map(lambda x: pd.DataFrame(x.find()).drop(columns={'_id', ''}, errors='ignore'), 
-                [db[mongo_name + "_current"], db[mongo_name + "_voltage"], db[mongo_name + "_power"]]))
-    df[2] = df[2].loc[df[2]["id"] != "W1"]
-    df[0]["Source"] = df[0]["id"] + " " + df[0]["phase"]
-    df[1]["Source"] = df[1]["id"] + " " + df[1]["voltage_type"]
-    df[2]["Source"] = df[2]["id"] + " " + df[2]["power_type"]
-    cols_to_drop = {'date', 'id', 'power_type', 'voltage_type', 'phase'}
-    df = pd.concat(df) 
+    collection = db["asm_historical_smart_meters_uc6_power"]
+    df = pd.DataFrame(collection.find()).drop(columns={'_id', ''}, errors='ignore')
+    #df.index = list(range(len(df)))
+    df["Source"] = df["id"] + " " + df["power_type"]
+    cols_to_drop = {'date', 'id', 'power_type'}
 
     df["Source Code"] = df["Source"]
     
@@ -153,12 +150,6 @@ def load_data_to_csv(tmpdir, mongo_name):
     for i in range(len(unique_ts)):
         name_to_ID[unique_ts[i]] = i
     df["ID"] = df["Source"].apply(lambda x: name_to_ID[x])
-
-    unique_ts = pd.unique(df["id"])
-    name_to_ID = {}
-    for i in range(len(unique_ts)):
-    	name_to_ID[unique_ts[i]] = i
-    df["Timeseries ID"] = df["id"].apply(lambda x: name_to_ID[x])
 
     df["Day"] = df["date"]
     #print("1", df)
