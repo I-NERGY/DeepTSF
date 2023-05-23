@@ -38,8 +38,10 @@ entry_points:
       convert_to_local_tz: {type: str, default: "true"}
       ts_used_id: {type: str, default: "None"}
       infered_resolution: {type: str, default: "15"}
+      min_non_nan_interval: {type: str, default: "24"}
+      cut_date_val: {type: str, default: 20200101}
     command: |
-      python etl.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --multiple {multiple} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --convert-to-local-tz {convert_to_local_tz} --ts-used-id {ts_used_id} --infered-resolution {infered_resolution}
+      python etl.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --multiple {multiple} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --convert-to-local-tz {convert_to_local_tz} --ts-used-id {ts_used_id} --infered-resolution {infered_resolution} --min-non-nan-interval {min_non_nan_interval} --cut-date-val {cut_date_val}
 
   train:
     parameters:
@@ -176,9 +178,10 @@ entry_points:
       input_chunk_length: {type: str, default: None}
       ts_used_id: {type: str, default: "None"}
       m_mase: {type: str, default: "1"}
+      min_non_nan_interval: {type: str, default: "24"}
 
     command: |
-      python ../experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --shap-data-size {shap_data_size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --opt-test {opt_test} --from-mongo {from_mongo} --mongo-name {mongo_name} --num-workers {num_workers} --eval-method {eval_method} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --convert-to-local-tz {convert_to_local_tz} --grid-search {grid_search} --input-chunk-length {input_chunk_length} --ts-used-id {ts_used_id} --m-mase {m_mase}
+      python ../experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --shap-data-size {shap_data_size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --opt-test {opt_test} --from-mongo {from_mongo} --mongo-name {mongo_name} --num-workers {num_workers} --eval-method {eval_method} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --convert-to-local-tz {convert_to_local_tz} --grid-search {grid_search} --input-chunk-length {input_chunk_length} --ts-used-id {ts_used_id} --m-mase {m_mase} --min-non-nan-interval {min_non_nan_interval}
 
   inference:
     parameters:

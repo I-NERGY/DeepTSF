@@ -236,7 +236,8 @@ def remove_outliers(ts: pd.DataFrame,
     #Dates with NaN values are removed from the dataframe
     ts = ts.dropna()
     #Removing all zero values if no negative values are present
-    if not (ts["Load"] < 0).any:
+    print("MIN", min(ts["Load"]))
+    if min(ts["Load"]) >= 0:
         a = ts.loc[ts["Load"] <= 0]
     else:
         a = ts.loc[ts["Load"] < min(ts["Load"])]
@@ -277,7 +278,9 @@ def impute(ts: pd.DataFrame,
            resolution: str = "15",
            debug: bool = False,
            name: str = "Portugal",
-           l_interpolation: bool = False):
+           l_interpolation: bool = False,
+           cut_date_val: str = "20221208",
+           min_non_nan_interval: int = 24):
     """
     Reads the input dataframe and imputes the timeseries using a weighted average of historical data
     and simple interpolation. The weights of each method are exponentially dependent on the distance
@@ -315,13 +318,19 @@ def impute(ts: pd.DataFrame,
         If true it will print helpfull intermediate results
     l_interpolation
         Whether to only use linear interpolation 
+    cut_date_val
+        All dates before cut_date_val that have nan values are imputed using historical data
+        from dates which are also before cut_date_val. Dates after cut_date_val are not affected
+        by this
+    min_non_nan_interval
+        If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
+        hours, these intervals are all replaced  by nan values
 
     Returns
     -------
     pandas.DataFrame
         The imputed dataframe
     """
-    print(resolution)
     if max_thr == -1: max_thr = len(ts)
     if l_interpolation: 
         res = ts.interpolate(inplace=False)
@@ -385,8 +394,10 @@ def impute(ts: pd.DataFrame,
 
         #We copy the time series so that we don't change it while iterating
         res = ts.copy()
-        for i, null_date in tqdm(list(enumerate(null_dates))):
-            if leave_nan[i]: continue
+
+        null_zip = [(i, null_date) for (i, null_date) in enumerate(null_dates) if not leave_nan[i]]
+
+        for i, null_date in tqdm(null_zip):
 
             #WN: Day of the week + hour/24 + minute/(24*60). Holidays are handled as
             #either Saturdays(if the real day is a Friday) or Sundays(in every other case)
@@ -399,10 +410,22 @@ def impute(ts: pd.DataFrame,
 
             #Historical value is calculated as the mean of values that have at most wncutoff distance to the current null value's
             #WN, ycutoff distance to its year, and ydcutoff distance to its yearday
-            historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
+            #All dates before cut_date_val that have nan values are imputed using historical data
+            #from dates which are also before cut_date_val
+            if null_date < pd.Timestamp(cut_date_val):
+                historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
+                                        (ts["Load"].index < pd.Timestamp(cut_date_val)) &\
                                         (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
                                         (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
                                         ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Load"]
+                
+            #Dates after cut_date_val are not affected by cut_date_val
+            else:
+                historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
+                                        (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
+                                        (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
+                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Load"]
+
 
             if debug: print("~~~~~~Date~~~~~~~",null_date, "~~~~~~~Dates summed~~~~~~~~~~",historical,sep="\n")
 
@@ -416,11 +439,30 @@ def impute(ts: pd.DataFrame,
             if debug:
                 print(res.loc[null_date])
 
+    #If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
+    #hours, these intervals are all replaced  by nan values
+    not_nan_values = res[~res["Load"].isnull()]
+    not_nan_dates = not_nan_values.index
+    prev = not_nan_dates[0]
+    start = prev
+
+    for not_nan_day in not_nan_dates[1:]:
+        if (not_nan_day - prev)!= pd.Timedelta(int(resolution), "min"):
+            if prev - start < pd.Timedelta(min_non_nan_interval, "h"):
+                print(f"Non Nan interval from {start} to {prev} is smaller than {min_non_nan_interval} h. Making this also Nan")
+                for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+                    res.loc[date] = pd.NA
+            start = not_nan_day
+        prev = not_nan_day
+    if prev - start < pd.Timedelta(min_non_nan_interval, "h"):
+        for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+                res.loc[date] = pd.NA
+
+    res.to_csv("res.csv")
     fig, ax = plt.subplots(figsize=(8,5))
     ax.plot(res.index, res['Load'], color='black', label = f'Load of {name} after Imputation')
     plt.legend()
     mlflow.log_figure(fig, f'imputation_results/imputed_series_{name}.png')
-
     return res, imputed_values
 
 def utc_to_local(df, country_code):
@@ -588,10 +630,24 @@ def sum_wo_nans(arraylike):
     default="15",
     help="infered resolution of the dataset from load_raw_data")
 
+@click.option("--min-non-nan-interval",
+    type=str,
+    default="24",
+    help="If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval \
+        hours, these intervals are all replaced  by nan values")
+
+@click.option("--cut-date-val",
+              type=str,
+              default='20200101',
+              help="Validation set start date [str: 'YYYYMMDD'] \
+                  All dates before cut_date_val that have nan values are imputed using historical data \
+                  from dates which are also before cut_date_val. Dates after cut_date_val are not affected \
+                  by this")
+
 def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, 
         country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, 
         l_interpolation, rmv_outliers, convert_to_local_tz, ts_used_id,
-        infered_resolution):
+        infered_resolution, min_non_nan_interval, cut_date_val):
 
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
@@ -609,6 +665,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     wncutoff = float(wncutoff)
     ycutoff = int(ycutoff)
     ydcutoff = int(ydcutoff)
+    min_non_nan_interval = int(min_non_nan_interval)
     l_interpolation = truth_checker(l_interpolation)
     rmv_outliers = truth_checker(rmv_outliers)
     convert_to_local_tz = truth_checker(convert_to_local_tz)
@@ -727,7 +784,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 print("\nPerfrorming Imputation of the Dataset...")
                 logging.info("\nPerfrorming Imputation of the Dataset...")
                 #print(comp_res)
-                #comp_res.to_csv(f"../../notebooks/{source_l[ts_num][comp_num]}.csv")
+                comp_res.to_csv(f"../../notebooks/{source_l[ts_num][comp_num]}.csv")
                 comp_res, imputed_values = impute(ts=comp_res,
                                                   holidays=country_holidays,
                                                   max_thr=max_thr,
@@ -737,7 +794,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   ydcutoff=ydcutoff,
                                                   resolution=infered_resolution,
                                                   name=source_l[ts_num][comp_num],
-                                                  l_interpolation=l_interpolation)
+                                                  l_interpolation=l_interpolation,
+                                                  cut_date_val=cut_date_val,
+                                                  min_non_nan_interval=min_non_nan_interval)
                 
                 if resolution != infered_resolution:
                     print(f"\nResampling as given frequency different than infered resolution")

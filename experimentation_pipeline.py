@@ -338,6 +338,13 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     default="1",
     help="m to use for mase metric")
 
+@click.option("--min-non-nan-interval",
+    type=str,
+    default="24",
+    help="If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval \
+        hours, these intervals are all replaced  by nan values")
+
+
 
 def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
@@ -345,7 +352,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_series, n_trials, opt_test, from_mongo, mongo_name, num_workers, eval_method,
              l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, input_chunk_length,
-             ts_used_id, m_mase):
+             ts_used_id, m_mase, min_non_nan_interval):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -392,7 +399,9 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                       "rmv_outliers": rmv_outliers,
                       "convert_to_local_tz": convert_to_local_tz,
                       "ts_used_id": ts_used_id,
-                      "infered_resolution": infered_resolution}
+                      "infered_resolution": infered_resolution,
+                      "min_non_nan_interval": min_non_nan_interval,
+                      "cut_date_val": cut_date_val}
 
         etl_run = _get_or_run("etl", etl_params, git_commit, ignore_previous_runs)
 
