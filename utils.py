@@ -274,11 +274,14 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             for comps in tqdm(ts_list):
                 first = True
                 for df in comps:
+                    print("NUM NULL DF", df.isnull().sum().sum())
                     covariates = darts.TimeSeries.from_dataframe(
                                 df,
                                 fill_missing_dates=True,
                                 freq=None)
+                    print("NUM NULL TS", covariates.pd_dataframe().isnull().sum().sum())
                     covariates = covariates.astype(np.float32)
+                    print("NUM NULL AFTER FLOAT", covariates.pd_dataframe().isnull().sum().sum())
                     if last_date is not None:
                         #print(last_date)
                         covariates.drop_after(pd.Timestamp(last_date))
@@ -312,6 +315,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
         logging.info(
             f"\nBad {name} file. The model won't include {name}...")
         covariates = None
+    print("NUM NULL AFTER APPEND", covariates[-1].pd_dataframe().isnull().sum().sum())
     return covariates, source_l, source_code_l, id_l, ts_id_l
 
 
