@@ -72,7 +72,8 @@ def backtester(model,
                retrain=False,
                future_covariates=None,
                past_covariates=None,
-               path_to_save_backtest=None):
+               path_to_save_backtest=None,
+               m_mase=1):
     """ Does the same job with advanced forecast but much more quickly using the darts
     bult-in historical_forecasts method. Use this for evaluation. The other only
     provides pure inference. Provide a unified timeseries test set point based
@@ -175,7 +176,8 @@ def backtester(model,
         metrics["mase"] = mase_darts(
             series.drop_before(pd.Timestamp(test_start_date)),
             backtest_series,
-            insample=series.drop_after(pd.Timestamp(test_start_date)))
+            insample=series.drop_after(pd.Timestamp(test_start_date)),
+            m = m_mase)
     except:
         print("\nSeries is periodical. Setting mase to NaN...")
         logging.info("\nModel result or testing series not strictly positive. Setting mape to NaN...")
@@ -618,13 +620,19 @@ def call_shap(n_past_covs: int,
     default="false",
     help="Whether to validate the models for all timeseries, and return the mean of their metrics")
 
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_series, cut_date_val, day_first, resolution, eval_method, evaluate_all_ts):
+@click.option("--m-mase",
+    type=str,
+    default="1",
+    help="m to use for mase metric")
+
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_series, cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
     # Argument processing
     stride = none_checker(stride)
     forecast_horizon = int(forecast_horizon)
+    m_mase = int(m_mase)
     stride = int(forecast_horizon) if stride is None else int(stride)
     retrain = truth_checker(retrain)
     analyze_with_shap = truth_checker(analyze_with_shap)
@@ -752,7 +760,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             retrain=retrain,
                                             future_covariates=future_covariates,
                                             past_covariates=past_covariates,
-                                            path_to_save_backtest=f"{evaltmpdir}/{ts_id_l[eval_i][0]}")
+                                            path_to_save_backtest=f"{evaltmpdir}/{ts_id_l[eval_i][0]}",
+                                            m_mase=m_mase)
                 eval_results[eval_i] = list(map(str, ts_id_l[eval_i][:1])) + [evaluation_results["metrics"]["smape"],
                                                                               evaluation_results["metrics"]["mase"],
                                                                               evaluation_results["metrics"]["mae"],
@@ -784,7 +793,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             retrain=retrain,
                                             future_covariates=future_covariates,
                                             past_covariates=past_covariates,
-                                            path_to_save_backtest=evaltmpdir)
+                                            path_to_save_backtest=evaltmpdir,
+                                            m_mase=m_mase)
             if analyze_with_shap:
                 data, background = build_shap_dataset(size=size,
                                                 train=series_split['train'],
