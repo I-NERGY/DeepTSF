@@ -459,11 +459,10 @@ def save_consecutive_nans(ts, resolution, tmpdir, name):
     resolution = int(resolution)
     output = "Consecutive nans left in df:\n"
     null_dates = ts[ts["Load"].isnull()].index
-    print(null_dates)
     prev = null_dates[0]
     output = output + str(prev) + " - "
     for null_date in null_dates[1:]:
-        if (null_date - prev).seconds // 60 != resolution:
+        if (null_date - prev)!= pd.Timedelta(resolution, "min"):
             output = output + str(prev) + "\n" + str(null_date) + " - "
         prev = null_date
     output = output + str(null_date)

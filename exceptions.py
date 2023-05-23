@@ -47,3 +47,11 @@ class DifferentComponentDimensions(Exception):
     def __init__(self):
         self.message = f'Not all timeseries in multiple timeseries file have the same number of components.'
         super().__init__(self.message)
+
+class NanInSet(Exception):
+    """
+    Exception raised if val or test set has nan values.
+    """
+    def __init__(self):
+        self.message = f'Validation and test set can not have any nan values'
+        super().__init__(self.message)

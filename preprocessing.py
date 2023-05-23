@@ -1,3 +1,4 @@
+import logging
 import pretty_errors
 from utils import ConfigParser, multiple_dfs_to_ts_file
 import os
@@ -5,13 +6,27 @@ import pandas as pd
 import yaml
 from darts.dataprocessing.transformers import Scaler
 import datetime
-
+from darts.utils.missing_values import extract_subseries
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
+from exceptions import NanInSet
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
+
+def split_nans(covariates):
+    result = []
+    for covariate in covariates:
+        if covariate.pd_dataframe().isnull().sum().sum() > 0:
+            covariate = extract_subseries(covariate, min_gap_size=1)#, mode='any') TODO update darts!!
+
+            print(f"Spliting train into {len(covariate)} consecutive series\n")
+            logging.info(f"Spliting train into {len(covariate)} consecutive series\n")
+            result.extend(covariate)
+        else:
+            result.append(covariate)
+    return result
 
 def split_dataset(covariates, val_start_date_str, test_start_date_str,
         test_end_date=None, store_dir=None, name='series',
@@ -24,7 +39,7 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
         covariates_val = []
         covariates_test = []
         covariates_return = []
-        for covariate in covariates:
+        for covariate in covariates:                
             if test_end_date is not None and covariate.time_index[-1].strftime('%Y%m%d') > test_end_date:
                 covariate = covariate.drop_after(
                     pd.Timestamp(test_end_date) + datetime.timedelta(days=1))
@@ -37,6 +52,16 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
             else:
                 covariate_val, covariate_test = covariate_val.split_before(
                     pd.Timestamp(test_start_date_str))
+            
+            print(covariate_val)
+            if covariate_val.pd_dataframe().isnull().sum().sum() > 0:
+                print(f"Validation set can not have any nan values\n")
+                logging.info(f"Validation set can not have any nan values\n")
+                raise NanInSet()
+            if covariate_test.pd_dataframe().isnull().sum().sum() > 0:
+                print(f"Test set can not have any nan values\n")
+                logging.info(f"Test set can not have any nan values\n")
+                raise NanInSet()
             covariates_train.append(covariate_train)
             covariates_test.append(covariate_test)
             covariates_val.append(covariate_val)

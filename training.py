@@ -1,6 +1,6 @@
 import pretty_errors
 from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict #, log_curves
-from preprocessing import scale_covariates, split_dataset
+from preprocessing import scale_covariates, split_dataset, split_nans
 
 # the following are used through eval(darts_model + 'Model')
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel#, NHiTSModel, TransformerModel
@@ -279,6 +279,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 last_date=test_end_date,
                 day_first=day_first,
                 resolution=resolution)
+            
+        print("NUM NULL", series[0].pd_dataframe().isnull().sum().sum())
 
         print("\nCreating local folders...")
         logging.info("\nCreating local folders...")
@@ -334,6 +336,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             source_code_l=source_code_l,
             id_l=id_l,
             ts_id_l=ts_id_l)
+        
+        print("NUM NULL", series_split["train"][0].pd_dataframe().isnull().sum().sum())
 
         #################
         # Scaling
@@ -398,8 +402,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             print(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
             logging.info(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
         print("")
-
+        #TODO maybe modify print to include split train based on nans
+        series_transformed['train'] = split_nans(series_transformed['train'])
+        print(len(series_transformed['train']), series_transformed['train'])
         ## choose architecture
+        
         if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
             print(f'\nTrained Model: {darts_model}Model')
             hparams_to_log = hyperparameters
@@ -418,8 +425,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             )
             ## fit model
             # try:
-            #print("TRAIN", series_transformed['train'])
-            #print("VAL", series_transformed['val'])
+            print("NUM NULL", series_transformed['train'][0].pd_dataframe().isnull().sum().sum())
+            print("TRAIN", series_transformed['train'])
+            print("VAL", series_transformed['val'])
             model.fit(series_transformed['train'],
                 future_covariates=future_covariates_transformed['train'],
                 past_covariates=past_covariates_transformed['train'],
@@ -470,6 +478,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             print(f'\nTraining {darts_model}...')
             logging.info(f'\nTraining {darts_model}...')
+
+            print("NULL VALUES", series_transformed['train'][0].pd_dataframe().isnull().sum().sum())
 
             model.fit(
                 series=series_transformed['train'],
