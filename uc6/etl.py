@@ -236,7 +236,6 @@ def remove_outliers(ts: pd.DataFrame,
     #Dates with NaN values are removed from the dataframe
     ts = ts.dropna()
     #Removing all zero values if no negative values are present
-    print("MIN", min(ts["Load"]))
     if min(ts["Load"]) >= 0:
         a = ts.loc[ts["Load"] <= 0]
     else:
@@ -458,7 +457,6 @@ def impute(ts: pd.DataFrame,
         for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
                 res.loc[date] = pd.NA
 
-    res.to_csv("res.csv")
     fig, ax = plt.subplots(figsize=(8,5))
     ax.plot(res.index, res['Load'], color='black', label = f'Load of {name} after Imputation')
     plt.legend()

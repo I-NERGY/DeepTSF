@@ -1,6 +1,7 @@
 import pretty_errors
 from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file
-from preprocessing import scale_covariates, split_dataset
+from preprocessing import scale_covariates, split_dataset, split_nans
+from darts.utils.missing_values import extract_subseries
 
 from functools import reduce
 from darts.metrics import mape as mape_darts
@@ -293,6 +294,8 @@ def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
                 trial.set_user_attr("mase", float(metrics["mase"]))
                 trial.set_user_attr("mae", float(metrics["mae"]))
                 trial.set_user_attr("rmse", float(metrics["rmse"]))
+                trial.set_user_attr("nrmse_max", float(metrics["nrmse_max"]))
+                trial.set_user_attr("nrmse_mean", float(metrics["nrmse_mean"]))
                 log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, 
                     log_model=True, curr_loss=float(metrics[loss_function]), 
                     model=model, darts_model=darts_model, scale=scale, scalers_dir=scalers_dir, 
@@ -519,6 +522,9 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         print(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
         logging.info(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
     print("")
+
+    series_transformed['train'] = split_nans(series_transformed['train'])
+
     ## choose architecture
     if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'NHiTS', 'Transformer']:
         hparams_to_log = hyperparameters
@@ -624,6 +630,12 @@ def backtester(model,
         stride = forecast_horizon
     test_start_date = pd.Timestamp(test_start_date)
 
+    #keep last non nan values
+    #must be sufficient for historical_forecasts and mase calculation
+    #TODO Add check for that in the beggining
+    series = extract_subseries(series, min_gap_size=1)[-1]
+    series_transformed = extract_subseries(series_transformed, min_gap_size=1)[-1]
+
     # produce list of forecasts
     #print("backtesting starting at", test_start_date, "series:", series_transformed)
     backtest_series_transformed = model.historical_forecasts(series_transformed,
@@ -668,7 +680,16 @@ def backtester(model,
             backtest_series),
         "rmse": rmse_darts(
             series.drop_before(pd.Timestamp(test_start_date)),
-            backtest_series)
+            backtest_series),
+        "nrmse_max": rmse_darts(
+            series.drop_before(pd.Timestamp(test_start_date)),
+            backtest_series) / (
+            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().max()[0]- 
+            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().min()[0]),
+        "nrmse_mean": rmse_darts(
+            series.drop_before(pd.Timestamp(test_start_date)),
+            backtest_series) / (
+            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().mean()[0])
     }
     if min(test_series.min(axis=1).values()) > 0 and min(backtest_series.min(axis=1).values()) > 0:
         metrics["mape"] = mape_darts(
@@ -774,9 +795,11 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                                                       validation_results["metrics"]["mase"],
                                                                       validation_results["metrics"]["mae"],
                                                                       validation_results["metrics"]["rmse"],
-                                                                      validation_results["metrics"]["mape"]]
+                                                                      validation_results["metrics"]["mape"],
+                                                                      validation_results["metrics"]["nrmse_max"],
+                                                                      validation_results["metrics"]["nrmse_mean"]]
 
-        eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape"])
+        eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape", "nrmse_max", "nrmse_mean"])
         trial_num = len(study.trials_dataframe()) - 1
         save_path = f"{opt_all_results}/trial_{trial_num}.csv"
         if os.path.exists(save_path):
@@ -967,7 +990,9 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
          "smape",
          "mase", 
          "mae",
-         "rmse"]),
+         "rmse",
+         "nrmse_max",
+         "nrmse_mean"]),
     default="mape",
     help="Loss function to use for optuna")
 

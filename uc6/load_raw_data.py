@@ -110,7 +110,6 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             except:
                 pass
         times.sort()
-        print(times)
         resolution = (times[1] - times[0]).seconds // 60
         des_columns = list(map(str, ['Day', 'ID', 'Source', 'Source Code', 'Timeseries ID'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
         #Check that all columns 'Day', 'ID', 'Source', 'Source Code' 'Timeseries' and the time columns exist in any order.

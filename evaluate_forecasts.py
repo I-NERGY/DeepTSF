@@ -1,6 +1,6 @@
 import pretty_errors
 from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file
-
+from darts.utils.missing_values import extract_subseries
 from functools import reduce
 from darts.metrics import mape as mape_darts
 from darts.metrics import mase as mase_darts
@@ -90,6 +90,13 @@ def backtester(model,
         stride = forecast_horizon
     test_start_date = pd.Timestamp(test_start_date)
 
+
+    #keep last non nan values
+    #must be sufficient for historical_forecasts and mase calculation
+    #TODO Add check for that in the beggining
+    series = extract_subseries(series, min_gap_size=1)[-1]
+    series_transformed = extract_subseries(series_transformed, min_gap_size=1)[-1]
+
     # produce list of forecasts
     #print("backtesting starting at", test_start_date, "series:", series_transformed)
     #print("EVALUATIING ON SERIES:", series_transformed)
@@ -162,7 +169,16 @@ def backtester(model,
             backtest_series),
         "rmse": rmse_darts(
             series.drop_before(pd.Timestamp(test_start_date)),
-            backtest_series)
+            backtest_series),
+        "nrmse_max": rmse_darts(
+            series.drop_before(pd.Timestamp(test_start_date)),
+            backtest_series) / (
+            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().max()[0]- 
+            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().min()[0]),
+        "nrmse_mean": rmse_darts(
+            series.drop_before(pd.Timestamp(test_start_date)),
+            backtest_series) / (
+            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().mean()[0])
     }
     if min(test_series.min(axis=1).values()) > 0 and min(backtest_series.min(axis=1).values()) > 0:
         metrics["mape"] = mape_darts(
@@ -178,6 +194,7 @@ def backtester(model,
             backtest_series,
             insample=series.drop_after(pd.Timestamp(test_start_date)),
             m = m_mase)
+        print("BACKTEST", series)
     except:
         print("\nSeries is periodical. Setting mase to NaN...")
         logging.info("\nModel result or testing series not strictly positive. Setting mape to NaN...")
@@ -766,9 +783,11 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                                                               evaluation_results["metrics"]["mase"],
                                                                               evaluation_results["metrics"]["mae"],
                                                                               evaluation_results["metrics"]["rmse"],
-                                                                              evaluation_results["metrics"]["mape"]]
+                                                                              evaluation_results["metrics"]["mape"],
+                                                                              evaluation_results["metrics"]["nrmse_max"],
+                                                                              evaluation_results["metrics"]["nrmse_mean"]]
 
-            eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape"])
+            eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape", "nrmse_max", "nrmse_mean"])
             save_path = f"{evaltmpdir}/evaluation_results_all_ts.csv"
             eval_results.to_csv(save_path)
             evaluation_results["metrics"] = eval_results.mean(axis=0, numeric_only=True).to_dict()
