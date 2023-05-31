@@ -114,11 +114,10 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     type=str,
     help='Choose year range to include in the dataset.'
 )
-@click.option(
-    "--time-covs",
-    default="PT",
-    type=click.Choice(["None", "PT"]),
-    help="Optionally add time covariates to the timeseries."
+@click.option("--time-covs",
+    default="false",
+    type=str,
+    help="Whether to add time covariates to the timeseries."
 )
 # training arguments
 @click.option("--darts-model",
@@ -195,8 +194,8 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
               help="Whether the date has the day before the month")
 @click.option("--country",
               type=str,
-              default="Portugal",
-              help="The country this dataset belongs to")
+              default="PT",
+              help="The country code this dataset belongs to")
 
 @click.option("--std-dev",
               type=str,
@@ -358,6 +357,7 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
     ignore_previous_runs = truth_checker(ignore_previous_runs)
     opt_test = truth_checker(opt_test)
     from_mongo = truth_checker(from_mongo)
+    time_covs = truth_checker(time_covs)
 
 
     # Note: The entrypoint names are defined in MLproject. The artifact directories
@@ -417,7 +417,6 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
                 "future_covs_uri": etl_time_covariates_uri,
                 "year_range": year_range,
                 "resolution": resolution,
-                "time_covs": time_covs,
                 "darts_model": darts_model,
                 "hyperparams_entrypoint": hyperparams_entrypoint,
                 "cut_date_val": cut_date_val,

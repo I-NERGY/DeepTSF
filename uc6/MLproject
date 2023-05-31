@@ -23,9 +23,9 @@ entry_points:
       series_uri: {type: str, default: mlflow_artifact_uri}
       resolution: {type: str, default: 15}
       year_range: {type: str, default: None}
-      time_covs: {type: str, default: PT}
+      time_covs: {type: str, default: "false"}
       day_first: {type: str, default: "true"}
-      country: {type: str, default: "Portugal"}
+      country: {type: str, default: "PT"}
       std_dev: {type: str, default: 4.5}
       max_thr: {type: str, default: -1}
       a: {type: str, default: 0.3}
@@ -105,7 +105,6 @@ entry_points:
       future_covs_uri: {type: str, default: mlflow_artifact_uri}
       resolution: {type: str, default: 15}
       year_range: {type: str, default: None}
-      time_covs: {type: str, default: PT}
       darts_model: {type: str, default: RNN}
       hyperparams_entrypoint: {type: str, default: LSTM1}
       cut_date_val: {type: str, default: 20180101}
@@ -128,7 +127,7 @@ entry_points:
       grid_search: {type: str, default: "false"}
 
     command: |
-      python ../optuna_search.py --series-uri {series_uri} --future-covs-uri {future_covs_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --darts-model {darts_model} --hyperparams-entrypoint {hyperparams_entrypoint} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --device {device} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --num-workers {num_workers} --day-first {day_first} --eval-method {eval_method} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --grid-search {grid_search}
+      python ../optuna_search.py --series-uri {series_uri} --future-covs-uri {future_covs_uri} --resolution {resolution} --year-range {year_range} --darts-model {darts_model} --hyperparams-entrypoint {hyperparams_entrypoint} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --device {device} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --num-workers {num_workers} --day-first {day_first} --eval-method {eval_method} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --grid-search {grid_search}
 
 
 
@@ -138,7 +137,7 @@ entry_points:
       series_uri: {type: str, default: online_artifact}
       resolution: {type: str, default: 15}
       year_range: {type: str, default: None}
-      time_covs: {type: str, default: PT}
+      time_covs: {type: str, default: "false"}
       hyperparams_entrypoint: {type: str, default: LSTM1}
       cut_date_val: {type: str, default: 20180101}
       cut_date_test: {type: str, default: 20190101}
@@ -152,7 +151,7 @@ entry_points:
       scale: {type: str, default: "true"}
       scale_covs: {type: str, default: "true"}
       day_first: {type: str, default: "true"}
-      country: {type: str, default: "Portugal"}
+      country: {type: str, default: "PT"}
       std_dev: {type: str, default: 4.5}
       max_thr: {type: str, default: -1}
       a: {type: str, default: 0.3}

@@ -15,18 +15,28 @@ from exceptions import NanInSet
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
-def split_nans(covariates):
+def split_nans(covariates, past_covs, future_covs):
     result = []
-    for covariate in covariates:
+    past_covs_return = [] if past_covs != None else None
+    future_covs_return = [] if future_covs != None else None
+    for i, covariate in enumerate(covariates):
         if covariate.pd_dataframe().isnull().sum().sum() > 0:
             covariate = extract_subseries(covariate, min_gap_size=1)#, mode='any') TODO update darts!!
 
             print(f"Spliting train into {len(covariate)} consecutive series\n")
             logging.info(f"Spliting train into {len(covariate)} consecutive series\n")
             result.extend(covariate)
+            if past_covs != None:
+                past_covs_return.extend([past_covs[i] for _ in range(len(covariate))])
+            if future_covs != None:
+                future_covs_return.extend([future_covs[i] for _ in range(len(covariate))])
         else:
             result.append(covariate)
-    return result
+            if past_covs != None:
+                past_covs_return.append(past_covs[i])
+            if future_covs != None:
+                future_covs_return.append(future_covs[i])
+    return result, past_covs_return, future_covs_return
 
 def split_dataset(covariates, val_start_date_str, test_start_date_str,
         test_end_date=None, store_dir=None, name='series',

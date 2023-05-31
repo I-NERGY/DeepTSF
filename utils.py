@@ -274,14 +274,11 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             for comps in tqdm(ts_list):
                 first = True
                 for df in comps:
-                    print("NUM NULL DF", df.isnull().sum().sum())
                     covariates = darts.TimeSeries.from_dataframe(
                                 df,
                                 fill_missing_dates=True,
                                 freq=None)
-                    print("NUM NULL TS", covariates.pd_dataframe().isnull().sum().sum())
                     covariates = covariates.astype(np.float32)
-                    print("NUM NULL AFTER FLOAT", covariates.pd_dataframe().isnull().sum().sum())
                     if last_date is not None:
                         #print(last_date)
                         covariates.drop_after(pd.Timestamp(last_date))
@@ -374,7 +371,8 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
 
 def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
                             day_first: bool = True,
-                            resolution: str = "15"):
+                            resolution: str = "15",
+                            value_name="Load"):
     ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,
@@ -404,8 +402,8 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             curr_comp = pd.melt(curr_comp, id_vars=['Day', 'ID', 'Source', 'Source Code', 'Timeseries ID'], var_name='Time', value_name='Load')
             curr_comp["Date"] = pd.to_datetime(curr_comp['Day'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
             curr_comp = curr_comp.set_index("Date")
-            series = curr_comp["Load"].sort_index().dropna().asfreq(resolution+'min')
-            res[-1].append(pd.DataFrame({"Load" : series}))
+            series = curr_comp[value_name].sort_index().dropna().asfreq(resolution+'min')
+            res[-1].append(pd.DataFrame({value_name : series}))
             source[-1].append(curr_comp["Source"].values[0])
             source_code[-1].append(curr_comp["Source Code"].values[0])
             id_l[-1].append(id)
@@ -414,10 +412,15 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
 def multiple_dfs_to_ts_file(res_l, source_l, source_code_l, id_l, ts_id_l, save_dir):
     ts_list = []
+    print(res_l)
+    print(source_l)
+    print(ts_id_l)
     print("\nTurning dataframe list to multiple ts file...")
     logging.info("\nTurning dataframe list to multiple ts file...")
     for ts_num, (ts, source_ts, source_code_ts, id_ts, ts_id_ts) in tqdm(list(enumerate(zip(res_l, source_l, source_code_l, id_l, ts_id_l)))):
 #        print("ts_num", ts)
+        print(type(ts))
+        print(ts)
         if type(ts) == darts.timeseries.TimeSeries:
             ts = [ts.univariate_component(i).pd_dataframe() for i in range(ts.n_components)]
         for comp_num, (comp, source, source_code, id, ts_id) in enumerate(zip(ts, source_ts, source_code_ts, id_ts, ts_id_ts)):

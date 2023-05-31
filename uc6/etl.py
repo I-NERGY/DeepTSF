@@ -142,7 +142,7 @@ def add_cyclical_time_features(calendar):
 
     return calendar
 
-def get_time_covariates(series, country_code='PT'):
+def get_time_covariates(series, country_code='PT', id_name='0'):
     """ Do it the darts way"""
 
     if isinstance(series, pd.Series):
@@ -178,15 +178,28 @@ def get_time_covariates(series, country_code='PT'):
     # weekofyear = darts.TimeSeries.from_series(
     #     series.time_index.isocalendar().week)
 
-    covariates = year.stack(month) \
-        .stack(dayofyear) \
-        .stack(hour) \
-        .stack(dayofweek) \
-        .stack(weekofyear) \
-        .stack(holidays)
-    # .stack(minute)
+    ts_list_covariates = [year.stack(month).
+                               stack(dayofyear).
+                               stack(hour).
+                               stack(dayofweek).
+                               stack(weekofyear).
+                               stack(holidays)]
 
-    return covariates
+    id_l_covariates = ["year", 
+                            "month_sin",
+                            "month_cos", 
+                            "dayofyear_sin",
+                            "dayofyear_cos",
+                            "hour_sin", 
+                            "hour_cos",
+                            "dayofweek_sin", 
+                            "dayofweek_cos",
+                            "weekofyear_sin",
+                            "weekofyear_cos",
+                            "holidays"]
+    ts_id_l_covariates = [id_name for _ in range(12)]
+
+    return ts_list_covariates, id_l_covariates, id_l_covariates, id_l_covariates, ts_id_l_covariates
 
 def cut_extra_samples(ts_list):
     print("\nMaking all components of each ts start and end on the same timestep...")
@@ -276,7 +289,7 @@ def impute(ts: pd.DataFrame,
            ydcutoff: int = 30,
            resolution: str = "15",
            debug: bool = False,
-           name: str = "Portugal",
+           name: str = "PT",
            l_interpolation: bool = False,
            cut_date_val: str = "20221208",
            min_non_nan_interval: int = 24):
@@ -545,9 +558,9 @@ def sum_wo_nans(arraylike):
     help="The resolution of the dataset in minutes."
 )
 @click.option("--time-covs",
-    default="PT",
-    type=click.Choice(["None", "PT"]),
-    help="Optionally add time covariates to the timeseries. [Options: None or Country Code based on the Python 'holidays' package]"
+    default="false",
+    type=str,
+    help="Whether to add time covariates to the timeseries."
 )
 @click.option("--day-first",
     type=str,
@@ -556,8 +569,8 @@ def sum_wo_nans(arraylike):
 
 @click.option("--country",
     type=str,
-    default="Portugal",
-    help="The country this dataset belongs to")
+    default="PT",
+    help="The country code this dataset belongs to")
 
 @click.option("--std-dev",
     type=str,
@@ -669,7 +682,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     convert_to_local_tz = truth_checker(convert_to_local_tz)
 
     # Time col check
-    time_covs = none_checker(time_covs)
+    time_covs = truth_checker(time_covs)
+
 
     # Day first check
     day_first = truth_checker(day_first)
@@ -723,6 +737,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     tmpdir = tempfile.mkdtemp()
     outlier_dir = tempfile.mkdtemp()
     impute_dir = tempfile.mkdtemp()
+
+    ts_list_past_covs, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = [], [], [], [], []
+    ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = [], [], [], [], []
 
     with mlflow.start_run(run_name='etl', nested=True) as mlrun:
         res_ = []
@@ -825,14 +842,34 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
                 #TODO: Make training happen without outlier detection
                 ##TODO fix multiple with covariates
-                if time_covs is not None:
-                    print("\nCreating time covariates dataset...")
-                    logging.info("\nCreating time covariates dataset...")
-                    time_covariates = get_time_covariates(comp_res_darts, time_covs)
-                else:
-                    print("\nSkipping the creation of time covariates")
-                    logging.info("\nSkipping the creation of time covariates")
-                    time_covariates = None
+                if comp_num == len(ts) - 1:
+                    if time_covs:
+                        print("\nCreating time covariates dataset...")
+                        logging.info("\nCreating time covariates dataset...")
+                        try:
+                            ts_list_covariates, source_l_covariates, source_code_l_covariates, id_l_covariates, ts_id_l_covariates = get_time_covariates(comp_res_darts, source_l[ts_num][comp_num], ts_id_l[ts_num][0])
+                        except:
+                            print("\nSource column does not specify valid country. Using country argument instead")
+                            logging.info("\nSource column does not specify valid country. Using country argument instead")
+                            try:
+                                ts_list_covariates, source_l_covariates, source_code_l_covariates, id_l_covariates, ts_id_l_covariates = get_time_covariates(comp_res_darts, country,  ts_id_l[ts_num][0])
+                            except:
+                                raise CountryDoesNotExist()
+                        print(ts_list_covariates)
+                        print(source_l_covariates)
+                        print(source_code_l_covariates)
+                        print(id_l_covariates)
+                        ts_list_future_covs.append(ts_list_covariates[0]) 
+                        source_l_future_covs.append(source_l_covariates)
+                        source_code_l_future_covs.append(source_code_l_covariates)
+                        id_l_future_covs.append(id_l_covariates)
+                        ts_id_l_future_covs.append(ts_id_l_covariates)
+                        #TODO check multivariate and multiple
+                    
+                    else:
+                        print("\nSkipping the creation of time covariates")
+                        logging.info("\nSkipping the creation of time covariates")
+                        ts_list_covariates, source_l_covariates, source_code_l_covariates, id_l_covariates, ts_id_l_covariates = None, None, None, None, None
                 if rmv_outliers:
                     print("\nStoring removed values from outlier detection as csv locally...")
                     logging.info("\nStoring removed values from outlier detection as csv...")
@@ -854,10 +891,11 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
             print("\nStoring datasets locally...")
             logging.info("\nStoring datasets...")
-            if time_covariates is not None:
-                time_covariates.to_csv(f'{tmpdir}/time_covariates.csv')
         else:
             multiple_dfs_to_ts_file(res_, source_l, source_code_l, id_l, ts_id_l, f'{tmpdir}/series.csv')
+
+        if time_covs:
+            multiple_dfs_to_ts_file(ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs, f'{tmpdir}/future_covs.csv')
 
         print("\nUploading features to MLflow server...")
         logging.info("\nUploading features to MLflow server...")
@@ -879,8 +917,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "etl")
         mlflow.set_tag('series_uri', f'{mlrun.info.artifact_uri}/features/series.csv')
-        if time_covariates is not None:
-            mlflow.set_tag('time_covariates_uri', f'{mlrun.info.artifact_uri}/features/time_covariates.csv')
+        if time_covs:
+            mlflow.set_tag('time_covariates_uri', f'{mlrun.info.artifact_uri}/features/future_covs.csv')
         else: # default naming for non available time covariates uri
             mlflow.set_tag('time_covariates_uri', 'mlflow_artifact_uri')
 

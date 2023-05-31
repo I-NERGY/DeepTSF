@@ -222,7 +222,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
 def append(x, y):
     return x.append(y)
 
-def objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
+def objective(series_uri, future_covs_uri, year_range, resolution,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, 
              cut_date_test, device, forecast_horizon, stride, retrain, scale, 
              scale_covs, multiple, eval_series, mlrun, trial, study, opt_tmpdir, 
@@ -876,12 +876,6 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     type=str,
     help="Change the resolution of the dataset (minutes)."
 )
-@click.option(
-    "--time-covs",
-    default="PT",
-    type=click.Choice(["None", "PT"]),
-    help="Optionally add time covariates to the timeseries."
-)
 # training arguments
 @click.option("--darts-model",
               type=click.Choice(
@@ -1007,7 +1001,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     help="Whether to run a grid search or use tpe in optuna")
 
 
-def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs, darts_model, hyperparams_entrypoint,
+def optuna_search(series_uri, future_covs_uri, year_range, resolution, darts_model, hyperparams_entrypoint,
            cut_date_val, cut_date_test, test_end_date, device, forecast_horizon, stride, retrain,
            scale, scale_covs, multiple, eval_series, n_trials, num_workers, day_first, eval_method, loss_function, evaluate_all_ts, grid_search):
 
@@ -1036,7 +1030,7 @@ def optuna_search(series_uri, future_covs_uri, year_range, resolution, time_covs
                 opt_all_results = tempfile.mkdtemp()
             else:
                 opt_all_results = None
-            study.optimize(lambda trial: objective(series_uri, future_covs_uri, year_range, resolution, time_covs,
+            study.optimize(lambda trial: objective(series_uri, future_covs_uri, year_range, resolution,
                        darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
                        forecast_horizon, stride, retrain, scale, scale_covs,
                        multiple, eval_series, mlrun, trial, study, opt_tmpdir, num_workers, day_first, eval_method, loss_function, opt_all_results, evaluate_all_ts), n_trials=n_trials, n_jobs = 1)
