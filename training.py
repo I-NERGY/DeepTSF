@@ -264,22 +264,27 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 day_first=day_first,
                 resolution=resolution)
         if future_covariates is not None:
-            future_covariates, _, _, _, _ = load_local_csv_as_darts_timeseries(
+            future_covariates, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
                 last_date=test_end_date,
+                multiple=True,
                 day_first=day_first,
                 resolution=resolution)
+        else:
+            future_covariates, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = None, None, None, None, None
         if past_covariates is not None:
-            past_covariates, _, _, _, _ = load_local_csv_as_darts_timeseries(
+            past_covariates, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
                 local_path=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
                 last_date=test_end_date,
+                multiple=True,
                 day_first=day_first,
                 resolution=resolution)
-            
+        else:
+            past_covariates, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = None, None, None, None, None
         print("NUM NULL", series[0].pd_dataframe().isnull().sum().sum())
 
         print("\nCreating local folders...")
@@ -318,11 +323,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             test_end_date=test_end_date,
             # store_dir=features_dir,
             name='future_covariates',
-            multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
-            id_l=id_l,
-            ts_id_l=ts_id_l)
+            multiple=True,
+            source_l=source_l_future_covs,
+            source_code_l=source_code_l_future_covs,
+            id_l=id_l_future_covs,
+            ts_id_l=ts_id_l_future_covs)
         ## past covariates
         past_covariates_split = split_dataset(
             past_covariates,
@@ -331,11 +336,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             test_end_date=test_end_date,
             # store_dir=features_dir,
             name='past_covariates',
-            multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
-            id_l=id_l,
-            ts_id_l=ts_id_l)
+            multiple=True,
+            source_l=source_l_past_covs,
+            source_code_l=source_code_l_past_covs,
+            id_l=id_l_past_covs,
+            ts_id_l=ts_id_l_past_covs)
         
         print("NUM NULL", series_split["train"][0].pd_dataframe().isnull().sum().sum())
 
@@ -364,11 +369,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             store_dir=features_dir,
             filename_suffix="future_covariates_transformed.csv",
             scale=scale_covs,
-            multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
-            id_l=id_l,
-            ts_id_l=ts_id_l
+            multiple=True,
+            source_l=source_l_future_covs,
+            source_code_l=source_code_l_future_covs,
+            id_l=id_l_future_covs,
+            ts_id_l=ts_id_l_future_covs
             )
         ## scale past covariates
         past_covariates_transformed = scale_covariates(
@@ -376,11 +381,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             store_dir=features_dir,
             filename_suffix="past_covariates_transformed.csv",
             scale=scale_covs,
-            multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
-            id_l=id_l,
-            ts_id_l=ts_id_l
+            multiple=True,
+            source_l=source_l_past_covs,
+            source_code_l=source_code_l_past_covs,
+            id_l=id_l_past_covs,
+            ts_id_l=ts_id_l_past_covs
             )
 
         ######################
@@ -403,8 +408,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             logging.info(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
         print("")
         #TODO maybe modify print to include split train based on nans
-        series_transformed['train'] = split_nans(series_transformed['train'])
-        print(len(series_transformed['train']), series_transformed['train'])
+        #TODO make more efficient by also spliting covariates where the nans are split 
+        series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
+            split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
         ## choose architecture
         
         if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:

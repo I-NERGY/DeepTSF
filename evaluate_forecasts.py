@@ -683,18 +683,24 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     if future_covariates_uri is not None:
         future_covs_path = download_online_file(
             future_covariates_uri, "future_covariates.csv") if mode == 'remote' else future_covariates_uri
-        future_covariates, _, _, _ = load_local_csv_as_darts_timeseries(
+        future_covariates, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
             local_path=future_covs_path,
-            last_date=test_end_date)
+            last_date=test_end_date,
+            multiple=True,
+            day_first=day_first,
+            resolution=resolution)
     else:
         future_covariates = None
 
     if past_covariates_uri is not None:
         past_covs_path = download_online_file(
             past_covariates_uri, "past_covariates.csv") if mode == 'remote' else past_covariates_uri
-        past_covariates, _, _, _ = load_local_csv_as_darts_timeseries(
+        past_covariates, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
             local_path=past_covs_path,
-            last_date=test_end_date)
+            last_date=test_end_date,
+            multiple=True,
+            day_first=day_first,
+            resolution=resolution)
     else:
         past_covariates = None
 
@@ -775,8 +781,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             forecast_horizon=forecast_horizon,
                                             stride=stride,
                                             retrain=retrain,
-                                            future_covariates=future_covariates,
-                                            past_covariates=past_covariates,
+                                            future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
+                                            past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                             path_to_save_backtest=f"{evaltmpdir}/{ts_id_l[eval_i][0]}",
                                             m_mase=m_mase)
                 eval_results[eval_i] = list(map(str, ts_id_l[eval_i][:1])) + [evaluation_results["metrics"]["smape"],
@@ -810,8 +816,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             forecast_horizon=forecast_horizon,
                                             stride=stride,
                                             retrain=retrain,
-                                            future_covariates=future_covariates,
-                                            past_covariates=past_covariates,
+                                            future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
+                                            past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                             path_to_save_backtest=evaltmpdir,
                                             m_mase=m_mase)
             if analyze_with_shap:
@@ -821,10 +827,11 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                                      if not multiple else series_split['test'][eval_i],
                                                 input_chunk_length=input_chunk_length,
                                                 output_chunk_length=output_chunk_length,
-                                                future_covs=future_covariates,
-                                                past_covs=past_covariates)
+                                                future_covs=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
+                                                past_covs=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]))
 
                 #print(data, background)
+                #TODO check SHAP with covariates
                 call_shap(n_past_covs=0 if past_covariates == None else past_covariates.n_components,
                     n_future_covs=0 if future_covariates == None else future_covariates.n_components,
                     input_chunk_length=input_chunk_length,
