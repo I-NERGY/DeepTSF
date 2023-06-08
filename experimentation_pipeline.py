@@ -103,6 +103,24 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     default="online_artifact",
     help="Online link to download the series from"
     )
+@click.option("--past-covs-csv",
+    type=str,
+    default="None",
+    help="Local past covaraites csv file"
+    )
+@click.option("--past-covs-uri",
+    default="None",
+    help="Remote past covariates csv file. If set, it overwrites the local value."
+    )
+@click.option("--future-covs-csv",
+    type=str,
+    default="None",
+    help="Local future covaraites csv file"
+    )
+@click.option("--future-covs-uri",
+    default="None",
+    help="Remote future covariates csv file. If set, it overwrites the local value."
+    )
 # etl arguments
 @click.option("--resolution",
     default="15",
@@ -345,8 +363,8 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 
 
 
-def workflow(series_csv, series_uri, year_range, resolution, time_covs,
-             darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
+def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, year_range, 
+             resolution, time_covs, darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_series, n_trials, opt_test, from_mongo, mongo_name, num_workers, eval_method,
@@ -369,7 +387,11 @@ def workflow(series_csv, series_uri, year_range, resolution, time_covs,
         git_commit = active_run.data.tags.get(mlflow_tags.MLFLOW_GIT_COMMIT)
 
         load_raw_data_params = {"series_csv": series_csv, 
-                                "series_uri": series_uri, 
+                                "series_uri": series_uri,
+                                "past_covs_csv": past_covs_csv, 
+                                "past_covs_uri": past_covs_uri, 
+                                "future_covs_csv": future_covs_csv, 
+                                "future_covs_uri": future_covs_uri,
                                 "day_first": day_first, 
                                 "multiple": multiple, 
                                 "from_mongo": from_mongo,
