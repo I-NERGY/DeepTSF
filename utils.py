@@ -410,7 +410,7 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             ts_id_l[-1].append(ts_id)
     return res, source, source_code, id_l, ts_id_l
 
-def multiple_dfs_to_ts_file(res_l, source_l, source_code_l, id_l, ts_id_l, save_dir):
+def multiple_dfs_to_ts_file(res_l, source_l, source_code_l, id_l, ts_id_l, save_dir, save=True):
     ts_list = []
     print(res_l)
     print(source_l)
@@ -438,7 +438,9 @@ def multiple_dfs_to_ts_file(res_l, source_l, source_code_l, id_l, ts_id_l, save_
     res = pd.concat(ts_list).sort_values(by=["Day", "ID"])
     columns = list(res.columns)[-4:] + list(res.columns)[:-4]
     res = res[columns].reset_index()
-    res.to_csv(save_dir)
+    if save:
+        res.to_csv(save_dir)
+    return res
 
 #epestrepse kai IDs
 #prwta psakse ID meta SC

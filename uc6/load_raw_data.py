@@ -15,12 +15,12 @@ import pandas as pd
 import numpy as np
 import csv
 from datetime import datetime
-from utils import download_online_file
+from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
 import shutil
 import pretty_errors
 import uuid
 from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatesNotInOrder
-from utils import truth_checker
+from utils import truth_checker, none_checker
 import tempfile
 
 # get environment variables
@@ -38,7 +38,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                             day_first: bool = True,
                             multiple: bool = False,
                             resolution: int = 15,
-                            from_mongo: bool = False):
+                            from_mongo: bool = False,
+                            covariates: str = "series"):
     """
     Validates the input after read_csv is called and
     throws apropriate exception if it detects an error
@@ -89,11 +90,14 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         raise EmptyDataframe(from_mongo)
     if not multiple:
         #Check that dates are in order. If month is used before day and day_first is set to True, this is not the case.
-        if not ts.index.sort_values().equals(ts.index):
+        #TODO: Fix this bug, not working well with covariates
+        if not ts.index.sort_values().to_series().eq(ts.index.to_series()).all():
             raise DatesNotInOrder()
         #Check that column Date is used as index, and that Load is the only other column in the csv
-        elif not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
+        elif covariates == "series" and not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Load', 'Date'])
+        elif covariates != "series" and not (len(ts.columns) == 1 and ts.index.name == 'Date'):
+            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['_', 'Date'])
     else:
         if "Timeseries ID" not in ts.columns:
             ts["Timeseries ID"] = ts["ID"]
@@ -124,10 +128,21 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
             raise DifferentComponentDimensions()
 
-    mlflow.set_tag('infered_resolution', resolution)
+    mlflow.set_tag(f'infered_resolution_{covariates}', resolution)
             
         
-    return ts
+    return ts, resolution
+
+def make_multiple(ts_covs, series_csv, day_first, inf_resolution):
+    
+    ts_list, _, _, _, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, inf_resolution)
+
+    ts_list_covs = [[ts_covs] for _ in range(len(ts_list))]
+    id_l_covs = [[list(ts_covs.columns)[0]] for _ in range(len(ts_list))]
+    ts_id_l_covs = [[elem[0]] for elem in ts_id_l]
+
+    return multiple_dfs_to_ts_file(ts_list_covs, id_l_covs, id_l_covs, id_l_covs, ts_id_l_covs, "", save=False)
+
 
 from pymongo import MongoClient
 import pandas as pd
@@ -174,6 +189,24 @@ def load_data_to_csv(tmpdir, mongo_name):
     default="online_artifact",
     help="Remote time series csv file. If set, it overwrites the local value."
     )
+@click.option("--past-covs-csv",
+    type=str,
+    default="None",
+    help="Local past covaraites csv file"
+    )
+@click.option("--past-covs-uri",
+    default="None",
+    help="Remote past covariates csv file. If set, it overwrites the local value."
+    )
+@click.option("--future-covs-csv",
+    type=str,
+    default="None",
+    help="Local future covaraites csv file"
+    )
+@click.option("--future-covs-uri",
+    default="None",
+    help="Remote future covariates csv file. If set, it overwrites the local value."
+    )
 @click.option("--day-first",
     type=str,
     default="true",
@@ -198,10 +231,15 @@ def load_data_to_csv(tmpdir, mongo_name):
     help="Which mongo file to read."
 )
 
-def load_raw_data(series_csv, series_uri, day_first, multiple, resolution, from_mongo, mongo_name):
+def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, day_first, multiple, resolution, from_mongo, mongo_name):
 
     from_mongo = truth_checker(from_mongo)
     tmpdir = tempfile.mkdtemp()
+
+    past_covs_csv = none_checker(past_covs_csv)
+    past_covs_uri = none_checker(past_covs_uri)
+    future_covs_csv = none_checker(future_covs_csv)
+    future_covs_uri = none_checker(future_covs_uri)
 
     if from_mongo:
         load_data_to_csv(tmpdir, mongo_name)
@@ -210,6 +248,14 @@ def load_raw_data(series_csv, series_uri, day_first, multiple, resolution, from_
     elif series_uri != "online_artifact":
         download_file_path = download_online_file(series_uri, dst_filename="series.csv")
         series_csv = download_file_path
+
+    if past_covs_uri != None:
+        download_file_path = download_online_file(past_covs_uri, dst_filename="past_covs.csv")
+        past_covs_csv = download_file_path
+
+    if future_covs_uri != None:
+        download_file_path = download_online_file(future_covs_uri, dst_filename="future_covs.csv")
+        future_covs_csv = download_file_path
 
     series_csv = series_csv.replace('/', os.path.sep)
     fname = series_csv.split(os.path.sep)[-1]
@@ -223,10 +269,10 @@ def load_raw_data(series_csv, series_uri, day_first, multiple, resolution, from_
 
     with mlflow.start_run(run_name='load_data', nested=True) as mlrun:
 
+        ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, resolution=resolution, from_mongo=from_mongo)
+
         print(f'Validating timeseries on local file: {series_csv}')
         logging.info(f'Validating timeseries on local file: {series_csv}')
-        ts = read_and_validate_input(series_csv, day_first, multiple=multiple, resolution=resolution, from_mongo=from_mongo)
-
 
         local_path = local_path.replace("'", "") if "'" in local_path else local_path
         series_filename = os.path.join(*local_path, fname)
@@ -238,6 +284,95 @@ def load_raw_data(series_csv, series_uri, day_first, multiple, resolution, from_
         ts_filename = os.path.join(tmpdir, fname)
         ts.to_csv(ts_filename, index=True)
         mlflow.log_artifact(ts_filename, "raw_data")
+
+        if past_covs_csv != None:
+            past_covs_csv = past_covs_csv.replace('/', os.path.sep)
+            past_covs_fname = past_covs_csv.split(os.path.sep)[-1]
+            local_path_past_covs = past_covs_csv.split(os.path.sep)[:-1]
+
+            if multiple:
+                try:
+                    ts_past_covs, _ = read_and_validate_input(past_covs_csv,
+                                                              day_first,
+                                                              multiple=True,
+                                                              resolution=resolution,
+                                                              from_mongo=from_mongo,
+                                                              covariates="past")
+                except:
+                    ts_past_covs, inf_resolution = read_and_validate_input(past_covs_csv,
+                                                                           day_first,
+                                                                           multiple=False,
+                                                                           resolution=resolution,
+                                                                           from_mongo=from_mongo,
+                                                                           covariates="past")
+                    ts_past_covs = make_multiple(ts_past_covs,
+                                                 series_csv,
+                                                 day_first,
+                                                 str(inf_resolution))
+                    
+            else:
+                ts_past_covs, _ = read_and_validate_input(past_covs_csv,
+                                                       day_first,
+                                                       multiple=multiple,
+                                                       resolution=resolution,
+                                                       from_mongo=from_mongo,
+                                                       covariates="past")
+            local_path_past_covs = local_path_past_covs.replace("'", "") if "'" in local_path_past_covs else local_path_past_covs
+            past_covs_filename = os.path.join(*local_path_past_covs, past_covs_fname)
+
+            print(f'\nUploading past covariates timeseries to MLflow server: {past_covs_filename}')
+            logging.info(f'\nUploading past covariates timeseries to MLflow server: {past_covs_filename}')
+
+
+            ts_past_covs_filename = os.path.join(tmpdir, past_covs_fname)
+            ts_past_covs.to_csv(ts_past_covs_filename, index=True)
+            mlflow.log_artifact(ts_past_covs_filename, "past_covs_data")
+            mlflow.set_tag('past_covs_uri', f'{mlrun.info.artifact_uri}/raw_data/{past_covs_fname}')
+
+
+        if future_covs_csv != None:
+            future_covs_csv = future_covs_csv.replace('/', os.path.sep)
+            future_covs_fname = future_covs_csv.split(os.path.sep)[-1]
+            local_path_future_covs = future_covs_csv.split(os.path.sep)[:-1]
+
+            if multiple:
+                try:
+                    ts_future_covs, _ = read_and_validate_input(future_covs_csv,
+                                                              day_first,
+                                                              multiple=True,
+                                                              resolution=resolution,
+                                                              from_mongo=from_mongo,
+                                                              covariates="future")
+                except:
+                    ts_future_covs, inf_resolution = read_and_validate_input(future_covs_csv,
+                                                                           day_first,
+                                                                           multiple=False,
+                                                                           resolution=resolution,
+                                                                           from_mongo=from_mongo,
+                                                                           covariates="future")
+                    ts_future_covs = make_multiple(ts_future_covs,
+                                                 series_csv,
+                                                 day_first,
+                                                 str(inf_resolution))
+                    
+            else:
+                ts_future_covs, _ = read_and_validate_input(future_covs_csv,
+                                                       day_first,
+                                                       multiple=multiple,
+                                                       resolution=resolution,
+                                                       from_mongo=from_mongo,
+                                                       covariates="future")
+            local_path_future_covs = local_path_future_covs.replace("'", "") if "'" in local_path_future_covs else local_path_future_covs
+            future_covs_filename = os.path.join(*local_path_future_covs, future_covs_fname)
+
+            print(f'\nUploading future covariates timeseries to MLflow server: {future_covs_filename}')
+            logging.info(f'\nUploading future covariates timeseries to MLflow server: {future_covs_filename}')
+
+
+            ts_future_covs_filename = os.path.join(tmpdir, future_covs_fname)
+            ts_future_covs.to_csv(ts_future_covs_filename, index=True)
+            mlflow.log_artifact(ts_future_covs_filename, "future_covs_data")
+            mlflow.set_tag('future_covs_uri', f'{mlrun.info.artifact_uri}/raw_data/{future_covs_fname}')
 
         ## TODO: Read from APi
 
