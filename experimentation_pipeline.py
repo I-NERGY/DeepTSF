@@ -438,7 +438,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
         etl_run = _get_or_run("etl", etl_params, git_commit, ignore_previous_runs)
 
         etl_series_uri =  etl_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
-        etl_time_covariates_uri =  etl_run.data.tags["time_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        etl_past_covariates_uri =  etl_run.data.tags["past_covs_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        etl_future_covariates_uri =  etl_run.data.tags["future_covs_uri"].replace("s3:/", S3_ENDPOINT_URL)
 
         # weather_covariates_uri = ...
 
@@ -446,7 +447,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
         if opt_test:
             optuna_params = {
                 "series_uri": etl_series_uri,
-                "future_covs_uri": etl_time_covariates_uri,
+                "future_covs_uri": etl_future_covariates_uri,
+                "past_covs_uri": etl_past_covariates_uri,
                 "year_range": year_range,
                 "resolution": resolution,
                 "darts_model": darts_model,
@@ -475,8 +477,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
         else:
             train_params = {
                 "series_uri": etl_series_uri,
-                "future_covs_uri": etl_time_covariates_uri,
-                "past_covs_uri": None, # fix that in case REAL Temperatures come -> etl_temp_covs_uri. For forecasts, integrate them into future covariates!!
+                "future_covs_uri": future_covs_uri,
+                "past_covs_uri": past_covs_uri,
                 "darts_model": darts_model,
                 "hyperparams_entrypoint": hyperparams_entrypoint,
                 "cut_date_val": cut_date_val,

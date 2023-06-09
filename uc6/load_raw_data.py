@@ -327,7 +327,7 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
             ts_past_covs_filename = os.path.join(tmpdir, past_covs_fname)
             ts_past_covs.to_csv(ts_past_covs_filename, index=True)
             mlflow.log_artifact(ts_past_covs_filename, "past_covs_data")
-            mlflow.set_tag('past_covs_uri', f'{mlrun.info.artifact_uri}/raw_data/{past_covs_fname}')
+            mlflow.set_tag('past_covs_uri', f'{mlrun.info.artifact_uri}/past_covs_data/{past_covs_fname}')
         else:
             mlflow.set_tag(f'infered_resolution_past', "None")
             mlflow.set_tag('past_covs_uri', "None")
@@ -374,7 +374,7 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
             ts_future_covs_filename = os.path.join(tmpdir, future_covs_fname)
             ts_future_covs.to_csv(ts_future_covs_filename, index=True)
             mlflow.log_artifact(ts_future_covs_filename, "future_covs_data")
-            mlflow.set_tag('future_covs_uri', f'{mlrun.info.artifact_uri}/raw_data/{future_covs_fname}')
+            mlflow.set_tag('future_covs_uri', f'{mlrun.info.artifact_uri}/future_covs_data/{future_covs_fname}')
         else:
             mlflow.set_tag(f'infered_resolution_future', "None")
             mlflow.set_tag('future_covs_uri', "None")

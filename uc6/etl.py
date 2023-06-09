@@ -533,6 +533,10 @@ def sum_wo_nans(arraylike):
     else:
         return np.sum(arraylike)
 
+def preprocess_covariates(ts_list):
+    #TODO : More preprocessing
+    return [ts.interpolate(inplace=False) for ts in ts_list]
+
 @click.command(
     help="Given a timeseries CSV file (see load_raw_data), resamples it, "
          "drops duplicates converts it to darts and optionally creates "
@@ -955,7 +959,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                         print(source_l_covariates)
                         print(source_code_l_covariates)
                         print(id_l_covariates)
-                        if future_covs_csv != None:
+                        if future_covs_csv == None:
                             ts_list_future_covs.append(ts_list_covariates) 
                             source_l_future_covs.append(source_l_covariates)
                             source_code_l_future_covs.append(source_code_l_covariates)
@@ -992,15 +996,17 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
         #<--------------------------
         if not multiple:
             # store locally as csv in folder
+            #TODO: Fix non multiple case covs
             comp_res_darts.to_csv(f'{tmpdir}/series.csv')
 
             print("\nStoring datasets locally...")
             logging.info("\nStoring datasets...")
         else:
             multiple_dfs_to_ts_file(res_, source_l, source_code_l, id_l, ts_id_l, f'{tmpdir}/series.csv')
-
-        if time_covs:
-            multiple_dfs_to_ts_file(ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs, f'{tmpdir}/future_covs.csv')
+            if past_covs_csv != None:
+                multiple_dfs_to_ts_file(res_past, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs, f'{tmpdir}/past_covs.csv')
+            if future_covs_csv != None or time_covs:
+                multiple_dfs_to_ts_file(ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs, f'{tmpdir}/future_covs.csv')
 
         print("\nUploading features to MLflow server...")
         logging.info("\nUploading features to MLflow server...")
@@ -1022,11 +1028,14 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "etl")
         mlflow.set_tag('series_uri', f'{mlrun.info.artifact_uri}/features/series.csv')
-        if time_covs:
-            mlflow.set_tag('time_covariates_uri', f'{mlrun.info.artifact_uri}/features/future_covs.csv')
+        if past_covs_csv != None:
+            mlflow.set_tag('past_covs_uri', f'{mlrun.info.artifact_uri}/features/past_covs.csv')
         else: # default naming for non available time covariates uri
-            mlflow.set_tag('time_covariates_uri', 'mlflow_artifact_uri')
-
+            mlflow.set_tag('past_covs_uri', 'None')
+        if future_covs_csv != None or time_covs:
+            mlflow.set_tag('future_covs_uri', f'{mlrun.info.artifact_uri}/features/future_covs.csv')
+        else: # default naming for non available time covariates uri
+            mlflow.set_tag('future_covs_uri', 'None')
         return
 
 
