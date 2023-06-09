@@ -401,7 +401,13 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
         # series_uri = f"{load_raw_data_run.info.artifact_uri}/raw_data/series.csv" \
         #                 .replace("s3:/", S3_ENDPOINT_URL)
         load_data_series_uri = load_raw_data_run.data.tags['dataset_uri'].replace("s3:/", S3_ENDPOINT_URL)
-        infered_resolution = load_raw_data_run.data.tags['infered_resolution']
+        infered_resolution_series = load_raw_data_run.data.tags['infered_resolution_series']
+
+        load_data_past_covs_uri = load_raw_data_run.data.tags['past_covs_uri'].replace("s3:/", S3_ENDPOINT_URL)
+        infered_resolution_past = load_raw_data_run.data.tags['infered_resolution_past']
+
+        load_data_future_covs_uri = load_raw_data_run.data.tags['future_covs_uri'].replace("s3:/", S3_ENDPOINT_URL)
+        infered_resolution_future = load_raw_data_run.data.tags['infered_resolution_future']
 
         # 2. ETL
         etl_params = {"series_uri": load_data_series_uri,
@@ -421,7 +427,11 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                       "rmv_outliers": rmv_outliers,
                       "convert_to_local_tz": convert_to_local_tz,
                       "ts_used_id": ts_used_id,
-                      "infered_resolution": infered_resolution,
+                      "infered_resolution_series": infered_resolution_series,
+                      "past_covs_uri": load_data_past_covs_uri,
+                      "infered_resolution_past": infered_resolution_past,
+                      "future_covs_uri": load_data_future_covs_uri,
+                      "infered_resolution_future": infered_resolution_future,
                       "min_non_nan_interval": min_non_nan_interval,
                       "cut_date_val": cut_date_val}
 
