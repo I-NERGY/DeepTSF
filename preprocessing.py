@@ -16,6 +16,9 @@ from exceptions import NanInSet
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 def split_nans(covariates, past_covs, future_covs):
+    if type(covariates) != list:
+        covariates = [covariates]
+    
     result = []
     past_covs_return = [] if past_covs != None else None
     future_covs_return = [] if future_covs != None else None
