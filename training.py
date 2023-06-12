@@ -225,7 +225,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         They won't use initial forecasted values to predict the rest of the block
         So they won't need to additionally feed future covariates during the recurrent process.
         """
-        past_covs_csv = future_covs_csv
+        #past_covs_csv = future_covs_csv
+        #TODO Make tool add past_covs to future_covs in this case
         future_covs_csv = None
         # TODO: when actual weather comes extend it, now the stage only accepts future covariates as argument.
 
@@ -285,7 +286,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 resolution=resolution)
         else:
             past_covariates, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = None, None, None, None, None
-        print("NUM NULL", series[0].pd_dataframe().isnull().sum().sum())
+        #print("NUM NULL", series[0].pd_dataframe().isnull().sum().sum())
 
         print("\nCreating local folders...")
         logging.info("\nCreating local folders...")
@@ -342,7 +343,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             id_l=id_l_past_covs,
             ts_id_l=ts_id_l_past_covs)
         
-        print("NUM NULL", series_split["train"][0].pd_dataframe().isnull().sum().sum())
+        #print("NUM NULL", series_split["train"][0].pd_dataframe().isnull().sum().sum())
 
         #################
         # Scaling
@@ -409,6 +410,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         print("")
         #TODO maybe modify print to include split train based on nans
         #TODO make more efficient by also spliting covariates where the nans are split 
+        print("TRAIN,,,,,", series_transformed['train'])
         series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
             split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
         ## choose architecture
@@ -431,9 +433,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             )
             ## fit model
             # try:
-            print("NUM NULL", series_transformed['train'][0].pd_dataframe().isnull().sum().sum())
-            print("TRAIN", series_transformed['train'])
-            print("VAL", series_transformed['val'])
+            #print("NUM NULL", series_transformed['train'][0].pd_dataframe().isnull().sum().sum())
+            #print("VAL", series_transformed['val'])
             model.fit(series_transformed['train'],
                 future_covariates=future_covariates_transformed['train'],
                 past_covariates=past_covariates_transformed['train'],
@@ -485,7 +486,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             print(f'\nTraining {darts_model}...')
             logging.info(f'\nTraining {darts_model}...')
 
-            print("NULL VALUES", series_transformed['train'][0].pd_dataframe().isnull().sum().sum())
+            #print("NULL VALUES", series_transformed['train'][0].pd_dataframe().isnull().sum().sum())
 
             model.fit(
                 series=series_transformed['train'],

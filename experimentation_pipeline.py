@@ -395,7 +395,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                                 "day_first": day_first, 
                                 "multiple": multiple, 
                                 "from_mongo": from_mongo,
-                                "mongo_name": mongo_name}
+                                "mongo_name": mongo_name,
+                                "resolution":resolution}
         
         load_raw_data_run = _get_or_run("load_raw_data", load_raw_data_params, git_commit, ignore_previous_runs)
         # series_uri = f"{load_raw_data_run.info.artifact_uri}/raw_data/series.csv" \
