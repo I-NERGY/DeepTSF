@@ -460,6 +460,7 @@ def impute(ts: pd.DataFrame,
     prev = not_nan_dates[0]
     start = prev
 
+    #TODO Fix non nan interval when we dont want to do this (-1)
     for not_nan_day in not_nan_dates[1:]:
         if (not_nan_day - prev)!= pd.Timedelta(int(resolution), "min"):
             if prev - start < pd.Timedelta(min_non_nan_interval, "h"):
@@ -532,6 +533,23 @@ def sum_wo_nans(arraylike):
         return np.nan
     else:
         return np.sum(arraylike)
+
+def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resolution, type, multiple):
+    #TODO : More preprocessing
+    result = []
+    for ts, ts_id in zip(ts_list, id_list):
+        ts_res = ts.interpolate(inplace=False)
+
+        if resolution != infered_resolution or not multiple:
+            print(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution, or ts is not multiple")
+            logging.info(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution, or ts is not multiple")
+            ts_res = ts_res.resample(resolution+'min').apply(sum_wo_nans)
+        
+        result.append(ts_res)
+    return result
+        
+
+
 
 @click.command(
     help="Given a timeseries CSV file (see load_raw_data), resamples it, "
@@ -741,20 +759,19 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     print("\nLoading source dataset..")
     logging.info("\nLoading source dataset..")
 
+    if past_covs_csv != None:
+        ts_list_past_covs, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = \
+                multiple_ts_file_to_dfs(past_covs_csv, day_first, infered_resolution_past)
+    else:
+        ts_list_past_covs, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = [], [], [], [], []
+    if future_covs_csv != None:
+        ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = \
+                multiple_ts_file_to_dfs(future_covs_csv, day_first, infered_resolution_future)
+    else:
+        ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = [], [], [], [], []
+
     if multiple:
         ts_list, source_l, source_code_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, infered_resolution_series)
-
-        if past_covs_csv != None:
-            ts_list_past_covs, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = \
-                multiple_ts_file_to_dfs(past_covs_csv, day_first, infered_resolution_past)
-        else:
-            ts_list_past_covs, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = [], [], [], [], []
-        if future_covs_csv != None:
-            ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = \
-                multiple_ts_file_to_dfs(future_covs_csv, day_first, infered_resolution_future)
-        else:
-            ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = [], [], [], [], []
-
         if ts_used_id != None:
             try:
                 ts_used_id = int(ts_used_id)
@@ -789,25 +806,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                          parse_dates=True,
                          dayfirst=day_first)]]
         source_l, source_code_l, id_l, ts_id_l = [[country]], [[country]], [[country]], [[country]]
-        if past_covs_csv != None:
-            ts_list_past_covs = [[pd.read_csv(past_covs_csv,
-                         delimiter=',',
-                         header=0,
-                         index_col=0,
-                         parse_dates=True,
-                         dayfirst=day_first)]]
-        id_past = list(ts_list_past_covs.columns)[0]
-        source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = [[id_past]], [[id_past]], [[id_past]], [[id_past]]
-        if future_covs_csv != None:
-            ts_list_future_covs = [[pd.read_csv(future_covs_csv,
-                         delimiter=',',
-                         header=0,
-                         index_col=0,
-                         parse_dates=True,
-                         dayfirst=day_first)]]
-        id_future = list(ts_list_future_covs.columns)[0]
-        source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = [[id_future]], [[id_future]], [[id_future]], [[id_future]]
-
 
     # Year range handling
     if none_checker(year_range) is None:
@@ -904,9 +902,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   cut_date_val=cut_date_val,
                                                   min_non_nan_interval=min_non_nan_interval)
                 
-                if resolution != infered_resolution_series:
-                    print(f"\nResampling as given frequency different than infered resolution")
-                    logging.info(f"\nResampling as given frequency is different than infered resolution")
+                if resolution != infered_resolution_series or not multiple:
+                    print(f"\nResampling as given frequency different than infered resolution, or ts is not multiple")
+                    logging.info(f"\nResampling as given frequency is different than infered resolution, or ts is not multiple")
                     comp_res = comp_res.resample(resolution+'min').apply(sum_wo_nans)
                 
                 if comp_res.isnull().sum().sum() > 0:
@@ -932,12 +930,11 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 # time variables creation
 
                 #TODO: Make training happen without outlier detection
-                ##TODO fix multiple with covariates
                 if comp_num == len(ts) - 1:
                     if past_covs_csv != None:
-                        res_past.append(preprocess_covariates(ts_list_past_covs[ts_num]))
+                        res_past.append(preprocess_covariates(ts_list_past_covs[ts_num], id_l_past_covs[ts_num], ts_id_l_past_covs[ts_num][0], infered_resolution_past, resolution, "past", multiple))
                     if future_covs_csv != None:
-                        res_future.append(preprocess_covariates(ts_list_future_covs[ts_num]))
+                        res_future.append(preprocess_covariates(ts_list_future_covs[ts_num], id_l_future_covs[ts_num], ts_id_l_future_covs[ts_num][0], infered_resolution_future, resolution, "future", multiple))
                     
                     if time_covs:
                         print("\nCreating time covariates dataset...")
@@ -955,8 +952,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                         print(source_l_covariates)
                         print(source_code_l_covariates)
                         print(id_l_covariates)
-                        if future_covs_csv != None:
-                            ts_list_future_covs.append(ts_list_covariates) 
+                        if future_covs_csv == None:
+                            res_future.append(ts_list_covariates) 
                             source_l_future_covs.append(source_l_covariates)
                             source_code_l_future_covs.append(source_code_l_covariates)
                             id_l_future_covs.append(id_l_covariates)
@@ -989,7 +986,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
             res_ = cut_extra_samples(res_)
         print("\nCreating local folder to store the datasets as csv...")
         logging.info("\nCreating local folder to store the datasets as csv...")
-        #<--------------------------
         if not multiple:
             # store locally as csv in folder
             comp_res_darts.to_csv(f'{tmpdir}/series.csv')
@@ -998,9 +994,10 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
             logging.info("\nStoring datasets...")
         else:
             multiple_dfs_to_ts_file(res_, source_l, source_code_l, id_l, ts_id_l, f'{tmpdir}/series.csv')
-
-        if time_covs:
-            multiple_dfs_to_ts_file(ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs, f'{tmpdir}/future_covs.csv')
+        if past_covs_csv != None:
+            multiple_dfs_to_ts_file(res_past, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs, f'{tmpdir}/past_covs.csv')
+        if (future_covs_csv != None) or time_covs:
+            multiple_dfs_to_ts_file(res_future, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs, f'{tmpdir}/future_covs.csv')
 
         print("\nUploading features to MLflow server...")
         logging.info("\nUploading features to MLflow server...")
@@ -1022,11 +1019,14 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "etl")
         mlflow.set_tag('series_uri', f'{mlrun.info.artifact_uri}/features/series.csv')
-        if time_covs:
-            mlflow.set_tag('time_covariates_uri', f'{mlrun.info.artifact_uri}/features/future_covs.csv')
+        if past_covs_csv != None:
+            mlflow.set_tag('past_covs_uri', f'{mlrun.info.artifact_uri}/features/past_covs.csv')
         else: # default naming for non available time covariates uri
-            mlflow.set_tag('time_covariates_uri', 'mlflow_artifact_uri')
-
+            mlflow.set_tag('past_covs_uri', 'None')
+        if (future_covs_csv != None) or time_covs:
+            mlflow.set_tag('future_covs_uri', f'{mlrun.info.artifact_uri}/features/future_covs.csv')
+        else: # default naming for non available time covariates uri
+            mlflow.set_tag('future_covs_uri', 'None')
         return
 
 
