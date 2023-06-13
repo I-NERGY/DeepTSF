@@ -222,14 +222,15 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
 def append(x, y):
     return x.append(y)
 
-def objective(series_uri, future_covs_uri, year_range, resolution,
+def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
+             past_covs_csv, past_covs_uri, year_range, resolution,
              darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, 
              cut_date_test, device, forecast_horizon, stride, retrain, scale, 
              scale_covs, multiple, eval_series, mlrun, trial, study, opt_tmpdir, 
              num_workers, day_first, eval_method, loss_function, opt_all_results,
              evaluate_all_ts):
 
-                hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
+                hyperparameters = ConfigParser('../config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
                     if type(value) == list and value and value[0] == "range":
@@ -245,10 +246,11 @@ def objective(series_uri, future_covs_uri, year_range, resolution,
                      scale = training_dict['scale']
                      del training_dict['scale']
 
+                #TODO: Make it work with csvs also
                 model, scaler, train_future_covariates, train_past_covariates, features_dir, scalers_dir = train(
                       series_uri=series_uri,
                       future_covs_uri=future_covs_uri,
-                      past_covs_uri=None, # fix that in case REAL Temperatures come -> etl_temp_covs_uri. For forecasts, integrate them into future covariates!!
+                      past_covs_uri=past_covs_uri, # fix that in case REAL Temperatures come -> etl_temp_covs_uri. For forecasts, integrate them into future covariates!!
                       darts_model=darts_model,
                       hyperparams_entrypoint=hyperparams_entrypoint,
                       cut_date_val=cut_date_val,
@@ -374,9 +376,9 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         They won't use initial forecasted values to predict the rest of the block
         So they won't need to additionally feed future covariates during the recurrent process.
         """
-        past_covs_csv = future_covs_csv
+        #TODO Concatenate future covs to past??
+        #past_covs_csv = future_covs_csv
         future_covs_csv = None
-        # TODO: when actual weather comes extend it, now the stage only accepts future covariates as argument.
 
     elif darts_model in ["RNN"]:
         """Does not accept past covariates as it needs to know future ones to provide chain forecasts
@@ -405,21 +407,27 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 day_first=day_first,
                 resolution=resolution)
     if future_covariates is not None:
-        future_covariates, _, _, _, _ = load_local_csv_as_darts_timeseries(
+        future_covariates, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
                 last_date=test_end_date,
+                multiple=True,
                 day_first=day_first,
                 resolution=resolution)
+    else:
+        future_covariates, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = None, None, None, None, None
     if past_covariates is not None:
-        past_covariates, _, _, _, _ = load_local_csv_as_darts_timeseries(
+        past_covariates, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
                 local_path=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
                 last_date=test_end_date,
+                multiple=True,
                 day_first=day_first,
                 resolution=resolution)
+    else:
+        past_covariates, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = None, None, None, None, None
 
     if scale:
         scalers_dir = tempfile.mkdtemp()
@@ -436,37 +444,44 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     ## series
     series_split = split_dataset(
-        series,
-        val_start_date_str=cut_date_val,
-        test_start_date_str=cut_date_test,
-        test_end_date=test_end_date,
-        store_dir=features_dir,        
-        name='series',
-        multiple=multiple,
-        source_l=source_l,
-        source_code_l=source_code_l,
-        id_l=id_l,
-        ts_id_l=ts_id_l)
-
+            series,
+            val_start_date_str=cut_date_val,
+            test_start_date_str=cut_date_test,
+            test_end_date=test_end_date,
+            store_dir=features_dir,
+            name='series',
+            conf_file_name='split_info.yml',
+            multiple=multiple,
+            source_l=source_l,
+            source_code_l=source_code_l,
+            id_l=id_l,
+            ts_id_l=ts_id_l)
         ## future covariates
     future_covariates_split = split_dataset(
-        future_covariates,
-        val_start_date_str=cut_date_val,
-        test_start_date_str=cut_date_test,
-        test_end_date=test_end_date,
-        # store_dir=features_dir,
-        name='future_covariates',
-        )
-    ## past covariates
+            future_covariates,
+            val_start_date_str=cut_date_val,
+            test_start_date_str=cut_date_test,
+            test_end_date=test_end_date,
+            # store_dir=features_dir,
+            name='future_covariates',
+            multiple=True,
+            source_l=source_l_future_covs,
+            source_code_l=source_code_l_future_covs,
+            id_l=id_l_future_covs,
+            ts_id_l=ts_id_l_future_covs)
+        ## past covariates
     past_covariates_split = split_dataset(
-        past_covariates,
-        val_start_date_str=cut_date_val,
-        test_start_date_str=cut_date_test,
-        test_end_date=test_end_date,
-        # store_dir=features_dir,
-        name='past_covariates',
-        )
-
+            past_covariates,
+            val_start_date_str=cut_date_val,
+            test_start_date_str=cut_date_test,
+            test_end_date=test_end_date,
+            # store_dir=features_dir,
+            name='past_covariates',
+            multiple=True,
+            source_l=source_l_past_covs,
+            source_code_l=source_code_l_past_covs,
+            id_l=id_l_past_covs,
+            ts_id_l=ts_id_l_past_covs)
     #################
     # Scaling
     print("\nScaling...")
@@ -474,34 +489,43 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     ## scale series
     series_transformed = scale_covariates(
-        series_split,
-        store_dir=features_dir,
-        filename_suffix="series_transformed.csv",
-        scale=scale,
-        multiple=multiple,
-        source_l=source_l,
-        source_code_l=source_code_l,
-        id_l=id_l,
-        ts_id_l=ts_id_l,
-        )
-    
+            series_split,
+            store_dir=features_dir,
+            filename_suffix="series_transformed.csv",
+            scale=scale,
+            multiple=multiple,
+            source_l=source_l,
+            source_code_l=source_code_l,
+            id_l=id_l,
+            ts_id_l=ts_id_l
+            )
     if scale:
         pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
-
-    ## scale future covariates
+        ## scale future covariates
     future_covariates_transformed = scale_covariates(
-        future_covariates_split,
-        scale=scale_covs,
-        store_dir=features_dir,
-        filename_suffix="future_covariates_transformed.csv",
-        )
-    ## scale past covariates
+            future_covariates_split,
+            store_dir=features_dir,
+            filename_suffix="future_covariates_transformed.csv",
+            scale=scale_covs,
+            multiple=True,
+            source_l=source_l_future_covs,
+            source_code_l=source_code_l_future_covs,
+            id_l=id_l_future_covs,
+            ts_id_l=ts_id_l_future_covs
+            )
+        ## scale past covariates
     past_covariates_transformed = scale_covariates(
-        past_covariates_split,
-        scale=scale_covs,
-        store_dir=features_dir,
-        filename_suffix="past_covariates_transformed.csv",
-        )
+            past_covariates_split,
+            store_dir=features_dir,
+            filename_suffix="past_covariates_transformed.csv",
+            scale=scale_covs,
+            multiple=True,
+            source_l=source_l_past_covs,
+            source_code_l=source_code_l_past_covs,
+            id_l=id_l_past_covs,
+            ts_id_l=ts_id_l_past_covs
+            )
+
     ######################
     # Model training
     print("\nTraining model...")
@@ -523,7 +547,11 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         logging.info(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
     print("")
 
-    series_transformed['train'] = split_nans(series_transformed['train'])
+    #TODO maybe modify print to include split train based on nans
+    #TODO make more efficient by also spliting covariates where the nans are split 
+    print("TRAIN,,,,,", series_transformed['train'])
+    series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
+            split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
 
     ## choose architecture
     if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'NHiTS', 'Transformer']:
@@ -719,9 +747,6 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     retrain = truth_checker(retrain)
     multiple = truth_checker(multiple)
 
-    future_covariates = none_checker(future_covariates)
-    past_covariates = none_checker(past_covariates)
-
     # Load model / datasets / scalers from Mlflow server
 
     ## load series from MLflow
@@ -788,8 +813,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                             forecast_horizon=forecast_horizon,
                                             stride=stride,
                                             retrain=retrain,
-                                            future_covariates=future_covariates,
-                                            past_covariates=past_covariates,
+                                            future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
+                                            past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                             )
             eval_results[eval_i] = list(map(str, ts_id_l[eval_i])) + [validation_results["metrics"]["smape"],
                                                                       validation_results["metrics"]["mase"],
@@ -848,23 +873,40 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                         forecast_horizon=forecast_horizon,
                                         stride=stride,
                                         retrain=retrain,
-                                        future_covariates=future_covariates,
-                                        past_covariates=past_covariates,
+                                        future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
+                                        past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                         )
 
         return validation_results["metrics"]
 
 @click.command()
 # load arguments
+@click.option("--series-csv",
+              type=str,
+              default="../../RDN/Load_Data/series.csv",
+              help="Local timeseries csv. If set, it overwrites the local value."
+              )
 @click.option("--series-uri",
-    default="online_artifact",
-    help="Online link to download the series from"
-    )
-
+              type=str,
+              default='mlflow_artifact_uri',
+              help="Remote timeseries csv file. If set, it overwrites the local value."
+              )
+@click.option("--future-covs-csv",
+              type=str,
+              default='None'
+              )
 @click.option("--future-covs-uri",
               type=str,
               default='mlflow_artifact_uri'
-)
+              )
+@click.option("--past-covs-csv",
+              type=str,
+              default='None'
+              )
+@click.option("--past-covs-uri",
+              type=str,
+              default='mlflow_artifact_uri'
+              )
 @click.option('--year-range',
     default="2009-2019",
     type=str,
@@ -1001,7 +1043,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     help="Whether to run a grid search or use tpe in optuna")
 
 
-def optuna_search(series_uri, future_covs_uri, year_range, resolution, darts_model, hyperparams_entrypoint,
+def optuna_search(series_csv, series_uri, future_covs_csv, future_covs_uri,
+          past_covs_csv, past_covs_uri, year_range, resolution, darts_model, hyperparams_entrypoint,
            cut_date_val, cut_date_test, test_end_date, device, forecast_horizon, stride, retrain,
            scale, scale_covs, multiple, eval_series, n_trials, num_workers, day_first, eval_method, loss_function, evaluate_all_ts, grid_search):
 
@@ -1010,7 +1053,7 @@ def optuna_search(series_uri, future_covs_uri, year_range, resolution, darts_mod
         evaluate_all_ts = truth_checker(evaluate_all_ts)
         with mlflow.start_run(run_name=f'optuna_test_{darts_model}', nested=True) as mlrun:
             if grid_search:
-                hyperparameters = ConfigParser('config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
+                hyperparameters = ConfigParser('../config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
                     if type(value) == list and value and value[0] == "range":
@@ -1030,7 +1073,7 @@ def optuna_search(series_uri, future_covs_uri, year_range, resolution, darts_mod
                 opt_all_results = tempfile.mkdtemp()
             else:
                 opt_all_results = None
-            study.optimize(lambda trial: objective(series_uri, future_covs_uri, year_range, resolution,
+            study.optimize(lambda trial: objective(series_csv, series_uri, future_covs_csv, future_covs_uri, past_covs_csv, past_covs_uri, year_range, resolution,
                        darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
                        forecast_horizon, stride, retrain, scale, scale_covs,
                        multiple, eval_series, mlrun, trial, study, opt_tmpdir, num_workers, day_first, eval_method, loss_function, opt_all_results, evaluate_all_ts), n_trials=n_trials, n_jobs = 1)
