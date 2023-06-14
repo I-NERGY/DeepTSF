@@ -888,7 +888,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 print("\nPerfrorming Imputation of the Dataset...")
                 logging.info("\nPerfrorming Imputation of the Dataset...")
                 #print(comp_res)
-                comp_res.to_csv(f"../../notebooks/{source_l[ts_num][comp_num]}.csv")
+                #comp_res.to_csv(f"../../notebooks/{source_l[ts_num][comp_num]}.csv")
                 comp_res, imputed_values = impute(ts=comp_res,
                                                   holidays=country_holidays,
                                                   max_thr=max_thr,
