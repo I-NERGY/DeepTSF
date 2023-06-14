@@ -150,6 +150,10 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
         mlflow.set_tag("stage", "optuna_search")
         mlflow.set_tag("model_type", model_type)
 
+        mlflow.set_tag(
+            'setup_uri',
+            f'{mlrun.info.artifact_uri}/features/split_info.yml')
+
         mlflow.set_tag("darts_forecasting_model",
             model.__class__.__name__)
         # model_uri

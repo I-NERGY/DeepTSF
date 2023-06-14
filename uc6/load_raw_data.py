@@ -98,7 +98,6 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Load', 'Date'])
         elif covariates != "series" and not (len(ts.columns) == 1 and ts.index.name == 'Date'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['_', 'Date'])
-        resolution = ts.index
     else:
         if "Timeseries ID" not in ts.columns:
             ts["Timeseries ID"] = ts["ID"]

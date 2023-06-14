@@ -32,6 +32,14 @@ load_dotenv()
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
+"""MLFLOW_TRACKING_INSECURE_TLS = os.environ.get('MLFLOW_TRACKING_INSECURE_TLS')
+MLFLOW_TRACKING_USERNAME = os.environ.get('MLFLOW_TRACKING_USERNAME')
+MLFLOW_TRACKING_PASSWORD = os.environ.get('MLFLOW_TRACKING_PASSWORD')
+
+os.environ['MLFLOW_TRACKING_INSECURE_TLS'] = MLFLOW_TRACKING_INSECURE_TLS
+os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_TRACKING_USERNAME
+os.environ['MLFLOW_TRACKING_PASSWORD'] = MLFLOW_TRACKING_PASSWORD
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)"""
 
 def _already_ran(entry_point_name, parameters, git_commit, experiment_id=None):
     """Best-effort detection of if a run with the given entrypoint name,
@@ -395,7 +403,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                                 "day_first": day_first, 
                                 "multiple": multiple, 
                                 "from_mongo": from_mongo,
-                                "mongo_name": mongo_name}
+                                "mongo_name": mongo_name,
+                                "resolution":resolution}
         
         load_raw_data_run = _get_or_run("load_raw_data", load_raw_data_params, git_commit, ignore_previous_runs)
         # series_uri = f"{load_raw_data_run.info.artifact_uri}/raw_data/series.csv" \
@@ -438,7 +447,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
         etl_run = _get_or_run("etl", etl_params, git_commit, ignore_previous_runs)
 
         etl_series_uri =  etl_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
-        etl_time_covariates_uri =  etl_run.data.tags["time_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        etl_past_covariates_uri =  etl_run.data.tags["past_covs_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        etl_future_covariates_uri =  etl_run.data.tags["future_covs_uri"].replace("s3:/", S3_ENDPOINT_URL)
 
         # weather_covariates_uri = ...
 
@@ -446,7 +456,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
         if opt_test:
             optuna_params = {
                 "series_uri": etl_series_uri,
-                "future_covs_uri": etl_time_covariates_uri,
+                "future_covs_uri": etl_future_covariates_uri,
+                "past_covs_uri": etl_past_covariates_uri,
                 "year_range": year_range,
                 "resolution": resolution,
                 "darts_model": darts_model,
@@ -470,13 +481,13 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "evaluate_all_ts": evaluate_all_ts,
                 "grid_search" : grid_search,
             }
-            optuna_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
+            train_opt_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
 
         else:
             train_params = {
                 "series_uri": etl_series_uri,
-                "future_covs_uri": etl_time_covariates_uri,
-                "past_covs_uri": None, # fix that in case REAL Temperatures come -> etl_temp_covs_uri. For forecasts, integrate them into future covariates!!
+                "future_covs_uri": etl_future_covariates_uri,
+                "past_covs_uri": etl_past_covariates_uri,
                 "darts_model": darts_model,
                 "hyperparams_entrypoint": hyperparams_entrypoint,
                 "cut_date_val": cut_date_val,
@@ -491,41 +502,42 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "day_first": day_first,
                 "resolution": resolution,
             }
-            train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
+            train_opt_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 
             # Log train params (mainly for logging hyperparams to father run)
-            for param_name, param_value in train_run.data.params.items():
-                try:
-                    mlflow.log_param(param_name, param_value)
-                except mlflow.exceptions.RestException:
-                    pass
-                except mlflow.exceptions.MlflowException:
-                    pass
+        for param_name, param_value in train_opt_run.data.params.items():
+            try:
+                mlflow.log_param(param_name, param_value)
+                print(param_name, param_value)
+            except mlflow.exceptions.RestException:
+                pass
+            except mlflow.exceptions.MlflowException:
+                pass
 
-            train_model_uri = train_run.data.tags["model_uri"].replace("s3:/", S3_ENDPOINT_URL)
-            train_model_type = train_run.data.tags["model_type"]
-            train_series_uri = train_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
-            train_future_covariates_uri = train_run.data.tags["future_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
-            train_past_covariates_uri = train_run.data.tags["past_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
-            train_scaler_uri = train_run.data.tags["scaler_uri"].replace("s3:/", S3_ENDPOINT_URL)
-            train_setup_uri = train_run.data.tags["setup_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_model_uri = train_opt_run.data.tags["model_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_model_type = train_opt_run.data.tags["model_type"]
+        train_opt_series_uri = train_opt_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_future_covariates_uri = train_opt_run.data.tags["future_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_past_covariates_uri = train_opt_run.data.tags["past_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_scaler_uri = train_opt_run.data.tags["scaler_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_setup_uri = train_opt_run.data.tags["setup_uri"].replace("s3:/", S3_ENDPOINT_URL)
 
-            # 4. Evaluation
-            ## load setup file
-            setup_file = download_online_file(
-                train_setup_uri, "setup.yml")
-            setup = load_yaml_as_dict(setup_file)
-            print(f"\nSplit info: {setup} \n")
+        # 4. Evaluation
+        ## load setup file
+        setup_file = download_online_file(
+            train_opt_setup_uri, "setup.yml")
+        setup = load_yaml_as_dict(setup_file)
+        print(f"\nSplit info: {setup} \n")
 
-            eval_params = {
-                "series_uri": train_series_uri,
-                "future_covs_uri": train_future_covariates_uri,
-                "past_covs_uri": train_past_covariates_uri,
-                "scaler_uri": train_scaler_uri,
+        eval_params = {
+                "series_uri": train_opt_series_uri,
+                "future_covs_uri": train_opt_future_covariates_uri,
+                "past_covs_uri": train_opt_past_covariates_uri,
+                "scaler_uri": train_opt_scaler_uri,
                 "cut_date_test": setup['test_start'],
                 "test_end_date": setup['test_end'],
-                "model_uri": train_model_uri,
-                "model_type": train_model_type,
+                "model_uri": train_opt_model_uri,
+                "model_type": train_opt_model_type,
                 "forecast_horizon": forecast_horizon,
                 "stride": stride,
                 "retrain": retrain,
@@ -542,26 +554,26 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "m_mase": m_mase,
             }
 
-            if "input_chunk_length" in train_run.data.params:
-                eval_params["input_chunk_length"] = train_run.data.params["input_chunk_length"]
-            else:
-                eval_params["input_chunk_length"] = input_chunk_length
+        if "input_chunk_length" in train_opt_run.data.params:
+            eval_params["input_chunk_length"] = train_opt_run.data.params["input_chunk_length"]
+        else:
+            eval_params["input_chunk_length"] = input_chunk_length
 
-            if "output_chunk_length" in train_run.data.params:
-                eval_params["output_chunk_length"] = train_run.data.params["output_chunk_length"]
-            else:
-                eval_params["output_chunk_length"] = forecast_horizon
+        if "output_chunk_length" in train_opt_run.data.params:
+            eval_params["output_chunk_length"] = train_opt_run.data.params["output_chunk_length"]
+        else:
+            eval_params["output_chunk_length"] = forecast_horizon
             
-            # Naive models require retrain=True
-            if "naive" in [train_run.data.params["darts_model"].lower()]:
-                eval_params["retrain"] = True
-                print("\Warning: Switching retrain flag to True as Naive models require...\n")
+        # Naive models require retrain=True
+        if "naive" in [train_opt_run.data.params["darts_model"].lower()]:
+            eval_params["retrain"] = True
+            print("\Warning: Switching retrain flag to True as Naive models require...\n")
 
 
-            eval_run = _get_or_run("eval", eval_params, git_commit)
+        eval_run = _get_or_run("eval", eval_params, git_commit)
 
-            # Log eval metrics to father run for consistency and clear results
-            mlflow.log_metrics(eval_run.data.metrics)
+        # Log eval metrics to father run for consistency and clear results
+        mlflow.log_metrics(eval_run.data.metrics)
 
 if __name__ == "__main__":
     workflow()

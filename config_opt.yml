@@ -168,7 +168,7 @@ hyperparameters:
     nr_epochs_val_period: 2
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
 
-  NBEATS_val_2020_17_23:
+  NBEATS_val_2020_17_23__:
     input_chunk_length: ["range", 408, 552, 24]
     output_chunk_length: 24
     num_stacks: ["range", 1, 25, 1]
@@ -177,7 +177,7 @@ hyperparameters:
     generic_architecture: True
     layer_widths: 64
     expansion_coefficient_dim: 5
-    n_epochs: 300
+    n_epochs: 20
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
