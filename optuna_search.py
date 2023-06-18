@@ -645,7 +645,9 @@ def backtester(model,
                retrain=False,
                future_covariates=None,
                past_covariates=None,
-               path_to_save_backtest=None):
+               path_to_save_backtest=None,
+               num_samples=1):
+               #TODO Add mase
     """ Does the same job with advanced forecast but much more quickly using the darts
     bult-in historical_forecasts method. Use this for evaluation. The other only
     provides pure inference. Provide a unified timeseries test set point based
@@ -678,7 +680,8 @@ def backtester(model,
                                                              stride=stride,
                                                              retrain=retrain,
                                                              last_points_only=False,
-                                                             verbose=False)
+                                                             verbose=False,
+                                                             num_samples=num_samples)
 
     # flatten lists of forecasts due to last_points_only=False
     if isinstance(backtest_series_transformed, list):

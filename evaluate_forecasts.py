@@ -73,7 +73,8 @@ def backtester(model,
                future_covariates=None,
                past_covariates=None,
                path_to_save_backtest=None,
-               m_mase=1):
+               m_mase=1,
+               num_samples=1):
     """ Does the same job with advanced forecast but much more quickly using the darts
     bult-in historical_forecasts method. Use this for evaluation. The other only
     provides pure inference. Provide a unified timeseries test set point based
@@ -108,7 +109,8 @@ def backtester(model,
                                                              stride=stride,
                                                              retrain=retrain,
                                                              last_points_only=False,
-                                                             verbose=False)
+                                                             verbose=False,
+                                                             num_samples=num_samples)
 
     # flatten lists of forecasts due to last_points_only=False
     if isinstance(backtest_series_transformed, list):
@@ -424,9 +426,9 @@ def predict(x: darts.TimeSeries,
         series_list.append(ts)
     #    print("asdssd", past_covs, future_covs)
     try:
-        res = model.predict(output_chunk_length, series_list, past_covariates=past_covs_list, future_covariates=future_covs_list)
+        res = model.predict(output_chunk_length, series_list, past_covariates=past_covs_list, future_covariates=future_covs_list, num_samples=num_samples)
     except:
-        res = model.predict(output_chunk_length, series_list)
+        res = model.predict(output_chunk_length, series_list, num_samples=num_samples)
     if scale:
         res = list(map(lambda elem : scaler_list[0].inverse_transform(elem).univariate_values(), res))
     else:
