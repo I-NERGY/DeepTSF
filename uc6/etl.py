@@ -547,9 +547,6 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
         
         result.append(ts_res)
     return result
-        
-
-
 
 @click.command(
     help="Given a timeseries CSV file (see load_raw_data), resamples it, "
@@ -888,7 +885,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 print("\nPerfrorming Imputation of the Dataset...")
                 logging.info("\nPerfrorming Imputation of the Dataset...")
                 #print(comp_res)
-                comp_res.to_csv(f"../../notebooks/{source_l[ts_num][comp_num]}.csv")
+                #comp_res.to_csv(f"../../notebooks/{source_l[ts_num][comp_num]}.csv")
                 comp_res, imputed_values = impute(ts=comp_res,
                                                   holidays=country_holidays,
                                                   max_thr=max_thr,
@@ -998,7 +995,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
             multiple_dfs_to_ts_file(res_past, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs, f'{tmpdir}/past_covs.csv')
         if (future_covs_csv != None) or time_covs:
             multiple_dfs_to_ts_file(res_future, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs, f'{tmpdir}/future_covs.csv')
-
         print("\nUploading features to MLflow server...")
         logging.info("\nUploading features to MLflow server...")
         mlflow.log_artifacts(tmpdir, "features")

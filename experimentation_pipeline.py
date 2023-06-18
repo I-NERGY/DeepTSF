@@ -32,6 +32,14 @@ load_dotenv()
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
+"""MLFLOW_TRACKING_INSECURE_TLS = os.environ.get('MLFLOW_TRACKING_INSECURE_TLS')
+MLFLOW_TRACKING_USERNAME = os.environ.get('MLFLOW_TRACKING_USERNAME')
+MLFLOW_TRACKING_PASSWORD = os.environ.get('MLFLOW_TRACKING_PASSWORD')
+
+os.environ['MLFLOW_TRACKING_INSECURE_TLS'] = MLFLOW_TRACKING_INSECURE_TLS
+os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_TRACKING_USERNAME
+os.environ['MLFLOW_TRACKING_PASSWORD'] = MLFLOW_TRACKING_PASSWORD
+mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)"""
 
 def _already_ran(entry_point_name, parameters, git_commit, experiment_id=None):
     """Best-effort detection of if a run with the given entrypoint name,
@@ -361,6 +369,11 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     help="If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval \
         hours, these intervals are all replaced  by nan values")
 
+@click.option("--num-samples",
+    type=str,
+    default="1",
+    help="Number of samples to use for evaluating/validating a probabilistic model's output")
+
 
 
 def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, year_range, 
@@ -369,7 +382,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_series, n_trials, opt_test, from_mongo, mongo_name, num_workers, eval_method,
              l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, input_chunk_length,
-             ts_used_id, m_mase, min_non_nan_interval):
+             ts_used_id, m_mase, min_non_nan_interval, num_samples):
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -472,14 +485,15 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "loss_function": loss_function,
                 "evaluate_all_ts": evaluate_all_ts,
                 "grid_search" : grid_search,
+                "num_samples": num_samples,
             }
-            optuna_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
+            train_opt_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
 
         else:
             train_params = {
                 "series_uri": etl_series_uri,
-                "future_covs_uri": future_covs_uri,
-                "past_covs_uri": past_covs_uri,
+                "future_covs_uri": etl_future_covariates_uri,
+                "past_covs_uri": etl_past_covariates_uri,
                 "darts_model": darts_model,
                 "hyperparams_entrypoint": hyperparams_entrypoint,
                 "cut_date_val": cut_date_val,
@@ -494,41 +508,42 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "day_first": day_first,
                 "resolution": resolution,
             }
-            train_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
+            train_opt_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 
             # Log train params (mainly for logging hyperparams to father run)
-            for param_name, param_value in train_run.data.params.items():
-                try:
-                    mlflow.log_param(param_name, param_value)
-                except mlflow.exceptions.RestException:
-                    pass
-                except mlflow.exceptions.MlflowException:
-                    pass
+        for param_name, param_value in train_opt_run.data.params.items():
+            try:
+                mlflow.log_param(param_name, param_value)
+                print(param_name, param_value)
+            except mlflow.exceptions.RestException:
+                pass
+            except mlflow.exceptions.MlflowException:
+                pass
 
-            train_model_uri = train_run.data.tags["model_uri"].replace("s3:/", S3_ENDPOINT_URL)
-            train_model_type = train_run.data.tags["model_type"]
-            train_series_uri = train_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
-            train_future_covariates_uri = train_run.data.tags["future_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
-            train_past_covariates_uri = train_run.data.tags["past_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
-            train_scaler_uri = train_run.data.tags["scaler_uri"].replace("s3:/", S3_ENDPOINT_URL)
-            train_setup_uri = train_run.data.tags["setup_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_model_uri = train_opt_run.data.tags["model_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_model_type = train_opt_run.data.tags["model_type"]
+        train_opt_series_uri = train_opt_run.data.tags["series_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_future_covariates_uri = train_opt_run.data.tags["future_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_past_covariates_uri = train_opt_run.data.tags["past_covariates_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_scaler_uri = train_opt_run.data.tags["scaler_uri"].replace("s3:/", S3_ENDPOINT_URL)
+        train_opt_setup_uri = train_opt_run.data.tags["setup_uri"].replace("s3:/", S3_ENDPOINT_URL)
 
-            # 4. Evaluation
-            ## load setup file
-            setup_file = download_online_file(
-                train_setup_uri, "setup.yml")
-            setup = load_yaml_as_dict(setup_file)
-            print(f"\nSplit info: {setup} \n")
+        # 4. Evaluation
+        ## load setup file
+        setup_file = download_online_file(
+            train_opt_setup_uri, "setup.yml")
+        setup = load_yaml_as_dict(setup_file)
+        print(f"\nSplit info: {setup} \n")
 
-            eval_params = {
-                "series_uri": train_series_uri,
-                "future_covs_uri": train_future_covariates_uri,
-                "past_covs_uri": train_past_covariates_uri,
-                "scaler_uri": train_scaler_uri,
+        eval_params = {
+                "series_uri": train_opt_series_uri,
+                "future_covs_uri": train_opt_future_covariates_uri,
+                "past_covs_uri": train_opt_past_covariates_uri,
+                "scaler_uri": train_opt_scaler_uri,
                 "cut_date_test": setup['test_start'],
                 "test_end_date": setup['test_end'],
-                "model_uri": train_model_uri,
-                "model_type": train_model_type,
+                "model_uri": train_opt_model_uri,
+                "model_type": train_opt_model_type,
                 "forecast_horizon": forecast_horizon,
                 "stride": stride,
                 "retrain": retrain,
@@ -543,28 +558,29 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "eval_method": eval_method,
                 "evaluate_all_ts": evaluate_all_ts,
                 "m_mase": m_mase,
+                "num_samples": num_samples,
             }
 
-            if "input_chunk_length" in train_run.data.params:
-                eval_params["input_chunk_length"] = train_run.data.params["input_chunk_length"]
-            else:
-                eval_params["input_chunk_length"] = input_chunk_length
+        if "input_chunk_length" in train_opt_run.data.params:
+            eval_params["input_chunk_length"] = train_opt_run.data.params["input_chunk_length"]
+        else:
+            eval_params["input_chunk_length"] = input_chunk_length
 
-            if "output_chunk_length" in train_run.data.params:
-                eval_params["output_chunk_length"] = train_run.data.params["output_chunk_length"]
-            else:
-                eval_params["output_chunk_length"] = forecast_horizon
+        if "output_chunk_length" in train_opt_run.data.params:
+            eval_params["output_chunk_length"] = train_opt_run.data.params["output_chunk_length"]
+        else:
+            eval_params["output_chunk_length"] = forecast_horizon
             
-            # Naive models require retrain=True
-            if "naive" in [train_run.data.params["darts_model"].lower()]:
-                eval_params["retrain"] = True
-                print("\Warning: Switching retrain flag to True as Naive models require...\n")
+        # Naive models require retrain=True
+        if "naive" in [train_opt_run.data.params["darts_model"].lower()]:
+            eval_params["retrain"] = True
+            print("\Warning: Switching retrain flag to True as Naive models require...\n")
 
 
-            eval_run = _get_or_run("eval", eval_params, git_commit)
+        eval_run = _get_or_run("eval", eval_params, git_commit)
 
-            # Log eval metrics to father run for consistency and clear results
-            mlflow.log_metrics(eval_run.data.metrics)
+        # Log eval metrics to father run for consistency and clear results
+        mlflow.log_metrics(eval_run.data.metrics)
 
 if __name__ == "__main__":
     workflow()

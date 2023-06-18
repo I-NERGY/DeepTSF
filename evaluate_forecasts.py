@@ -73,7 +73,8 @@ def backtester(model,
                future_covariates=None,
                past_covariates=None,
                path_to_save_backtest=None,
-               m_mase=1):
+               m_mase=1,
+               num_samples=1):
     """ Does the same job with advanced forecast but much more quickly using the darts
     bult-in historical_forecasts method. Use this for evaluation. The other only
     provides pure inference. Provide a unified timeseries test set point based
@@ -108,7 +109,8 @@ def backtester(model,
                                                              stride=stride,
                                                              retrain=retrain,
                                                              last_points_only=False,
-                                                             verbose=False)
+                                                             verbose=False,
+                                                             num_samples=num_samples)
 
     # flatten lists of forecasts due to last_points_only=False
     if isinstance(backtest_series_transformed, list):
@@ -424,9 +426,9 @@ def predict(x: darts.TimeSeries,
         series_list.append(ts)
     #    print("asdssd", past_covs, future_covs)
     try:
-        res = model.predict(output_chunk_length, series_list, past_covariates=past_covs_list, future_covariates=future_covs_list)
+        res = model.predict(output_chunk_length, series_list, past_covariates=past_covs_list, future_covariates=future_covs_list, num_samples=num_samples)
     except:
-        res = model.predict(output_chunk_length, series_list)
+        res = model.predict(output_chunk_length, series_list, num_samples=num_samples)
     if scale:
         res = list(map(lambda elem : scaler_list[0].inverse_transform(elem).univariate_values(), res))
     else:
@@ -642,7 +644,13 @@ def call_shap(n_past_covs: int,
     default="1",
     help="m to use for mase metric")
 
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_series, cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase):
+@click.option("--num-samples",
+    type=str,
+    default="1",
+    help="Number of samples to use for evaluating/validating a probabilistic model's output")
+
+
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_series, cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase, num_samples):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -650,6 +658,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     stride = none_checker(stride)
     forecast_horizon = int(forecast_horizon)
     m_mase = int(m_mase)
+    num_samples = int(num_samples)
     stride = int(forecast_horizon) if stride is None else int(stride)
     retrain = truth_checker(retrain)
     analyze_with_shap = truth_checker(analyze_with_shap)
@@ -784,7 +793,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
                                             past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                             path_to_save_backtest=f"{evaltmpdir}/{ts_id_l[eval_i][0]}",
-                                            m_mase=m_mase)
+                                            m_mase=m_mase,
+                                            num_samples=num_samples)
                 eval_results[eval_i] = list(map(str, ts_id_l[eval_i][:1])) + [evaluation_results["metrics"]["smape"],
                                                                               evaluation_results["metrics"]["mase"],
                                                                               evaluation_results["metrics"]["mae"],
@@ -819,7 +829,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
                                             past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                             path_to_save_backtest=evaltmpdir,
-                                            m_mase=m_mase)
+                                            m_mase=m_mase,
+                                            num_samples=num_samples)
             if analyze_with_shap:
                 data, background = build_shap_dataset(size=size,
                                                 train=series_split['train'],
