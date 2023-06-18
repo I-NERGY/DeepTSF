@@ -281,3 +281,23 @@ hyperparameters:
     hidden_size: ["list", 16, 32, 64, 128, 256]
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
     add_relative_index: "True"
+    n_epochs: 500
+
+  
+  LSTM_prob_paper:
+    model: LSTM
+    n_rnn_layers: ["range", 1, 4, 1]
+    input_chunk_length: ["range", 24, 480, 24]
+    output_chunk_length: 24
+    hidden_dim:  ["range", 24, 240, 24]
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+    likelihood: "Gaussian"
+    training_length: ["equal", "input_chunk_length"]
+    scale:  ["list", "True", "False"]
+
+

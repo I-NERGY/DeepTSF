@@ -270,8 +270,6 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
 
     resolution = int(resolution)
 
-    print("RESOLUTION", resolution)
-
     with mlflow.start_run(run_name='load_data', nested=True) as mlrun:
 
         ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, resolution=resolution, from_mongo=from_mongo)

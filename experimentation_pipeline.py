@@ -369,6 +369,12 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     help="If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval \
         hours, these intervals are all replaced  by nan values")
 
+@click.option("--num-samples",
+    type=str,
+    default="24",
+    help="If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval \
+        hours, these intervals are all replaced  by nan values")
+
 
 
 def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, year_range, 
