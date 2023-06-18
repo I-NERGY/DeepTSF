@@ -22,6 +22,13 @@ def split_nans(covariates, past_covs, future_covs):
     result = []
     past_covs_return = [] if past_covs != None else None
     future_covs_return = [] if future_covs != None else None
+    if past_covs != None and type(past_covs) != list:
+        past_covs = [past_covs]
+    if future_covs != None and type(future_covs) != list:
+        future_covs = [future_covs]
+    if type(covariates) != list:
+        covariates = [covariates]
+
     for i, covariate in enumerate(covariates):
         if covariate.pd_dataframe().isnull().sum().sum() > 0:
             covariate = extract_subseries(covariate, min_gap_size=1)#, mode='any') TODO update darts!!

@@ -8,6 +8,10 @@ entry_points:
     parameters:
       series_csv: {type: str, default: ../../RDN/Load_Data/2009-2021-global-load.csv}
       series_uri: {type: str, default: online_artifact}
+      past_covs_csv: {type: str, default: None}
+      past_covs_uri: {type: str, default: None}
+      future_covs_csv: {type: str, default: None}
+      future_covs_uri: {type: str, default: None}
       day_first: {type: str, default: "true"}
       multiple: {type: str, default: "false"}
       resolution: {type: str, default: 15}
@@ -15,7 +19,8 @@ entry_points:
       mongo_name: {type: str, default: "rdn_load_data"}
 
     command: |
-      python load_raw_data.py --series-csv {series_csv} --series-uri {series_uri} --day-first {day_first} --multiple {multiple} --resolution {resolution} --from-mongo {from_mongo} --mongo-name {mongo_name}
+      python load_raw_data.py --series-csv {series_csv} --series-uri {series_uri} --day-first {day_first} --multiple {multiple} --resolution {resolution} --from-mongo {from_mongo} --mongo-name {mongo_name} --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} 
+
 
   etl:
     parameters:
@@ -23,9 +28,9 @@ entry_points:
       series_uri: {type: str, default: mlflow_artifact_uri}
       resolution: {type: str, default: 15}
       year_range: {type: str, default: None}
-      time_covs: {type: str, default: PT}
+      time_covs: {type: str, default: "false"}
       day_first: {type: str, default: "true"}
-      country: {type: str, default: "Portugal"}
+      country: {type: str, default: "PT"}
       std_dev: {type: str, default: 4.5}
       max_thr: {type: str, default: -1}
       a: {type: str, default: 0.3}
@@ -37,8 +42,17 @@ entry_points:
       rmv_outliers: {type: str, default: "true"}
       convert_to_local_tz: {type: str, default: "true"}
       ts_used_id: {type: str, default: "None"}
+      infered_resolution_series: {type: str, default: "15"}
+      min_non_nan_interval: {type: str, default: "24"}
+      cut_date_val: {type: str, default: 20200101}
+      infered_resolution_past: {type: str, default: "15"} 
+      past_covs_csv: {type: str, default: "None"} 
+      past_covs_uri: {type: str, default: "None"}
+      infered_resolution_future: {type: str, default: "15"} 
+      future_covs_csv: {type: str, default: "None"} 
+      future_covs_uri: {type: str, default: "None"} 
     command: |
-      python etl.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --multiple {multiple} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --convert-to-local-tz {convert_to_local_tz} --ts-used-id {ts_used_id}
+      python etl.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --multiple {multiple} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --convert-to-local-tz {convert_to_local_tz} --ts-used-id {ts_used_id} --infered-resolution-series {infered_resolution_series} --min-non-nan-interval {min_non_nan_interval} --cut-date-val {cut_date_val} --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --infered-resolution-past {infered_resolution_past}  --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --infered-resolution-future {infered_resolution_future} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri}
 
   train:
     parameters:
@@ -90,18 +104,22 @@ entry_points:
       resolution: {type: str, default: 15}
       eval_method: {type: str, default: "ts_ID"}
       evaluate_all_ts: {type: str, default: "false"}
+      m_mase: {type: str, default: "1"}
 
     command: |
-      python ../evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --model-type {model_type} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --input-chunk-length {input_chunk_length} --output-chunk-length {output_chunk_length} --size {size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-series {eval_series} --cut-date-val {cut_date_val} --day-first {day_first} --resolution {resolution} --eval-method {eval_method} --evaluate-all-ts {evaluate_all_ts}
+      python ../evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --model-type {model_type} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --input-chunk-length {input_chunk_length} --output-chunk-length {output_chunk_length} --size {size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-series {eval_series} --cut-date-val {cut_date_val} --day-first {day_first} --resolution {resolution} --eval-method {eval_method} --evaluate-all-ts {evaluate_all_ts} --m-mase {m_mase}
 
 
   optuna_search:
     parameters:
-      series_uri: {type: str, default: online_artifact}
+      series_csv: {type: str, default: ../../RDN/Load_Data/series.csv}
+      series_uri: {type: str, default: mlflow_artifact_uri}
+      future_covs_csv: {type: str, default: None}
       future_covs_uri: {type: str, default: mlflow_artifact_uri}
+      past_covs_csv: {type: str, default: None}
+      past_covs_uri: {type: str, default: mlflow_artifact_uri}
       resolution: {type: str, default: 15}
       year_range: {type: str, default: None}
-      time_covs: {type: str, default: PT}
       darts_model: {type: str, default: RNN}
       hyperparams_entrypoint: {type: str, default: LSTM1}
       cut_date_val: {type: str, default: 20180101}
@@ -124,7 +142,7 @@ entry_points:
       grid_search: {type: str, default: "false"}
 
     command: |
-      python ../optuna_search.py --series-uri {series_uri} --future-covs-uri {future_covs_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --darts-model {darts_model} --hyperparams-entrypoint {hyperparams_entrypoint} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --device {device} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --num-workers {num_workers} --day-first {day_first} --eval-method {eval_method} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --grid-search {grid_search}
+      python ../optuna_search.py --series-csv {series_csv} --series-uri {series_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --past-covs-csv {past_covs_csv}  --past-covs-uri {past_covs_uri} --resolution {resolution} --year-range {year_range} --darts-model {darts_model} --hyperparams-entrypoint {hyperparams_entrypoint} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --device {device} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --num-workers {num_workers} --day-first {day_first} --eval-method {eval_method} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --grid-search {grid_search}
 
 
 
@@ -132,9 +150,13 @@ entry_points:
     parameters:
       series_csv: {type: str, default: ../../RDN/Load_Data/2009-2021-global-load.csv}
       series_uri: {type: str, default: online_artifact}
+      past_covs_csv: {type: str, default: None}
+      past_covs_uri: {type: str, default: None}
+      future_covs_csv: {type: str, default: None}
+      future_covs_uri: {type: str, default: None}
       resolution: {type: str, default: 15}
       year_range: {type: str, default: None}
-      time_covs: {type: str, default: PT}
+      time_covs: {type: str, default: "false"}
       hyperparams_entrypoint: {type: str, default: LSTM1}
       cut_date_val: {type: str, default: 20180101}
       cut_date_test: {type: str, default: 20190101}
@@ -148,7 +170,7 @@ entry_points:
       scale: {type: str, default: "true"}
       scale_covs: {type: str, default: "true"}
       day_first: {type: str, default: "true"}
-      country: {type: str, default: "Portugal"}
+      country: {type: str, default: "PT"}
       std_dev: {type: str, default: 4.5}
       max_thr: {type: str, default: -1}
       a: {type: str, default: 0.3}
@@ -173,9 +195,11 @@ entry_points:
       grid_search: {type: str, default: "false"}
       input_chunk_length: {type: str, default: None}
       ts_used_id: {type: str, default: "None"}
+      m_mase: {type: str, default: "1"}
+      min_non_nan_interval: {type: str, default: "24"}
 
     command: |
-      python ../experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --shap-data-size {shap_data_size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --opt-test {opt_test} --from-mongo {from_mongo} --mongo-name {mongo_name} --num-workers {num_workers} --eval-method {eval_method} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --convert-to-local-tz {convert_to_local_tz} --grid-search {grid_search} --input-chunk-length {input_chunk_length} --ts-used-id {ts_used_id}
+      python ../experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --shap-data-size {shap_data_size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --opt-test {opt_test} --from-mongo {from_mongo} --mongo-name {mongo_name} --num-workers {num_workers} --eval-method {eval_method} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --convert-to-local-tz {convert_to_local_tz} --grid-search {grid_search} --input-chunk-length {input_chunk_length} --ts-used-id {ts_used_id} --m-mase {m_mase} --min-non-nan-interval {min_non_nan_interval} --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} 
 
   inference:
     parameters:

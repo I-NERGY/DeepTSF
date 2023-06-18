@@ -168,7 +168,7 @@ hyperparameters:
     nr_epochs_val_period: 2
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
 
-  NBEATS_val_2020_17_23:
+  NBEATS_val_2020_17_23_test:
     input_chunk_length: ["range", 408, 552, 24]
     output_chunk_length: 24
     num_stacks: ["range", 1, 25, 1]
@@ -177,7 +177,7 @@ hyperparameters:
     generic_architecture: True
     layer_widths: 64
     expansion_coefficient_dim: 5
-    n_epochs: 300
+    n_epochs: 2
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
@@ -271,3 +271,30 @@ hyperparameters:
     lags_future_covariates: [1, 1]
     future_covs_as_tuple: true
     random_state: 0
+
+  TFT_paper:
+    input_chunk_length: 24 #["range", 24, 480, 24]
+    output_chunk_length: 24
+    lstm_layers: ["list", 1, 2, 4]
+    dropout: ["list", 0.1, 0.2, 0.3, 0.4, 0.5]
+    num_attention_heads: ["list", 1, 4] 
+    hidden_size: ["list", 16, 32, 64, 128, 256]
+    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+    add_relative_index: "True"
+
+  LSTM_prob_paper_test:
+    model: LSTM
+    n_rnn_layers: ["range", 1, 4, 1]
+    input_chunk_length: ["range", 24, 480, 24]
+    output_chunk_length: 24
+    hidden_dim:  ["range", 24, 240, 24]
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+    likelihood: "Gaussian"
+    training_length: ["equal", "input_chunk_length"]
+    scale:  ["list", "True", "False"]
+
