@@ -14,7 +14,7 @@ hyperparameters:
     batch_size: 16
 
   lstm0_1:
-     model: LSTM
+     model: RNN
      n_rnn_layers: 1
      hidden_dim:  128
      n_epochs: 10
