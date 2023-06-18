@@ -282,7 +282,7 @@ hyperparameters:
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
     add_relative_index: "True"
 
-  LSTM_prob_paper_test:
+  LSTM_prob_paper_test:  
     model: LSTM
     n_rnn_layers: ["range", 1, 4, 1]
     input_chunk_length: ["range", 24, 480, 24]
@@ -297,4 +297,3 @@ hyperparameters:
     likelihood: "Gaussian"
     training_length: ["equal", "input_chunk_length"]
     scale:  ["list", "True", "False"]
-
