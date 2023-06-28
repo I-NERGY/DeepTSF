@@ -797,3 +797,18 @@ hyperparameters:
     num_filters: 10
     dilation_base: 8
     batch_size: 1024
+
+  LSTM_prob_paper_test:  
+    model: LSTM
+    n_rnn_layers: 1
+    input_chunk_length: 24
+    output_chunk_length: 24
+    hidden_dim:  24
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 2
+    dropout: 0
+    learning_rate: 0.001
+    batch_size: 1024
+    likelihood: "Gaussian"
+    training_length: 24
