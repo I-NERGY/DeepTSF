@@ -450,14 +450,14 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         # Naive Models    
         elif darts_model == 'Naive':
             # Identify resolution
-            daily_timesteps = int(24 * 60 // (pd.to_timedelta(series_transformed['train'].time_index[1]-series_transformed['train'].time_index[0]).seconds//60))
+            daily_timesteps = int(24 * 60 // (pd.to_timedelta(series_transformed['train'][0].time_index[1]-series_transformed['train'][0].time_index[0]).seconds//60))
             seasonality_timesteps = daily_timesteps * int(hyperparameters['days_seasonality'])
             print(f'\nTrained Model: NaiveSeasonal, with seasonality (in timesteps): {seasonality_timesteps}') 
 
             hparams_to_log = hyperparameters
 
             model = NaiveSeasonal(K = seasonality_timesteps)
-            model.fit(series_transformed['train'])
+            model.fit(series_transformed['train'][0])
             model_type = 'pkl'
 
         # LightGBM and RandomForest

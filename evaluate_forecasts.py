@@ -215,13 +215,22 @@ def backtester(model,
             f'test_start_date_{test_start_date.date()}_forecast_horizon_{forecast_horizon}_mape_{mape:.2f}.png'))
         fig2.savefig(os.path.join(path_to_save_backtest,
             f' week2_forecast_start_date_{test_start_date.date()}_forecast_horizon_{forecast_horizon}.png'))
-        backtest_series.drop_before(pd.Timestamp(test_start_date)) \
+        try:
+            backtest_series.drop_before(pd.Timestamp(test_start_date)) \
+            .to_csv(os.path.join(path_to_save_backtest, 'predictions.csv'))
+        except:
+            backtest_series.drop_before(pd.Timestamp(test_start_date)).quantile_df() \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions.csv'))
 
-        backtest_series_transformed.drop_before(pd.Timestamp(test_start_date)) \
+        try:
+            backtest_series_transformed.drop_before(pd.Timestamp(test_start_date)) \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions_transformed.csv'))
+        except:
+            backtest_series_transformed.drop_before(pd.Timestamp(test_start_date)).quantile_df() \
+            .to_csv(os.path.join(path_to_save_backtest, 'predictions_transformed.csv'))
+
         series_transformed.drop_before(pd.Timestamp(test_start_date)) \
-            .to_csv(os.path.join(path_to_save_backtest, 'test_transformed.csv'))
+        .to_csv(os.path.join(path_to_save_backtest, 'test_transformed.csv'))
 
     return {"metrics": metrics, "eval_plot": plt, "backtest_series": backtest_series}
 
