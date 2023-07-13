@@ -221,7 +221,7 @@ def remove_outliers(ts: pd.DataFrame,
                     name: str = "Portugal",
                     std_dev: float = 4.5,
                     resolution: str = "15",
-                    print_removed: bool = False):
+                    print_removed: bool = True):
     """
     Reads the input dataframe and replaces its outliers with NaNs by removing
     values that are more than std_dev standard deviations away from their 1 month
@@ -254,6 +254,7 @@ def remove_outliers(ts: pd.DataFrame,
     if min(ts["Load"]) >= 0:
         a = ts.loc[ts["Load"] <= 0]
     else:
+    #TODO Change that to empty dataframe
         a = ts.loc[ts["Load"] < min(ts["Load"])]
     #Calculating monthly mean and standard deviation and removing values
     #that are more than std_dev standard deviations away from the mean

@@ -324,3 +324,45 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: ["list", 256, 512, 1024, 1536]
+
+  NBEATS_shifted_weather:
+    input_chunk_length: ["range", 48, 240, 24]
+    output_chunk_length: 24
+    num_stacks: ["range", 1, 10, 1]
+    num_blocks: ["range", 1, 10, 1]
+    num_layers: ["range", 1, 5, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+
+  NBEATS_unshifted_weather_:
+    input_chunk_length: ["range", 48, 240, 24]
+    output_chunk_length: 24
+    num_stacks: ["range", 1, 10, 1]
+    num_blocks: ["range", 1, 10, 1]
+    num_layers: ["range", 1, 5, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+  
+  NBEATS_example_:
+    input_chunk_length: ["range", 48, 240, 24]
+    output_chunk_length: 24
+    num_stacks: ["range", 1, 10, 1]
+    num_blocks: ["range", 1, 10, 1]
+    num_layers: ["range", 1, 5, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
