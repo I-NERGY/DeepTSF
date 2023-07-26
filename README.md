@@ -1,6 +1,6 @@
-# Energy-forecasting
+# DeepTSF
 
-Repository for energy demand forecasting 
+Repository for DeepTSF timeseries forecasting tool.  
 
 ## To create conda environment file
 
@@ -49,3 +49,104 @@ This pipeline supports training with multiple timeseries, which should be provid
 Columns can be in any order and ID must alwaws be convertible to an int, and consequtive. Also, all the above
 column names must be present in the file, and the hour columns must be consequtive and separated by resolution 
 minutes. The lines can be at any order as long as the Day column is increasing for each country.
+
+The parameters of MLflow that the user can set are the following:
+
+* ```series_csv``` (default series.csv), the path to the local time series file to use. If series_uri has a non-default value, or if from_mongo is true, then series_csv has no effect.
+
+* ```series_uri``` (default online_artifact), the uri of the online time series file to use. If series_uri is not online_artifact, and from_mongo is false, then this is the time series DeepTSF will use. 
+
+* ```past_covs_csv``` (default None), the path to the local time series file to use as past covariates. If past_covs_uri is not None, then this has no effect.
+
+* ```past_covs_uri``` (default None), the uri of the online time series file to use as past covariates. If past_covs_uri is not None, then this is the file DeepTSF will use as past covariates.
+
+* ```future_covs_csv``` (default None), the path to the local time series file to use as future covariates. If future_covs_uri is not None, then this has no effect.
+
+* ```future_covs_uri``` (default None), the uri of the online time series file to use as future covariates. If future_covs_uri is not None, then this is the file DeepTSF will use as future covariates.
+
+TODO: Check that
+* ```resolution``` (default 15), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and this afterwards resampling is performed. 
+
+TODO: this should be for covariates also
+* ```year_range``` (default 2009-2019), the years to use from the datasets (inclusive). All values outside of those dates will be dropped.
+
+* ```time_covs``` (default false), whether to add time covariates to the time series. If true, then the following time covariates will be added as future covariates:
+    * The month
+    * The day of the year
+    * The hour
+    * The day of the week
+    * The week of the year
+    * Whether its a holiday or not
+
+* ```darts_model``` (default RNN), the base architecture of the model to be trained. The possible options are:
+    * NBEATS
+    * NHiTS
+    * Transformer
+    * RNN
+    * TCN
+    * BlockRNN
+    * TFT
+    * LightGBM
+    * RandomForest
+    * Naive
+    TODO ???
+    * AutoARIMA
+
+* ```hyperparams_entrypoint``` (default LSTM1), the entry point containing the desired hyperparameters for the selected model. The file that will be searched for the entrypoint will be config.yml if opt_test is false, and config_opt.yml otherwise. More info for the required file format below
+TODO Where?
+
+* ```cut_date_val``` (default 20190101), the validation set start date. All values before that will be the training series. Format: str, 'YYYYMMDD'
+
+TODO Test inclusive or not
+
+* ```cut_date_test``` (default 20200101), the test set start date. Values between that and cut_date_val will be the validation series. If cut_date_test = cut_date_test, then the test and validation sets will be the same (from cut_date_test to test_end_date). Format: str, 'YYYYMMDD'
+
+* ```test_end_date``` (default None), the test set ending date. Values between that and cut_date_test will be the testing series. All values after that will be ignored. If None, all the timeseries from cut_date_test will be the test set. Format: str, 'YYYYMMDD'
+
+* ```device``` (default gpu), whether to run the pipeline on the gpu, or just use the cpu. 
+
+* ```forecast_horizon``` (default 96), the number of timesteps that the model being evaluated is going to predict in each step of backtesting.
+
+* ```stride``` (default None), the number of time steps between two consecutive steps of backtesting. If it is None, then stride = forecast_horizon
+
+* ```retrain``` (default false), whether to retrain model during backtesting
+
+TODO: ??? more info on that
+
+* ```ignore_previous_runs``` (default true), whether to ignore previous step runs while running the pipeline
+
+* ```scale``` (default true), whether to scale the target series
+
+* ```scale_covs``` (default true), whether to scale the covariates
+
+* ```day_first``` (default true), whether the date has the day before the month in timeseries file.
+
+TODO: Check oti ontws einai country code kai oxi country
+* ```country``` (default PT), the country code this dataset belongs to
+
+* ```std_dev``` (default 4.5), argument of the outlier detection method. It is the number to be multiplied with the standard deviation of each 1 month period of the dataframe. The result is then used as a cut-off value.
+
+* ```max_thr``` (default -1), argument of the imputation method. If there is a consecutive subseries of NaNs longer than max_thr, then it is not imputed and returned with NaN values. If it is -1, every value will be imputed regardless of how long the consecutive subseries of NaNs it belongs to is.
+
+TODO More about methods here
+* ```a``` (default 0.3), argument of the imputation method.
+It is the weight that shows how quickly simple interpolation's weight decreases as the distacne to the nearest non NaN value increases.
+
+TODO Why 0.000694?
+* ```wncutoff``` (default 0.000694), argument of the imputation method. Historical data will only take into account dates that have at most wncutoff distance from the current null value's WN (Week Number). 
+
+* ```ycutoff``` (default 3), argument of the imputation method. Historical data will only take into account dates that have at most ycutoff distance from the current null value's year.
+
+* ```ydcutoff``` (default 30), argument of the imputation method. Historical data will only take into account dates that have at most ydcutoff distance from the current null value's yearday .
+
+* ```shap_data_size``` (default 10), The size of shap dataset in samples. The SHAP coefficients are going to be computed for this number of random samples of the test dataset. If it is a float, it represents the proportion of samples of the test dataset that will be chosen. If it is an int, it represents the absolute number of samples to be produced.
+TODO All models supported, fix documentation
+
+* ```shap_data_size``` (default false), whether to do SHAP analysis on the model.~
+
+* ```multiple``` (default false), whether to train on multiple timeseries
+
+TODO change to PT
+* ```eval_series``` (default Portugal), on which country to run the backtesting. Only for multiple timeseries
+
+* ```n_trials``` (default 100), How many trials optuna will run

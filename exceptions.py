@@ -14,7 +14,7 @@ class DatesNotInOrder(Exception):
     Exception raised if dates in series_csv are not sorted.
     """
     def __init__(self, id=0):
-        super().__init__(f"Dates in series_csv are not sorted for country with id {id}. Check date format in input csv.")
+        super().__init__(f"Dates in series_csv are not sorted for time series component with id {id}. Check date format in input csv.")
 
 class WrongColumnNames(Exception):
     """
