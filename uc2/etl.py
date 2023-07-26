@@ -142,7 +142,7 @@ def add_cyclical_time_features(calendar):
 
     return calendar
 
-def get_time_covariates(series, country_code='PT'):
+def get_time_covariates(series, country_code='PT', id_name='0'):
     """ Do it the darts way"""
 
     if isinstance(series, pd.Series):
@@ -178,15 +178,30 @@ def get_time_covariates(series, country_code='PT'):
     # weekofyear = darts.TimeSeries.from_series(
     #     series.time_index.isocalendar().week)
 
-    covariates = year.stack(month) \
-        .stack(dayofyear) \
-        .stack(hour) \
-        .stack(dayofweek) \
-        .stack(weekofyear) \
-        .stack(holidays)
-    # .stack(minute)
+    ts_list_covariates =  year.stack(month). \
+                               stack(dayofyear). \
+                               stack(hour). \
+                               stack(dayofweek). \
+                               stack(weekofyear). \
+                               stack(holidays)
+    
+    ts_list_covariates = [ts_list_covariates.univariate_component(i).pd_dataframe() for i in range(ts_list_covariates.n_components)]
 
-    return covariates
+    id_l_covariates = ["year", 
+                            "month_sin",
+                            "month_cos", 
+                            "dayofyear_sin",
+                            "dayofyear_cos",
+                            "hour_sin", 
+                            "hour_cos",
+                            "dayofweek_sin", 
+                            "dayofweek_cos",
+                            "weekofyear_sin",
+                            "weekofyear_cos",
+                            "holidays"]
+    ts_id_l_covariates = [id_name for _ in range(12)]
+
+    return ts_list_covariates, id_l_covariates, id_l_covariates, id_l_covariates, ts_id_l_covariates
 
 def cut_extra_samples(ts_list):
     print("\nMaking all components of each ts start and end on the same timestep...")
@@ -206,7 +221,7 @@ def remove_outliers(ts: pd.DataFrame,
                     name: str = "Portugal",
                     std_dev: float = 4.5,
                     resolution: str = "15",
-                    print_removed: bool = False):
+                    print_removed: bool = True):
     """
     Reads the input dataframe and replaces its outliers with NaNs by removing
     values that are more than std_dev standard deviations away from their 1 month
@@ -235,8 +250,12 @@ def remove_outliers(ts: pd.DataFrame,
 
     #Dates with NaN values are removed from the dataframe
     ts = ts.dropna()
-    #Removing all non postive values
-    a = ts.loc[ts["Load"] <= 0]
+    #Removing all zero values if no negative values are present
+    if min(ts["Load"]) >= 0:
+        a = ts.loc[ts["Load"] <= 0]
+    else:
+    #TODO Change that to empty dataframe
+        a = ts.loc[ts["Load"] < min(ts["Load"])]
     #Calculating monthly mean and standard deviation and removing values
     #that are more than std_dev standard deviations away from the mean
     mean_per_month = ts.groupby(lambda x: x.month).mean().to_numpy()
@@ -273,8 +292,10 @@ def impute(ts: pd.DataFrame,
            ydcutoff: int = 30,
            resolution: str = "15",
            debug: bool = False,
-           name: str = "Portugal",
-           l_interpolation: bool = False):
+           name: str = "PT",
+           l_interpolation: bool = False,
+           cut_date_val: str = "20221208",
+           min_non_nan_interval: int = 24):
     """
     Reads the input dataframe and imputes the timeseries using a weighted average of historical data
     and simple interpolation. The weights of each method are exponentially dependent on the distance
@@ -312,13 +333,19 @@ def impute(ts: pd.DataFrame,
         If true it will print helpfull intermediate results
     l_interpolation
         Whether to only use linear interpolation 
+    cut_date_val
+        All dates before cut_date_val that have nan values are imputed using historical data
+        from dates which are also before cut_date_val. Dates after cut_date_val are not affected
+        by this
+    min_non_nan_interval
+        If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
+        hours, these intervals are all replaced  by nan values
 
     Returns
     -------
     pandas.DataFrame
         The imputed dataframe
     """
-
     if max_thr == -1: max_thr = len(ts)
     if l_interpolation: 
         res = ts.interpolate(inplace=False)
@@ -382,8 +409,10 @@ def impute(ts: pd.DataFrame,
 
         #We copy the time series so that we don't change it while iterating
         res = ts.copy()
-        for i, null_date in tqdm(list(enumerate(null_dates))):
-            if leave_nan[i]: continue
+
+        null_zip = [(i, null_date) for (i, null_date) in enumerate(null_dates) if not leave_nan[i]]
+
+        for i, null_date in tqdm(null_zip):
 
             #WN: Day of the week + hour/24 + minute/(24*60). Holidays are handled as
             #either Saturdays(if the real day is a Friday) or Sundays(in every other case)
@@ -396,10 +425,22 @@ def impute(ts: pd.DataFrame,
 
             #Historical value is calculated as the mean of values that have at most wncutoff distance to the current null value's
             #WN, ycutoff distance to its year, and ydcutoff distance to its yearday
-            historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
+            #All dates before cut_date_val that have nan values are imputed using historical data
+            #from dates which are also before cut_date_val
+            if null_date < pd.Timestamp(cut_date_val):
+                historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
+                                        (ts["Load"].index < pd.Timestamp(cut_date_val)) &\
                                         (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
                                         (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
                                         ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Load"]
+                
+            #Dates after cut_date_val are not affected by cut_date_val
+            else:
+                historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
+                                        (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
+                                        (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
+                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Load"]
+
 
             if debug: print("~~~~~~Date~~~~~~~",null_date, "~~~~~~~Dates summed~~~~~~~~~~",historical,sep="\n")
 
@@ -413,11 +454,30 @@ def impute(ts: pd.DataFrame,
             if debug:
                 print(res.loc[null_date])
 
+    #If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
+    #hours, these intervals are all replaced  by nan values
+    not_nan_values = res[~res["Load"].isnull()]
+    not_nan_dates = not_nan_values.index
+    prev = not_nan_dates[0]
+    start = prev
+
+    #TODO Fix non nan interval when we dont want to do this (-1)
+    for not_nan_day in not_nan_dates[1:]:
+        if (not_nan_day - prev)!= pd.Timedelta(int(resolution), "min"):
+            if prev - start < pd.Timedelta(min_non_nan_interval, "h"):
+                print(f"Non Nan interval from {start} to {prev} is smaller than {min_non_nan_interval} h. Making this also Nan")
+                for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+                    res.loc[date] = pd.NA
+            start = not_nan_day
+        prev = not_nan_day
+    if prev - start < pd.Timedelta(min_non_nan_interval, "h"):
+        for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+                res.loc[date] = pd.NA
+
     fig, ax = plt.subplots(figsize=(8,5))
     ax.plot(res.index, res['Load'], color='black', label = f'Load of {name} after Imputation')
     plt.legend()
     mlflow.log_figure(fig, f'imputation_results/imputed_series_{name}.png')
-
     return res, imputed_values
 
 def utc_to_local(df, country_code):
@@ -452,6 +512,42 @@ def utc_to_local(df, country_code):
 
     #print(df)
 
+def save_consecutive_nans(ts, resolution, tmpdir, name):
+    resolution = int(resolution)
+    output = "Consecutive nans left in df:\n"
+    null_dates = ts[ts["Load"].isnull()].index
+    prev = null_dates[0]
+    output = output + str(prev) + " - "
+    for null_date in null_dates[1:]:
+        if (null_date - prev)!= pd.Timedelta(resolution, "min"):
+            output = output + str(prev) + "\n" + str(null_date) + " - "
+        prev = null_date
+    output = output + str(null_date)
+    
+    f = open(f'{tmpdir}/cons_nans_left_{name}.txt', "w")
+    f.write(output)
+    f.close()
+    return output
+
+def sum_wo_nans(arraylike):
+    if np.isnan(arraylike).any():
+        return np.nan
+    else:
+        return np.sum(arraylike)
+
+def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resolution, type, multiple):
+    #TODO : More preprocessing
+    result = []
+    for ts, ts_id in zip(ts_list, id_list):
+        ts_res = ts.interpolate(inplace=False)
+
+        if resolution != infered_resolution or not multiple:
+            print(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution, or ts is not multiple")
+            logging.info(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution, or ts is not multiple")
+            ts_res = ts_res.resample(resolution+'min').apply(sum_wo_nans)
+        
+        result.append(ts_res)
+    return result
 
 @click.command(
     help="Given a timeseries CSV file (see load_raw_data), resamples it, "
@@ -480,9 +576,9 @@ def utc_to_local(df, country_code):
     help="The resolution of the dataset in minutes."
 )
 @click.option("--time-covs",
-    default="PT",
-    type=click.Choice(["None", "PT"]),
-    help="Optionally add time covariates to the timeseries. [Options: None or Country Code based on the Python 'holidays' package]"
+    default="false",
+    type=str,
+    help="Whether to add time covariates to the timeseries."
 )
 @click.option("--day-first",
     type=str,
@@ -491,8 +587,8 @@ def utc_to_local(df, country_code):
 
 @click.option("--country",
     type=str,
-    default="Portugal",
-    help="The country this dataset belongs to")
+    default="PT",
+    help="The country code this dataset belongs to")
 
 @click.option("--std-dev",
     type=str,
@@ -558,10 +654,61 @@ def utc_to_local(df, country_code):
     default="None",
     help="If not None, only ts with this id will be used for training and evaluation. Applicable only on multiple ts files")
 
+@click.option("--infered-resolution-series",
+    type=str,
+    default="15",
+    help="infered resolution of the dataset from load_raw_data")
+
+@click.option("--min-non-nan-interval",
+    type=str,
+    default="24",
+    help="If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval \
+        hours, these intervals are all replaced  by nan values")
+
+@click.option("--cut-date-val",
+              type=str,
+              default='20200101',
+              help="Validation set start date [str: 'YYYYMMDD'] \
+                  All dates before cut_date_val that have nan values are imputed using historical data \
+                  from dates which are also before cut_date_val. Dates after cut_date_val are not affected \
+                  by this")
+
+@click.option("--infered-resolution-past",
+    type=str,
+    default="15",
+    help="infered resolution of the past covariates from load_raw_data")
+
+@click.option("--past-covs-csv",
+    type=str,
+    default="None",
+    help="Local past covaraites csv file"
+    )
+@click.option("--past-covs-uri",
+    default="None",
+    help="Remote past covariates csv file. If set, it overwrites the local value."
+    )
+@click.option("--infered-resolution-future",
+    type=str,
+    default="15",
+    help="infered resolution of the future covariates from load_raw_data")
+
+@click.option("--future-covs-csv",
+    type=str,
+    default="None",
+    help="Local future covaraites csv file"
+    )
+@click.option("--future-covs-uri",
+    default="None",
+    help="Remote future covariates csv file. If set, it overwrites the local value."
+    )
 
 def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, 
         country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, 
-        l_interpolation, rmv_outliers, convert_to_local_tz, ts_used_id):
+        l_interpolation, rmv_outliers, convert_to_local_tz, ts_used_id,
+        infered_resolution_series, min_non_nan_interval, cut_date_val,
+        infered_resolution_past, past_covs_csv, past_covs_uri, infered_resolution_future,
+        future_covs_csv, future_covs_uri):
+
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
     # Also check if current transformations are ok
@@ -569,6 +716,19 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     if series_uri != "mlflow_artifact_uri":
         download_file_path = download_online_file(series_uri, dst_filename="load.csv")
         series_csv = download_file_path
+
+    past_covs_csv = none_checker(past_covs_csv)
+    past_covs_uri = none_checker(past_covs_uri)
+    future_covs_csv = none_checker(future_covs_csv)
+    future_covs_uri = none_checker(future_covs_uri)
+
+    if past_covs_uri != None:
+        download_file_path = download_online_file(past_covs_uri, dst_filename="past_covs.csv")
+        past_covs_csv = download_file_path
+
+    if future_covs_uri != None:
+        download_file_path = download_online_file(future_covs_uri, dst_filename="future_covs.csv")
+        future_covs_csv = download_file_path
 
     ## Process parameters from click and MLProject
     series_csv = series_csv.replace("'", "")
@@ -578,12 +738,14 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     wncutoff = float(wncutoff)
     ycutoff = int(ycutoff)
     ydcutoff = int(ydcutoff)
+    min_non_nan_interval = int(min_non_nan_interval)
     l_interpolation = truth_checker(l_interpolation)
     rmv_outliers = truth_checker(rmv_outliers)
     convert_to_local_tz = truth_checker(convert_to_local_tz)
 
     # Time col check
-    time_covs = none_checker(time_covs)
+    time_covs = truth_checker(time_covs)
+
 
     # Day first check
     day_first = truth_checker(day_first)
@@ -595,16 +757,44 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     print("\nLoading source dataset..")
     logging.info("\nLoading source dataset..")
 
+    if past_covs_csv != None:
+        ts_list_past_covs, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = \
+                multiple_ts_file_to_dfs(past_covs_csv, day_first, infered_resolution_past)
+    else:
+        ts_list_past_covs, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = [], [], [], [], []
+    if future_covs_csv != None:
+        ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = \
+                multiple_ts_file_to_dfs(future_covs_csv, day_first, infered_resolution_future)
+    else:
+        ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = [], [], [], [], []
+
     if multiple:
-        ts_list, source_l, source_code_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, resolution)
+        ts_list, source_l, source_code_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, infered_resolution_series)
         if ts_used_id != None:
-            index = ts_id_l.index(ts_used_id)
+            try:
+                ts_used_id = int(ts_used_id)
+            except:
+                pass
+            index = ts_id_l.index([ts_used_id for _ in range(len(ts_id_l[0]))])
             #TODO: return error if not found
             ts_list = [ts_list[index]]
             source_l = [source_l[index]]
             source_code_l = [source_code_l[index]]
             id_l = [id_l[index]]
             ts_id_l = [ts_id_l[index]]
+            if past_covs_csv != None:
+                ts_list_past_covs = [ts_list_past_covs[index]]
+                source_l_past_covs = [source_l_past_covs[index]]
+                source_code_l_past_covs = [source_code_l_past_covs[index]]
+                id_l_past_covs = [id_l_past_covs[index]]
+                ts_id_l_past_covs = [ts_id_l_past_covs[index]]
+            if future_covs_csv != None:
+                ts_list_future_covs = [ts_list_future_covs[index]]
+                source_l_future_covs = [source_l_future_covs[index]]
+                source_code_l_future_covs = [source_code_l_future_covs[index]]
+                id_l_future_covs = [id_l_future_covs[index]]
+                ts_id_l_future_covs = [ts_id_l_future_covs[index]]
+
 
     else:
         ts_list = [[pd.read_csv(series_csv,
@@ -634,8 +824,12 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     outlier_dir = tempfile.mkdtemp()
     impute_dir = tempfile.mkdtemp()
 
+    #TODO Chenck if series number == covariate series number
+
     with mlflow.start_run(run_name='etl', nested=True) as mlrun:
         res_ = []
+        res_past = []
+        res_future = []
         for ts_num, ts in enumerate(ts_list):
             res_.append([])
             for comp_num, comp in enumerate(ts):
@@ -675,7 +869,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                     comp_res, removed = remove_outliers(ts=comp_res,
                                                         name=source_l[ts_num][comp_num],
                                                         std_dev=std_dev,
-                                                        resolution=resolution)
+                                                        resolution=infered_resolution_series)
                 #holidays_: The holidays of country
                 try:
                     code = compile(f"holidays.{source_l[ts_num][comp_num]}()", "<string>", "eval")
@@ -692,6 +886,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 print("\nPerfrorming Imputation of the Dataset...")
                 logging.info("\nPerfrorming Imputation of the Dataset...")
                 #print(comp_res)
+                #comp_res.to_csv(f"../../notebooks/{source_l[ts_num][comp_num]}.csv")
                 comp_res, imputed_values = impute(ts=comp_res,
                                                   holidays=country_holidays,
                                                   max_thr=max_thr,
@@ -699,16 +894,20 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   wncutoff=wncutoff,
                                                   ycutoff=ycutoff,
                                                   ydcutoff=ydcutoff,
-                                                  resolution=resolution,
+                                                  resolution=infered_resolution_series,
                                                   name=source_l[ts_num][comp_num],
-                                                  l_interpolation=l_interpolation)
+                                                  l_interpolation=l_interpolation,
+                                                  cut_date_val=cut_date_val,
+                                                  min_non_nan_interval=min_non_nan_interval)
                 
-                if resolution != "15":
-                    print(f"\nResampling as given frequency different than 15 minutes")
-                    logging.info(f"\nResampling as given frequency is different than 15 minutes")
-                    comp_res = comp_res.resample(resolution+'min').sum()
+                if resolution != infered_resolution_series or not multiple:
+                    print(f"\nResampling as given frequency different than infered resolution, or ts is not multiple")
+                    logging.info(f"\nResampling as given frequency is different than infered resolution, or ts is not multiple")
+                    comp_res = comp_res.resample(resolution+'min').apply(sum_wo_nans)
+                
+                if comp_res.isnull().sum().sum() > 0:
+                    save_consecutive_nans(comp_res, resolution, impute_dir, source_l[ts_num][comp_num])
                     
-
                 print("\nCreating darts data frame...")
                 logging.info("\nCreating darts data frame...")
 
@@ -719,6 +918,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
                 # darts dataset creation
                 comp_res_darts = darts.TimeSeries.from_dataframe(comp_res)
+                #print("NULL VALUES", comp_res_darts.pd_dataframe().isnull().sum().sum())
 
                 # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
 
@@ -728,15 +928,47 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 # time variables creation
 
                 #TODO: Make training happen without outlier detection
-                ##TODO fix multiple with covariates
-                if time_covs is not None:
-                    print("\nCreating time covariates dataset...")
-                    logging.info("\nCreating time covariates dataset...")
-                    time_covariates = get_time_covariates(comp_res_darts, time_covs)
-                else:
-                    print("\nSkipping the creation of time covariates")
-                    logging.info("\nSkipping the creation of time covariates")
-                    time_covariates = None
+                if comp_num == len(ts) - 1:
+                    if past_covs_csv != None:
+                        res_past.append(preprocess_covariates(ts_list_past_covs[ts_num], id_l_past_covs[ts_num], ts_id_l_past_covs[ts_num][0], infered_resolution_past, resolution, "past", multiple))
+                    if future_covs_csv != None:
+                        res_future.append(preprocess_covariates(ts_list_future_covs[ts_num], id_l_future_covs[ts_num], ts_id_l_future_covs[ts_num][0], infered_resolution_future, resolution, "future", multiple))
+                    
+                    if time_covs:
+                        print("\nCreating time covariates dataset...")
+                        logging.info("\nCreating time covariates dataset...")
+                        try:
+                            ts_list_covariates, source_l_covariates, source_code_l_covariates, id_l_covariates, ts_id_l_covariates = get_time_covariates(comp_res_darts, source_l[ts_num][comp_num], ts_id_l[ts_num][0])
+                        except:
+                            print("\nSource column does not specify valid country. Using country argument instead")
+                            logging.info("\nSource column does not specify valid country. Using country argument instead")
+                            try:
+                                ts_list_covariates, source_l_covariates, source_code_l_covariates, id_l_covariates, ts_id_l_covariates = get_time_covariates(comp_res_darts, country,  ts_id_l[ts_num][0])
+                            except:
+                                raise CountryDoesNotExist()
+                        print(ts_list_covariates)
+                        print(source_l_covariates)
+                        print(source_code_l_covariates)
+                        print(id_l_covariates)
+                        if future_covs_csv == None:
+                            res_future.append(ts_list_covariates) 
+                            source_l_future_covs.append(source_l_covariates)
+                            source_code_l_future_covs.append(source_code_l_covariates)
+                            id_l_future_covs.append(id_l_covariates)
+                            ts_id_l_future_covs.append(ts_id_l_covariates)
+                            #TODO check multivariate and multiple
+                        else:
+                            res_future[-1].extend(ts_list_covariates) 
+                            source_l_future_covs[-1].extend(source_l_covariates)
+                            source_code_l_future_covs[-1].extend(source_code_l_covariates)
+                            id_l_future_covs[-1].extend(id_l_covariates)
+                            ts_id_l_future_covs[-1].extend(ts_id_l_covariates)
+
+                    
+                    else:
+                        print("\nSkipping the creation of time covariates")
+                        logging.info("\nSkipping the creation of time covariates")
+                        ts_list_covariates, source_l_covariates, source_code_l_covariates, id_l_covariates, ts_id_l_covariates = None, None, None, None, None
                 if rmv_outliers:
                     print("\nStoring removed values from outlier detection as csv locally...")
                     logging.info("\nStoring removed values from outlier detection as csv...")
@@ -758,11 +990,12 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
             print("\nStoring datasets locally...")
             logging.info("\nStoring datasets...")
-            if time_covariates is not None:
-                time_covariates.to_csv(f'{tmpdir}/time_covariates.csv')
         else:
             multiple_dfs_to_ts_file(res_, source_l, source_code_l, id_l, ts_id_l, f'{tmpdir}/series.csv')
-
+        if past_covs_csv != None:
+            multiple_dfs_to_ts_file(res_past, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs, f'{tmpdir}/past_covs.csv')
+        if (future_covs_csv != None) or time_covs:
+            multiple_dfs_to_ts_file(res_future, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs, f'{tmpdir}/future_covs.csv')
         print("\nUploading features to MLflow server...")
         logging.info("\nUploading features to MLflow server...")
         mlflow.log_artifacts(tmpdir, "features")
@@ -783,11 +1016,14 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "etl")
         mlflow.set_tag('series_uri', f'{mlrun.info.artifact_uri}/features/series.csv')
-        if time_covariates is not None:
-            mlflow.set_tag('time_covariates_uri', f'{mlrun.info.artifact_uri}/features/time_covariates.csv')
+        if past_covs_csv != None:
+            mlflow.set_tag('past_covs_uri', f'{mlrun.info.artifact_uri}/features/past_covs.csv')
         else: # default naming for non available time covariates uri
-            mlflow.set_tag('time_covariates_uri', 'mlflow_artifact_uri')
-
+            mlflow.set_tag('past_covs_uri', 'None')
+        if (future_covs_csv != None) or time_covs:
+            mlflow.set_tag('future_covs_uri', f'{mlrun.info.artifact_uri}/features/future_covs.csv')
+        else: # default naming for non available time covariates uri
+            mlflow.set_tag('future_covs_uri', 'None')
         return
 
 

@@ -1,4 +1,4 @@
-name: rdn_workflow
+name: DeepTSF_workflow
 
 conda_env: conda.yaml
 
@@ -6,7 +6,7 @@ entry_points:
 
   load_raw_data:
     parameters:
-      series_csv: {type: str, default: ../../RDN/Load_Data/2009-2021-global-load.csv}
+      series_csv: {type: str, default: series.csv}
       series_uri: {type: str, default: online_artifact}
       past_covs_csv: {type: str, default: None}
       past_covs_uri: {type: str, default: None}
@@ -24,7 +24,7 @@ entry_points:
 
   etl:
     parameters:
-      series_csv: {type: str, default: ../../RDN/Load_Data/2009-2021-global-load.csv}
+      series_csv: {type: str, default: series.csv}
       series_uri: {type: str, default: mlflow_artifact_uri}
       resolution: {type: str, default: 15}
       year_range: {type: str, default: None}
@@ -150,7 +150,7 @@ entry_points:
 
   exp_pipeline:
     parameters:
-      series_csv: {type: str, default: ../../RDN/Load_Data/2009-2021-global-load.csv}
+      series_csv: {type: str, default: series.csv}
       series_uri: {type: str, default: online_artifact}
       past_covs_csv: {type: str, default: None}
       past_covs_uri: {type: str, default: None}

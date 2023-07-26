@@ -41,8 +41,27 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                             from_mongo: bool = False,
                             covariates: str = "series"):
     """
-    Validates the input after read_csv is called and
-    throws apropriate exception if it detects an error
+    Validates the input after read_csv is called and throws apropriate exception if it detects an error.
+    
+    The checks that are performed are the following:
+
+    For all timeseries:
+        - The dataframe can not be empty
+        - All the dates must be sorted
+
+    For non multiple timeseries:
+        - Column Date must be used as index 
+        - If the timeseries is the main dataset, Load must be the only other column in the dataframe
+        - If the timeseries is a covariates timeseries, there must be only one column in the dataframe
+          named arbitrarily
+
+    For multiple timeseries:
+        - Columns 'Day', 'ID', and the time columns exist in any order
+        - Only the permitted column names exist in the dataframe (see Multiple timeseries file format bellow)
+        - All timeseries in the dataframe have the same number of components
+
+    In case of a multiple timeseries, its resolution is also infered, and stored in mlflow as a tag. If we
+    have a single timeseries, then mlflow stores the resolution given by the user
 
     Multiple timeseries file format (along with example values):
 
@@ -51,13 +70,26 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     1     | 2015-04-09  | 1  | Spain   | ES           |  1            | 25497    | 23492                 | ... | 25487
     .
     .
-
-    Each ID corresponds to a component of a timeseries in the file. Timeseries ID column is not complulsory, 
-    and shows the timeseries to which each component belongs. If Timeseries ID is not present, it is assumed that 
-    each component represents one seperate series. Columns can be in any order and ID must be unique for every 
-    series component in the file. Also, all the above column names must be present in the file, and the hour 
-    columns must be consequtive and separated by resolution minutes. However they can be in any order and still 
-    be considered valid. The lines can also be at any order as long as the Day column is increasing for each source. 
+    The columns that can be present in the csv have the following meaning:
+        - Index: Simply a monotonic integer range
+        - Day: The Day each row is referring to
+        - ID: Each ID corresponds to a component of a timeseries in the file. 
+              This ID must be unique for each timeseries component in the file.
+        - Source (Optional): The Source of the timeseries. If referring to country
+              loads it can be the country name. If it is not provided, it is set
+              to ID.
+        - Source Code (Optional): The Source Code of the timeseries. If referring to country
+              loads it can be the country code. In this case, this will be used to obtain 
+              the country holidays for the imputation function as well as the time covariates.
+              If it is not provided, it is set to ID.
+        - Timeseries ID (Optional): Timeseries ID column is not compulsory, and shows the 
+              timeseries to which each component belongs. If Timeseries ID is not present, it is 
+              assumed that each component represents one seperate series (the column is set to ID).
+        - Time columns: Columns that store the Load of each compontent. They must be consequtive and 
+              separated by resolution minutes. They should start at 00:00:00, and end at 24:00:00 - 
+              resolution
+        
+    Columns can be in any order and the file will be considered valid.
 
     Parameters
     ----------
@@ -69,11 +101,17 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         Whether to train on multiple timeseries
     resolution
         The resolution of the dataset
+    from_mongo
+        Whether the dataset was from MongoDB
+    covariates
+        If the function is called for the main dataset, then this equal to "series".
+        If it is called for the past / future covariate series, then it is equal to
+        "past" / "future" respectively. 
 
     Returns
     -------
-    pandas.DataFrame
-        The resulting dataframe from series_csv
+    (pandas.DataFrame, int)
+        A tuple consisting of the resulting dataframe from series_csv as well as the resolution
     """
 
     ts = pd.read_csv(series_csv,
@@ -83,22 +121,23 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      parse_dates=(['Day'] if multiple else True),
                      dayfirst=day_first,
                      engine='python')
-    #print(ts)
-    #ts.to_csv("temp")
-    #if ts is empty, raise exception
+    
+    #Dataframe can not be empty
     if ts.empty:
         raise EmptyDataframe(from_mongo)
+    
     if not multiple:
         #Check that dates are in order. If month is used before day and day_first is set to True, this is not the case.
-        #TODO: Fix this bug, not working well with covariates
-        if not ts.index.sort_values().to_series().eq(ts.index.to_series()).all():
+        if not ts.index.sort_values().equals(ts.index):
             raise DatesNotInOrder()
-        #Check that column Date is used as index, and that Load is the only other column in the csv
+        #Check that column Date is used as index, and that Load is the only other column in the csv for the series csv
         elif covariates == "series" and not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
-            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Load', 'Date'])
+            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Date', 'Load'])
+        #Check that column Date is used as index, and that there is only other column in the csv for the covariates csvs
         elif covariates != "series" and not (len(ts.columns) == 1 and ts.index.name == 'Date'):
-            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['_', 'Date'])
+            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Date', '<Value Column Name>'])
     else:
+        #If columns don't exist set defaults
         if "Timeseries ID" not in ts.columns:
             ts["Timeseries ID"] = ts["ID"]
         if "Source Code" not in ts.columns:
@@ -106,7 +145,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         if "Source" not in ts.columns:
             ts["Source"] = ts["ID"]
 
-        #infering resolution
+        #Infering resolution for multiple timeseries
         times = []
         for elem in list(ts.columns):
             try:
@@ -115,15 +154,17 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                 pass
         times.sort()
         resolution = (times[1] - times[0]).seconds // 60
+
         des_columns = list(map(str, ['Day', 'ID', 'Source', 'Source Code', 'Timeseries ID'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
-        #Check that all columns 'Day', 'ID', 'Source', 'Source Code' 'Timeseries' and the time columns exist in any order.
+        #Check that all columns 'Day', 'ID', 'Source', 'Source Code' 'Timeseries ID' and the time columns exist in any order.
         if not set(des_columns) == set(list(ts.columns)):
             raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
-        #Check that all dates for each source are sorted
+        #Check that all dates for each source component are sorted
         for id in np.unique(ts["ID"]):
             if not ts.loc[ts["ID"] == id]["Day"].sort_values().equals(ts.loc[ts["ID"] == id]["Day"]):
                 #(ts.loc[ts["ID"] == id]["Day"].sort_values()).to_csv("test.csv")
                 raise DatesNotInOrder(id)
+        
         #Check that all timeseries in a multiple timeseries file have the same number of components
         if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
             raise DifferentComponentDimensions()
@@ -134,17 +175,42 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     return ts, resolution
 
 def make_multiple(ts_covs, series_csv, day_first, inf_resolution):
+    """
+    In case covariates.
+
+    Parameters
+    ----------
+    series_csv
+        The path to the local file of the series to be validated
+    day_first
+        Whether to read the csv assuming day comes before the month
+    multiple
+        Whether to train on multiple timeseries
+    resolution
+        The resolution of the dataset
+    from_mongo
+        Whether the dataset was from MongoDB
+    covariates
+        If the function is called for the main dataset, then this equal to "series".
+        If it is called for the past / future covariate series, then it is equal to
+        "past" / "future" respectively. 
+
+    Returns
+    -------
+    (pandas.DataFrame, int)
+        A tuple consisting of the resulting dataframe from series_csv as well as the resolution
+    """
+
 
     if series_csv != None:
         ts_list, _, _, _, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, inf_resolution)
 
         ts_list_covs = [[ts_covs] for _ in range(len(ts_list))]
-        id_l_covs = [[list(ts_covs.columns)[0]] for _ in range(len(ts_list))]
-        ts_id_l_covs = [[elem[0]] for elem in ts_id_l]
+        id_l_covs = [[str(list(ts_covs.columns)[0]) + "_" + ts_id_l[i]] for i in range(len(ts_list))]
     else:
         ts_list_covs = [[ts_covs]]
-        ts_id_l_covs = id_l_covs = [[list(ts_covs.columns)[0]]]
-    return multiple_dfs_to_ts_file(ts_list_covs, id_l_covs, id_l_covs, id_l_covs, ts_id_l_covs, "", save=False)
+        id_l_covs = [[list(ts_covs.columns)[0]]]
+    return multiple_dfs_to_ts_file(ts_list_covs, id_l_covs, id_l_covs, id_l_covs, id_l_covs, "", save=False)
 
 
 from pymongo import MongoClient

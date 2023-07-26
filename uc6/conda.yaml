@@ -1,4 +1,4 @@
-name: darts_38
+name: darts_env
 channels:
   - pytorch
   - defaults
