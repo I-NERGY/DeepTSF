@@ -37,20 +37,60 @@ or
 ## Full pipeline example
 ```mlflow run --experiment-name 2009-2019 --entry-point exp_pipeline . -P hyperparams_entrypoint=nbeats0_10 -P darts_model=NBEATS -P ignore_previous_runs=t -P cut_date_val=20180101 -P cut_date_test=20190101 -P year_range=2009-2019 -P time_covs=None --env-manager=local```
 
-## Multiple timeseries suport
-This pipeline supports training with multiple timeseries, which should be provided in a csv file using the following file format (along with example values):
+The parameters of MLflow that the user can set are presented by the stage of the pipeline they appear in:
 
-    Index | Day         | ID | Country | Country Code | 00:00:00 | 00:00:00 + resolution | ... | 24:00:00 - resolution
-    0     | 2015-04-09  | 0  | Portugal| PT           | 5248     | 5109                  | ... | 5345
-    1     | 2015-04-09  | 1  | Spain   | ES           | 25497    | 23492                 | ... | 25487
-    .
-    .
+## Data loading
 
-Columns can be in any order and ID must alwaws be convertible to an int, and consequtive. Also, all the above
-column names must be present in the file, and the hour columns must be consequtive and separated by resolution 
-minutes. The lines can be at any order as long as the Day column is increasing for each country.
+### Description of this step
+Firstly, the dataset is loaded from local or online sources. Currently Deep-TSF supports csv files of the schema that is discussed in section File format. In this context, the connectors that enable data ingestion vary depending on the use case and the schema of the respective data source and shall be engineered by the DeepTSF user. We provide an example of this connector, which works with MongoDB (function load_data_to_csv in load_raw_data.py for each use case). After that, validation is performed to ensure that the files provided by the user respect the required schema. The files are saved on the MLflow tracking server so that they are available for the data pre-processing stage.
 
-The parameters of MLflow that the user can set are the following:
+### Input file format
+The format of the csv files DeepTSF can accept depends on the nature of the problem it is trying to solve. More specifically, in case of a single time series file, its format is:
+
+|Datetime | Value|
+|- | -| 
+|2015-04-09 00:00:00 | 7893 |
+|2015-04-09 01:00:00 | 8023 |
+|2015-04-09 02:00:00 | 8572 |
+|... |... | 
+
+
+In this table, the Datetime column simply stores the dates and times of each observation, and the Value column stores the value that has been observed.
+
+
+If we are solving a multiple and / or multivariate time series problem, then the file format (along with example values) is:
+
+|Index | Date | ID | Timeseries ID | 00:00:00 | ... |
+|-|-|-|-|-|-|
+0  | 2015-04-09  | PT  | PT | 5248 | ... |
+1  | 2015-04-09  | ES  | ES | 25497 | ...|
+... | ... | ...  | ... | ... | ...
+
+The columns that can be present in the csv have the following meaning
+- Index: Simply a monotonic integer range
+- Date: The Date each row is referring to
+- ID: Each ID corresponds to a component of a time series in the file. This ID must be unique for each time series component in the file. If referring to country loads it can be the country code. In this case, this will be used to obtain the country holidays for the imputation function as well as the time covariates.
+- Timeseries ID (Optional): Timeseries ID column is not compulsory, and shows the time series to which each component belongs. If Timeseries ID is not present, it is assumed that each component represents one separate series (the column is set to ID).
+- Time columns: Columns that store the Value of each component. They must be consecutive and separated by resolution minutes. They should start at 00:00:00, and end at 24:00:00 - resolution
+
+
+The checks that are performed when valifating a file are the following:
+
+For all time series:
+- The dataframe can not be empty
+- All the dates must be sorted
+
+For non-multiple time series:
+- Column Datetime must be used as an index
+- If the time series is the main dataset, Load must be the only other column in the dataframe
+- If the time series is a covariates time series, there must be only one column in the dataframe named arbitrarily
+
+For multiple timeseries:
+- Columns Date, ID, and the time columns exist in any order
+- Only the permitted column names exist in the dataframe (see Multiple timeseries file format bellow)
+- All timeseries in the dataframe have the same number of components
+
+### Parameters of the pipeline
 
 * ```series_csv``` (default series.csv), the path to the local time series file to use. If series_uri has a non-default value, or if from_mongo is true, then series_csv has no effect.
 
@@ -64,6 +104,30 @@ The parameters of MLflow that the user can set are the following:
 
 * ```future_covs_uri``` (default None), the uri of the online time series file to use as future covariates. If future_covs_uri is not None, then this is the file DeepTSF will use as future covariates.
 
+* ```day_first``` (default true), whether the date has the day before the month in timeseries file.
+
+* ```multiple``` (default false), whether to train on multiple timeseries. This applies to the main time series. Covariates can be multivariate, but the number of time series must be the same as the main time series. The only exception to this is if we have multiple time series and a single past or future covariate. In this case, we consider this series to be the covariate to all the main time series.
+
+* ```from_mongo``` (default false), whether to read the dataset from mongodb, or from other sources. If this is true, it overrides all other options (series_csv, series_uri)
+
+* ```mongo_name``` (default rdn_load_data), which mongo file to read
+
+## Data pre-processing
+
+### Description of this step
+
+For each component of each time series, outlier detection is optionally conducted by removing values that differ more than an arbitrary number (defined by the user) of standard deviations from their monthly average, or that are zero in the case of a non-negative time series. Outliers are replaced by missing values. Subsequently, missing data may be imputed by using a weighted average of historical data and simple interpolation as 
+proposed by Peppanen et al. This imputation method is analyzed below in more detail.
+
+### Imputation method
+This method imputes the timeseries using a weighted average of historical data
+and simple interpolation. The weights of each method are exponentially dependent on the distance to the nearest non NaN value. More specifficaly, with increasing distance, the weight of simple interpolation decreases, and the weight of the historical data increases. The imputation result is calculated based on the following formulas:  
+$$ w = e^{a d_i} $$
+$$ result = w L + (1 - w) H $$
+
+ where $L$ is the simple interpolation, $H$ the historical data and $d_i$ the distance. $a$ is a constant that determines how quickly simple interpolation will lose its significance to the result. The parameters of the pipeline associated with this method are presented below, along with all parameters of data pre-processing:
+
+### Parameters of the pipeline
 TODO: Check that
 * ```resolution``` (default 15), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and this afterwards resampling is performed. 
 
@@ -77,6 +141,42 @@ TODO: this should be for covariates also
     * The day of the week
     * The week of the year
     * Whether its a holiday or not
+
+* ```convert_to_local_tz``` (default false), whether to convert to local time. ??????If we have a multiple time series file, ID column is considered as the country to transform each time series' time to. If this is not a country code, then country argument is used.
+
+* ```min_non_nan_interval``` (default 24), if after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval hours, these intervals are all replaced by nan values
+
+TODO: Check oti ontws einai country code kai oxi country
+* ```country``` (default PT), the country code this dataset belongs to
+
+* ```std_dev``` (default 4.5), argument of the outlier detection method. It is the number to be multiplied with the standard deviation of each 1 month period of the dataframe. The result is then used as a cut-off value.
+
+* ```max_thr``` (default -1), argument of the imputation method. If there is a consecutive subseries of NaNs longer than max_thr, then it is not imputed and returned with NaN values. If it is -1, every value will be imputed regardless of how long the consecutive subseries of NaNs it belongs to is.
+
+TODO More about methods here
+* ```a``` (default 0.3), argument of the imputation method.
+It is the weight that shows how quickly simple interpolation's weight decreases as the distacne to the nearest non NaN value increases.
+
+TODO Why 0.000694?
+* ```wncutoff``` (default 0.000694), argument of the imputation method. Historical data will only take into account dates that have at most wncutoff distance from the current null value's WN (Week Number). 
+
+* ```ycutoff``` (default 3), argument of the imputation method. Historical data will only take into account dates that have at most ycutoff distance from the current null value's year.
+
+* ```ydcutoff``` (default 30), argument of the imputation method. Historical data will only take into account dates that have at most ydcutoff distance from the current null value's yearday.
+
+* ```l_interpolation``` (default false), whether to only use linear interpolation, or use the imputation method described above
+
+* ```rmv_outliers``` (default true), whether to remove outliers or not
+
+## Training and validation
+
+### Description of this step
+
+After the pre-processing stage, the data is scaled using min-max scaling, and is split into training, validation, and testing data sets. Then, the training of the model begins using only the training data set. The currently supported models are N-BEATS , Transformer, NHiTS, temporal convolutional networks, (block) recurrent neural networks, temporal fusion transformers, LightGBM, random forest, and seasonal naive. The latter can serve as an effective baseline depending on the seasonality of the time series.
+
+ Hyperparameter optimization can be also triggered using the Optuna library. DeepTSF supports both exhaustive and Tree-Structured Parzen Estimator-based hyperparameter search. The first method tests all possible combinations of the tested hyperparameters, while the second one uses probabilistic methods to explore the combinations that result to optimal values of the user-defined loss function. Ultimately, a method based on functional analysis of variance (fANOVA) and random forests, is used to calculate the importance of each hyperparameter during optimization.
+
+### Parameters of the pipeline
 
 * ```darts_model``` (default RNN), the base architecture of the model to be trained. The possible options are:
     * NBEATS
@@ -105,10 +205,6 @@ TODO Test inclusive or not
 
 * ```device``` (default gpu), whether to run the pipeline on the gpu, or just use the cpu. 
 
-* ```forecast_horizon``` (default 96), the number of timesteps that the model being evaluated is going to predict in each step of backtesting.
-
-* ```stride``` (default None), the number of time steps between two consecutive steps of backtesting. If it is None, then stride = forecast_horizon
-
 * ```retrain``` (default false), whether to retrain model during backtesting
 
 TODO: ??? more info on that
@@ -119,25 +215,34 @@ TODO: ??? more info on that
 
 * ```scale_covs``` (default true), whether to scale the covariates
 
-* ```day_first``` (default true), whether the date has the day before the month in timeseries file.
+* ```n_trials``` (default 100), how many trials optuna will run. If we run a simple grid search, this might be bigger than the possible number of parameter combinations to be tested. In this case, optuna will only run the maximum possible number of combinations.
 
-TODO: Check oti ontws einai country code kai oxi country
-* ```country``` (default PT), the country code this dataset belongs to
+* ```opt_test``` (default false), whether we are running optuna or not. Also, DeepTSF will check config_opt.yml for the model parameters if this is true, and config.yml otherwise.
 
-* ```std_dev``` (default 4.5), argument of the outlier detection method. It is the number to be multiplied with the standard deviation of each 1 month period of the dataframe. The result is then used as a cut-off value.
+* ```num_workers``` (default 4), number of threads that will be used by pytorch
 
-* ```max_thr``` (default -1), argument of the imputation method. If there is a consecutive subseries of NaNs longer than max_thr, then it is not imputed and returned with NaN values. If it is -1, every value will be imputed regardless of how long the consecutive subseries of NaNs it belongs to is.
+* ```loss_function``` (default mape), loss function to use as objective function for optuna. Possible options are 
 
-TODO More about methods here
-* ```a``` (default 0.3), argument of the imputation method.
-It is the weight that shows how quickly simple interpolation's weight decreases as the distacne to the nearest non NaN value increases.
+* ```grid_search``` (default false), whether to run an exhaustive grid search or use tpe method in optuna.
 
-TODO Why 0.000694?
-* ```wncutoff``` (default 0.000694), argument of the imputation method. Historical data will only take into account dates that have at most wncutoff distance from the current null value's WN (Week Number). 
 
-* ```ycutoff``` (default 3), argument of the imputation method. Historical data will only take into account dates that have at most ycutoff distance from the current null value's year.
+## Evaluation and explanation
 
-* ```ydcutoff``` (default 30), argument of the imputation method. Historical data will only take into account dates that have at most ydcutoff distance from the current null value's yearday .
+### Description of this step
+
+Εvaluation is performed through backtesting on the testing data set. Specifically, for each time series given to the function, it consecutively forecasts time series blocks of length equal to the forecast horizon of the model from the beginning until the end of the test set. This operation takes place by default with a stride equal to forecast horizon but can be changed by the user. 
+
+Then, evaluation metrics are calculated using the resulting forecasted time series. The evaluation metrics that are supported are: mean absolute error (MAE), root mean squared error (RMSE), min-max and mean normalized mean squared error (NRMSE), mean absolute percentage error (MAPE), standardized mean absolute percentage error (sMAPE), and mean absolute scaled error (MASE). In the case of multiple time series, it is possible for all evaluation sub-series to be tested leading to an average value for each one of the metrics. In this case, DeepTSF stores the results for all time series. 
+
+Additionally, it is possible to analyze the output of DL and DL models using SHapley Additive exPlanations. Each SHAP coefficient indicates how much the output of the model changes, given the current value of the corresponding feature. In DeepTSF's implementation, the lags after the start of each sample are considered as the features of each model. Following that, a beeswarm plot is produced. In addition, a minimal bar graph is produced showing the average of the absolute value of the SHAP coefficients for each attribute. Finally, three force plot charts are produced, showing the exact value of its SHAP coefficients for a random sample. The above mentioned artifacts are accessible through the MLflow tracking UI.
+
+### Parameters of the pipeline
+
+* ```forecast_horizon``` (default 96), the number of timesteps that the model being evaluated is going to predict in each step of backtesting.
+
+* ```stride``` (default None), the number of time steps between two consecutive steps of backtesting. If it is None, then stride = forecast_horizon
+
+TODO: ??? more info on that
 
 * ```shap_data_size``` (default 10), The size of shap dataset in samples. The SHAP coefficients are going to be computed for this number of random samples of the test dataset. If it is a float, it represents the proportion of samples of the test dataset that will be chosen. If it is an int, it represents the absolute number of samples to be produced.
 
@@ -145,42 +250,19 @@ TODO All models supported, fix documentation
 
 * ```shap_data_size``` (default false), whether to do SHAP analysis on the model.
 
-* ```multiple``` (default false), whether to train on multiple timeseries. This applies to the main time series. Covariates can be multivariate, but the number of time series must be the same as the main time series. The only exception to this is if we have multiple time series and a single past or future covariate. In this case, we consider this series to be the covariate to all the main time series.
-
 TODO change to PT
 * ```eval_series``` (default PT), on which country to run the backtesting.Only for multiple timeseries
 
-* ```n_trials``` (default 100), how many trials optuna will run. If we run a simple grid search, this might be bigger than the possible number of parameter combinations to be tested. In this case, optuna will only run the maximum possible number of combinations.
-
-* ```opt_test``` (default false), whether we are running optuna or not. Also, DeepTSF will check config_opt.yml for the model parameters if this is true, and config.yml otherwise.
-
-* ```from_mongo``` (default false), whether to read the dataset from mongodb, or from other sources. If this is true, it overrides all other options (series_csv, series_uri)
-
-* ```mongo_name``` (default rdn_load_data), which mongo file to read
-
-* ```num_workers``` (default 4), number of threads that will be used by pytorch
-
 -- eval method
 
-* ```l_interpolation``` (default false), whether to only use linear interpolation, or use the imputation method described above
-
-* ```rmv_outliers``` (default true), whether to remove outliers or not
-
-* ```loss_function``` (default mape), loss function to use as objective function for optuna. Possible options are 
 
 TODO Write files and what is saved
 * ```evaluate_all_ts``` (default false), whether to validate the models for all timeseries, and return the mean of their metrics . Only applicable for multiple time series.
 
-* ```convert_to_local_tz``` (default false), whether to convert to local time. ??????If we have a multiple time series file, ID column is considered as the country to transform each time series' time to. If this is not a country code, then country argument is used.
-
-* ```grid_search``` (default false), whether to run an exhaustive grid search or use tpe method in optuna.
-
 ???--input-chunk-length
 
-* ```grid_search``` (default None), if not None, only ts with this id will be used for training and evaluation. Applicable only on multiple ts files
+* ```ts_used_id``` (default None), if not None, only ts with this id will be used for training and evaluation. Applicable only on multiple ts files
 
 * ```m_mase``` (default 1), the forecast horizon of the naive method used in MASE
-
-* ```min_non_nan_interval``` (default 24), if after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval hours, these intervals are all replaced by nan values
 
 * ```num_samples``` (default 1), number of samples to use for evaluating/validating a probabilistic model's output
