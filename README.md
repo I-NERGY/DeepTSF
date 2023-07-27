@@ -140,13 +140,47 @@ TODO Why 0.000694?
 * ```ydcutoff``` (default 30), argument of the imputation method. Historical data will only take into account dates that have at most ydcutoff distance from the current null value's yearday .
 
 * ```shap_data_size``` (default 10), The size of shap dataset in samples. The SHAP coefficients are going to be computed for this number of random samples of the test dataset. If it is a float, it represents the proportion of samples of the test dataset that will be chosen. If it is an int, it represents the absolute number of samples to be produced.
+
 TODO All models supported, fix documentation
 
-* ```shap_data_size``` (default false), whether to do SHAP analysis on the model.~
+* ```shap_data_size``` (default false), whether to do SHAP analysis on the model.
 
-* ```multiple``` (default false), whether to train on multiple timeseries
+* ```multiple``` (default false), whether to train on multiple timeseries. This applies to the main time series. Covariates can be multivariate, but the number of time series must be the same as the main time series. The only exception to this is if we have multiple time series and a single past or future covariate. In this case, we consider this series to be the covariate to all the main time series.
 
 TODO change to PT
-* ```eval_series``` (default Portugal), on which country to run the backtesting. Only for multiple timeseries
+* ```eval_series``` (default PT), on which country to run the backtesting.Only for multiple timeseries
 
-* ```n_trials``` (default 100), How many trials optuna will run
+* ```n_trials``` (default 100), how many trials optuna will run. If we run a simple grid search, this might be bigger than the possible number of parameter combinations to be tested. In this case, optuna will only run the maximum possible number of combinations.
+
+* ```opt_test``` (default false), whether we are running optuna or not. Also, DeepTSF will check config_opt.yml for the model parameters if this is true, and config.yml otherwise.
+
+* ```from_mongo``` (default false), whether to read the dataset from mongodb, or from other sources. If this is true, it overrides all other options (series_csv, series_uri)
+
+* ```mongo_name``` (default rdn_load_data), which mongo file to read
+
+* ```num_workers``` (default 4), number of threads that will be used by pytorch
+
+-- eval method
+
+* ```l_interpolation``` (default false), whether to only use linear interpolation, or use the imputation method described above
+
+* ```rmv_outliers``` (default true), whether to remove outliers or not
+
+* ```loss_function``` (default mape), loss function to use as objective function for optuna. Possible options are 
+
+TODO Write files and what is saved
+* ```evaluate_all_ts``` (default false), whether to validate the models for all timeseries, and return the mean of their metrics . Only applicable for multiple time series.
+
+* ```convert_to_local_tz``` (default false), whether to convert to local time. ??????If we have a multiple time series file, ID column is considered as the country to transform each time series' time to. If this is not a country code, then country argument is used.
+
+* ```grid_search``` (default false), whether to run an exhaustive grid search or use tpe method in optuna.
+
+???--input-chunk-length
+
+* ```grid_search``` (default None), if not None, only ts with this id will be used for training and evaluation. Applicable only on multiple ts files
+
+* ```m_mase``` (default 1), the forecast horizon of the naive method used in MASE
+
+* ```min_non_nan_interval``` (default 24), if after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval hours, these intervals are all replaced by nan values
+
+* ```num_samples``` (default 1), number of samples to use for evaluating/validating a probabilistic model's output
