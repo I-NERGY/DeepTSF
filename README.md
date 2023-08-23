@@ -37,7 +37,7 @@ or
 ## Full pipeline example
 ```mlflow run --experiment-name 2009-2019 --entry-point exp_pipeline . -P hyperparams_entrypoint=nbeats0_10 -P darts_model=NBEATS -P ignore_previous_runs=t -P cut_date_val=20180101 -P cut_date_test=20190101 -P year_range=2009-2019 -P time_covs=None --env-manager=local```
 
-The parameters of MLflow that the user can set are presented by the stage of the pipeline they appear in:
+The stages of the pipeline, along with the MLflow parameters that are related to each one are presented below:
 
 ## Data loading
 
@@ -116,20 +116,46 @@ For multiple timeseries:
 
 ### Description of this step
 
-For each component of each time series, outlier detection is optionally conducted by removing values that differ more than an arbitrary number (defined by the user) of standard deviations from their monthly average, or that are zero in the case of a non-negative time series. Outliers are replaced by missing values. Subsequently, missing data may be imputed by using a weighted average of historical data and simple interpolation as 
-proposed by Peppanen et al. This imputation method is analyzed below in more detail.
+For each component of each time series, outlier detection is optionally conducted by removing values that differ more than an arbitrary number (defined by the user) of standard deviations from their monthly average, or that are zero in the case of a non-negative time series. Outliers are replaced by missing values. Subsequently, missing data may be imputed by using a weighted average of historical data and simple interpolation. This imputation method is analyzed below in more detail.
 
 ### Imputation method
 This method imputes the timeseries using a weighted average of historical data
 and simple interpolation. The weights of each method are exponentially dependent on the distance to the nearest non NaN value. More specifficaly, with increasing distance, the weight of simple interpolation decreases, and the weight of the historical data increases. The imputation result is calculated based on the following formulas:  
-$$ w = e^{a d_i} $$
-$$ result = w L + (1 - w) H $$
 
- where $L$ is the simple interpolation, $H$ the historical data and $d_i$ the distance. $a$ is a constant that determines how quickly simple interpolation will lose its significance to the result. The parameters of the pipeline associated with this method are presented below, along with all parameters of data pre-processing:
+$w = e^{a d_i}$
+
+ $result = w L + (1 - w) H$
+
+
+ where $L$ is the simple interpolation, $H$ the historical data and $d_i$ the distance. $a$ is a constant that determines how quickly simple interpolation will lose its significance to the result. 
+ 
+ The historical data that imputes a particular datetime (we will refer to it as $current$) is calculated using the average values of datetimes that fulfil all of the following conditions:
+
+ * They have at most wncutoff distance to the current null value's
+    week number (WN), where $WN = week + hour/24 + minute/(24\cdot60)$. $week$ is the day of the week (0-6) of $current$, $hour$ is the hour (0-23), and minute is the minute (0-59). wncutoff's default value (0.000694) is a little less than a minute. This means that we take into account the datetimes that have the same week, hour and minute as $current$. Holidays are handled as
+    either Saturdays (if the real day is a Friday) or Sundays (in every other case).
+
+ * They have at most ycutoff distance (in years) from the $current$'s year. 
+
+ * They have at most ydcutoff distance (in days) from the $current$'s yearday, where yearday is the number of days that have passed since January 1st of $current$'s year. We also use mod to include the datetimes of the previous or next year that are still at most ydcutoff days away from current's yearday. The exact formula that is used is presented below:
+
+    $(yearday - currentYearday) \mod (daysInYear) < ydcutoff$ 
+
+    or
+
+    $(yearday + currentYearday) \mod (daysInYear) < ydcutoff$
+
+    where $yearday$ is the yearday of the datetime to be included in the historical forecast, $daysInYear$ are the days in the year of that datetime, and $currentYearday$ is $current$'s yearday  
+
+* If $current$ is before cut_date_val, it is imputed using historical data
+from dates which are also before cut_date_val.
+
+
+ The parameters of the pipeline associated with this method are presented below, along with all parameters of data pre-processing:
 
 ### Parameters of the pipeline
 TODO: Check that
-* ```resolution``` (default 15), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and this afterwards resampling is performed. 
+* ```resolution``` (default 15), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and then afterwards resampling is performed. 
 
 TODO: this should be for covariates also
 * ```year_range``` (default 2009-2019), the years to use from the datasets (inclusive). All values outside of those dates will be dropped.
@@ -142,22 +168,19 @@ TODO: this should be for covariates also
     * The week of the year
     * Whether its a holiday or not
 
-* ```convert_to_local_tz``` (default false), whether to convert to local time. ??????If we have a multiple time series file, ID column is considered as the country to transform each time series' time to. If this is not a country code, then country argument is used.
+* ```convert_to_local_tz``` (default false), whether to convert to local time. If we have a multiple time series file, ID column is considered as the country to transform each time series' time to. If this is not a country code, then country argument is used.
 
 * ```min_non_nan_interval``` (default 24), if after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval hours, these intervals are all replaced by nan values
 
-TODO: Check oti ontws einai country code kai oxi country
 * ```country``` (default PT), the country code this dataset belongs to
 
 * ```std_dev``` (default 4.5), argument of the outlier detection method. It is the number to be multiplied with the standard deviation of each 1 month period of the dataframe. The result is then used as a cut-off value.
 
 * ```max_thr``` (default -1), argument of the imputation method. If there is a consecutive subseries of NaNs longer than max_thr, then it is not imputed and returned with NaN values. If it is -1, every value will be imputed regardless of how long the consecutive subseries of NaNs it belongs to is.
 
-TODO More about methods here
 * ```a``` (default 0.3), argument of the imputation method.
-It is the weight that shows how quickly simple interpolation's weight decreases as the distacne to the nearest non NaN value increases.
+It is the weight that shows how quickly simple interpolation's weight decreases as the distacne to the nearest non NaN value increases. For more information see the section about our imputation method above.
 
-TODO Why 0.000694?
 * ```wncutoff``` (default 0.000694), argument of the imputation method. Historical data will only take into account dates that have at most wncutoff distance from the current null value's WN (Week Number). 
 
 * ```ycutoff``` (default 3), argument of the imputation method. Historical data will only take into account dates that have at most ycutoff distance from the current null value's year.
@@ -174,7 +197,39 @@ TODO Why 0.000694?
 
 After the pre-processing stage, the data is scaled using min-max scaling, and is split into training, validation, and testing data sets. Then, the training of the model begins using only the training data set. The currently supported models are N-BEATS , Transformer, NHiTS, temporal convolutional networks, (block) recurrent neural networks, temporal fusion transformers, LightGBM, random forest, and seasonal naive. The latter can serve as an effective baseline depending on the seasonality of the time series.
 
- Hyperparameter optimization can be also triggered using the Optuna library. DeepTSF supports both exhaustive and Tree-Structured Parzen Estimator-based hyperparameter search. The first method tests all possible combinations of the tested hyperparameters, while the second one uses probabilistic methods to explore the combinations that result to optimal values of the user-defined loss function. Ultimately, a method based on functional analysis of variance (fANOVA) and random forests, is used to calculate the importance of each hyperparameter during optimization.
+ Hyperparameter optimization can be also triggered using the Optuna library. DeepTSF supports both exhaustive and Tree-Structured Parzen Estimator-based (TPE-based) hyperparameter search. The first method tests all possible combinations of the tested hyperparameters, while the second one uses probabilistic methods to explore the combinations that result to optimal values of the user-defined loss function. Ultimately, a method based on functional analysis of variance (fANOVA) and random forests, is used to calculate the importance of each hyperparameter during optimization.
+
+ ### Providing the model's parameters to DeepTSF
+
+The user can provide hyperparameters for the model they want to train using the YAML files config.yml if hyperparameter optimization is not performed, and config_opt.yml otherwise. More specifically, the entrypoint DeepTSF will try to find is set as a parameter of the pipeline (hyperparams_entrypoint), and that needs to also exist in the corresponding file. 
+
+In config.yml's case, the entry point will look like this:
+    
+    hyperparams_entrypoint:
+        parameter1: value1
+        parameter2: value2
+        ...
+
+Where parameter and value are each model's hyperparameter, and its desired value respectivelly. All model parameters not specified by the user take their default values according to darts.
+
+In config_opt.yml's case, the parameters of the model that the user doesn't want to test can be given as in config.yml. The parameters that have to be tested must have their values in a list format as follows:
+* Format ["range", start, end, step]: a list of hyperparameter values are considered ranging from value "start" till "end" with the step being defined by the last value of the list. 
+* Format ["list", value\_1, ..., value\_n]: All the listed parameters (\{value\_1, ..., value\_n\}) are considered in the grid. 
+
+```
+hyperparams_entrypoint:
+    parameter_not_to_be_tested: value1
+    parameter_range:  ["range", start, end, step]
+    parameter_list: ["list", value\_1, ..., value\_n]
+    ...
+ ```
+
+ TODO: is this necessary?
+Finally, if the user wants, they can test whether to scale the data or not just by including the hyperparameter
+```
+scale: ["list", "True", "False"]
+``` 
+
 
 ### Parameters of the pipeline
 
@@ -192,8 +247,7 @@ After the pre-processing stage, the data is scaled using min-max scaling, and is
     TODO ???
     * AutoARIMA
 
-* ```hyperparams_entrypoint``` (default LSTM1), the entry point containing the desired hyperparameters for the selected model. The file that will be searched for the entrypoint will be config.yml if opt_test is false, and config_opt.yml otherwise. More info for the required file format below
-TODO Where?
+* ```hyperparams_entrypoint``` (default LSTM1), the entry point containing the desired hyperparameters for the selected model. The file that will be searched for the entrypoint will be config.yml if opt_test is false, and config_opt.yml otherwise. More info for the required file format above
 
 * ```cut_date_val``` (default 20190101), the validation set start date. All values before that will be the training series. Format: str, 'YYYYMMDD'
 
@@ -215,15 +269,22 @@ TODO: ??? more info on that
 
 * ```scale_covs``` (default true), whether to scale the covariates
 
-* ```n_trials``` (default 100), how many trials optuna will run. If we run a simple grid search, this might be bigger than the possible number of parameter combinations to be tested. In this case, optuna will only run the maximum possible number of combinations.
+* ```n_trials``` (default 100), how many trials hyperparameter optimization will run. If we run a simple grid search, this might be bigger than the possible number of parameter combinations to be tested. In this case, DeepTSF will only run the maximum possible number of combinations.
 
-* ```opt_test``` (default false), whether we are running optuna or not. Also, DeepTSF will check config_opt.yml for the model parameters if this is true, and config.yml otherwise.
+* ```opt_test``` (default false), whether we are running hyperparameter optimization or not. Also, DeepTSF will check config_opt.yml for the model parameters if this is true, and config.yml otherwise.
 
 * ```num_workers``` (default 4), number of threads that will be used by pytorch
 
-* ```loss_function``` (default mape), loss function to use as objective function for optuna. Possible options are 
+* ```loss_function``` (default mape), loss function to use as objective function for optuna. Possible options are:
+    - mape
+    - smape
+    - mase 
+    - mae
+    - rmse
+    - nrmse_max
+    - nrmse_mean
 
-* ```grid_search``` (default false), whether to run an exhaustive grid search or use tpe method in optuna.
+* ```grid_search``` (default false), whether to run an exhaustive grid search (if true) or use the tpe method in optuna.
 
 
 ## Evaluation and explanation
@@ -242,8 +303,6 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 
 * ```stride``` (default None), the number of time steps between two consecutive steps of backtesting. If it is None, then stride = forecast_horizon
 
-TODO: ??? more info on that
-
 * ```shap_data_size``` (default 10), The size of shap dataset in samples. The SHAP coefficients are going to be computed for this number of random samples of the test dataset. If it is a float, it represents the proportion of samples of the test dataset that will be chosen. If it is an int, it represents the absolute number of samples to be produced.
 
 TODO All models supported, fix documentation
@@ -251,18 +310,18 @@ TODO All models supported, fix documentation
 * ```shap_data_size``` (default false), whether to do SHAP analysis on the model.
 
 TODO change to PT
-* ```eval_series``` (default PT), on which country to run the backtesting.Only for multiple timeseries
-
--- eval method
+* ```eval_series``` (default PT), on which timeseries to run the backtesting. Only for multiple timeseries. 
 
 
-TODO Write files and what is saved
-* ```evaluate_all_ts``` (default false), whether to validate the models for all timeseries, and return the mean of their metrics . Only applicable for multiple time series.
+TODO change from code to id
+* ```eval_method``` (default ts_ID), what ID type is speciffied in eval_series: if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at ID column. In this case, all components of the timeseries that has the component with eval_series ID are used in the evaluation step. 
 
-???--input-chunk-length
+* ```evaluate_all_ts``` (default false), whether to validate the models for all timeseries, and return the mean of their metrics as a result. Only applicable for multiple time series. In this case, a file is produced (evaluation_results_all_ts) showing detailed results for all metrics and timeseries.  
 
-* ```ts_used_id``` (default None), if not None, only ts with this id will be used for training and evaluation. Applicable only on multiple ts files
+TODO get rid of input-chunk-length
 
-* ```m_mase``` (default 1), the forecast horizon of the naive method used in MASE
+* ```ts_used_id``` (default None), if not None, only time series with this id will be used for training and evaluation. Applicable only on multiple time series files
+
+* ```m_mase``` (default 1), the forecast horizon of the naive method used in MASE metric
 
 * ```num_samples``` (default 1), number of samples to use for evaluating/validating a probabilistic model's output
