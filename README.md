@@ -121,8 +121,11 @@ For each component of each time series, outlier detection is optionally conducte
 ### Imputation method
 This method imputes the timeseries using a weighted average of historical data
 and simple interpolation. The weights of each method are exponentially dependent on the distance to the nearest non NaN value. More specifficaly, with increasing distance, the weight of simple interpolation decreases, and the weight of the historical data increases. The imputation result is calculated based on the following formulas:  
-$$ w = e^{a d_i} $$
-$$ result = w L + (1 - w) H $$
+
+$w = e^{a d_i}$
+
+ $result = w L + (1 - w) H$
+
 
  where $L$ is the simple interpolation, $H$ the historical data and $d_i$ the distance. $a$ is a constant that determines how quickly simple interpolation will lose its significance to the result. 
  
@@ -135,10 +138,15 @@ $$ result = w L + (1 - w) H $$
  * They have at most ycutoff distance (in years) from the $current$'s year. 
 
  * They have at most ydcutoff distance (in days) from the $current$'s yearday, where yearday is the number of days that have passed since January 1st of $current$'s year. We also use mod to include the datetimes of the previous or next year that are still at most ydcutoff days away from current's yearday. The exact formula that is used is presented below:
-    ```math 
-    (yearday - current\_yearday) \mod (days\_in\_year) < ydcutoff or
-    (yearday + current\_yearday) \mod (days\_in\_year) < ydcutoff
-    ```
+
+    $(yearday - current\_yearday) \mod (days\_in\_year) < ydcutoff$ 
+
+    or
+
+    $(yearday + current\_yearday) \mod (days\_in\_year) < ydcutoff$
+
+    where $yearday$ is the yearday of the datetime to be included in the historical forecast, $days\_in\_year$ are the days in the year of that datetime, and $current\_yearday$ is $current$'s yearday  
+
 * If $current$ is before cut_date_val, it is imputed using historical data
 from dates which are also before cut_date_val.
 
