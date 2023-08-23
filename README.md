@@ -139,13 +139,13 @@ $w = e^{a d_i}$
 
  * They have at most ydcutoff distance (in days) from the $current$'s yearday, where yearday is the number of days that have passed since January 1st of $current$'s year. We also use mod to include the datetimes of the previous or next year that are still at most ydcutoff days away from current's yearday. The exact formula that is used is presented below:
 
-    $(yearday - current\_yearday) \mod (days\_in\_year) < ydcutoff$ 
+    $(yearday - currentYearday) \mod (daysInYear) < ydcutoff$ 
 
     or
 
-    $(yearday + current\_yearday) \mod (days\_in\_year) < ydcutoff$
+    $(yearday + currentYearday) \mod (daysInYear) < ydcutoff$
 
-    where $yearday$ is the yearday of the datetime to be included in the historical forecast, $days\_in\_year$ are the days in the year of that datetime, and $current\_yearday$ is $current$'s yearday  
+    where $yearday$ is the yearday of the datetime to be included in the historical forecast, $daysInYear$ are the days in the year of that datetime, and $currentYearday$ is $current$'s yearday  
 
 * If $current$ is before cut_date_val, it is imputed using historical data
 from dates which are also before cut_date_val.
