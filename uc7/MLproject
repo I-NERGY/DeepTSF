@@ -1,6 +1,6 @@
 name: DeepTSF_workflow
 
-conda_env: conda.yaml
+conda_env: ../conda.yaml
 
 entry_points:
 

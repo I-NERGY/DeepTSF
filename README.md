@@ -154,7 +154,7 @@ from dates which are also before cut_date_val.
  The parameters of the pipeline associated with this method are presented below, along with all parameters of data pre-processing:
 
 ### Parameters of the pipeline
-TODO: Check that
+TODO: Check that leave it be
 * ```resolution``` (default 15), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and then afterwards resampling is performed. 
 
 TODO: this should be for covariates also
@@ -172,7 +172,9 @@ TODO: this should be for covariates also
 
 * ```min_non_nan_interval``` (default 24), if after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval hours, these intervals are all replaced by nan values
 
-* ```country``` (default PT), the country code this dataset belongs to
+TODO write only for countries
+
+* ```country``` (default PT), the country code this dataset belongs to. 
 
 * ```std_dev``` (default 4.5), argument of the outlier detection method. It is the number to be multiplied with the standard deviation of each 1 month period of the dataframe. The result is then used as a cut-off value.
 
@@ -223,8 +225,6 @@ hyperparams_entrypoint:
     parameter_list: ["list", value\_1, ..., value\_n]
     ...
  ```
-
- TODO: is this necessary?
 Finally, if the user wants, they can test whether to scale the data or not just by including the hyperparameter
 ```
 scale: ["list", "True", "False"]
@@ -244,8 +244,6 @@ scale: ["list", "True", "False"]
     * LightGBM
     * RandomForest
     * Naive
-    TODO ???
-    * AutoARIMA
 
 * ```hyperparams_entrypoint``` (default LSTM1), the entry point containing the desired hyperparameters for the selected model. The file that will be searched for the entrypoint will be config.yml if opt_test is false, and config_opt.yml otherwise. More info for the required file format above
 
