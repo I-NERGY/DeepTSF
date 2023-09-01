@@ -818,7 +818,7 @@ hyperparameters:
     output_chunk_length: 24
     num_stacks: 3
     num_blocks: 6
-    num_layers: 	1
+    num_layers: 1
     generic_architecture: True
     layer_widths: 64
     expansion_coefficient_dim: 5
