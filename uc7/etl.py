@@ -535,11 +535,15 @@ def sum_wo_nans(arraylike):
     else:
         return np.sum(arraylike)
 
-def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resolution, type, multiple):
+def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resolution, type, multiple, year_min, year_max):
     #TODO : More preprocessing
     result = []
     for ts, ts_id in zip(ts_list, id_list):
-        ts_res = ts.interpolate(inplace=False)
+
+        ts_res = ts[ts.index >= pd.Timestamp(str(year_min) + '0101 00:00:00')]
+        ts_res = ts_res[ts_res.index <= pd.Timestamp(str(year_max) + '1231 23:59:59')]
+
+        ts_res = ts_res.interpolate(inplace=False)
 
         if resolution != infered_resolution or not multiple:
             print(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution, or ts is not multiple")
@@ -930,9 +934,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 #TODO: Make training happen without outlier detection
                 if comp_num == len(ts) - 1:
                     if past_covs_csv != None:
-                        res_past.append(preprocess_covariates(ts_list_past_covs[ts_num], id_l_past_covs[ts_num], ts_id_l_past_covs[ts_num][0], infered_resolution_past, resolution, "past", multiple))
+                        res_past.append(preprocess_covariates(ts_list_past_covs[ts_num], id_l_past_covs[ts_num], ts_id_l_past_covs[ts_num][0], infered_resolution_past, resolution, "past", multiple, year_min, year_max))
                     if future_covs_csv != None:
-                        res_future.append(preprocess_covariates(ts_list_future_covs[ts_num], id_l_future_covs[ts_num], ts_id_l_future_covs[ts_num][0], infered_resolution_future, resolution, "future", multiple))
+                        res_future.append(preprocess_covariates(ts_list_future_covs[ts_num], id_l_future_covs[ts_num], ts_id_l_future_covs[ts_num][0], infered_resolution_future, resolution, "future", multiple, year_min, year_max))
                     
                     if time_covs:
                         print("\nCreating time covariates dataset...")

@@ -818,11 +818,11 @@ hyperparameters:
     output_chunk_length: 24
     num_stacks: 3
     num_blocks: 6
-    num_layers: 	1
+    num_layers: 1
     generic_architecture: True
     layer_widths: 64
     expansion_coefficient_dim: 5
-    n_epochs: 104
+    n_epochs: 5
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: 512
