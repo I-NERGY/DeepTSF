@@ -157,7 +157,6 @@ from dates which are also before cut_date_val.
 TODO: Check that leave it be
 * ```resolution``` (default 15), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and then afterwards resampling is performed. 
 
-TODO: this should be for covariates also
 * ```year_range``` (default 2009-2019), the years to use from the datasets (inclusive). All values outside of those dates will be dropped.
 
 * ```time_covs``` (default false), whether to add time covariates to the time series. If true, then the following time covariates will be added as future covariates:
@@ -172,9 +171,7 @@ TODO: this should be for covariates also
 
 * ```min_non_nan_interval``` (default 24), if after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval hours, these intervals are all replaced by nan values
 
-TODO write only for countries
-
-* ```country``` (default PT), the country code this dataset belongs to. 
+* ```country``` (default PT), the country code this dataset belongs to. Used to obtain holidays in case of single time series, or if id is not a valid country in case of multiple time series. Holidays are used in the imputation method, and to produce time covariates.
 
 * ```std_dev``` (default 4.5), argument of the outlier detection method. It is the number to be multiplied with the standard deviation of each 1 month period of the dataframe. The result is then used as a cut-off value.
 
@@ -247,21 +244,20 @@ scale: ["list", "True", "False"]
 
 * ```hyperparams_entrypoint``` (default LSTM1), the entry point containing the desired hyperparameters for the selected model. The file that will be searched for the entrypoint will be config.yml if opt_test is false, and config_opt.yml otherwise. More info for the required file format above
 
-* ```cut_date_val``` (default 20190101), the validation set start date. All values before that will be the training series. Format: str, 'YYYYMMDD'
+* ```cut_date_val``` (default 20190101), the validation set start date (if cut_date_val=YYYYMMDD, then the validation set starts at YYYY-MM-DD 00:00:00). All values before that will be the training series. Format: str, 'YYYYMMDD'
 
-TODO Test inclusive or not
 
-* ```cut_date_test``` (default 20200101), the test set start date. Values between that and cut_date_val will be the validation series. If cut_date_test = cut_date_test, then the test and validation sets will be the same (from cut_date_test to test_end_date). Format: str, 'YYYYMMDD'
+* ```cut_date_test``` (default 20200101), the test set start date (if cut_date_test=YYYYMMDD, then the test set starts at YYYY-MM-DD 00:00:00). Values between that (non inclusive) and cut_date_val (inclusive) will be the validation series. If cut_date_test = cut_date_test, then the test and validation sets will be the same (from cut_date_test to test_end_date, both inclusive). Format: str, 'YYYYMMDD'
 
-* ```test_end_date``` (default None), the test set ending date. Values between that and cut_date_test will be the testing series. All values after that will be ignored. If None, all the timeseries from cut_date_test will be the test set. Format: str, 'YYYYMMDD'
+* ```test_end_date``` (default None), the test set ending date (if test_end_date=YYYYMMDD, then the test set ends at YYYY-MM-DD 23:00:00). Values between that and cut_date_test (both inclusive) will be the testing series. All values after that will be ignored. If None, all the timeseries from cut_date_test will be the test set. Format: str, 'YYYYMMDD'
 
 * ```device``` (default gpu), whether to run the pipeline on the gpu, or just use the cpu. 
 
-* ```retrain``` (default false), whether to retrain model during backtesting
+* ```retrain``` (default false), whether to retrain model during backtesting.
 
-TODO: ??? more info on that
+TODO: not working ?
 
-* ```ignore_previous_runs``` (default true), whether to ignore previous step runs while running the pipeline
+* ```ignore_previous_runs``` (default true), whether to ignore previous step runs while running the pipeline. If true, all stages of the pipeline will be run again. If false, and there are mlflow runs with exactly the same parameters saved on the tracking server, the pipeline will use these results instead of executing the run again.  
 
 * ```scale``` (default true), whether to scale the target series
 
@@ -301,22 +297,19 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 
 * ```stride``` (default None), the number of time steps between two consecutive steps of backtesting. If it is None, then stride = forecast_horizon
 
+TODO: SHAP ask if changes are ok
+SHAP with covariates fix
 * ```shap_data_size``` (default 10), The size of shap dataset in samples. The SHAP coefficients are going to be computed for this number of random samples of the test dataset. If it is a float, it represents the proportion of samples of the test dataset that will be chosen. If it is an int, it represents the absolute number of samples to be produced.
-
-TODO All models supported, fix documentation
 
 * ```shap_data_size``` (default false), whether to do SHAP analysis on the model.
 
-TODO change to PT
 * ```eval_series``` (default PT), on which timeseries to run the backtesting. Only for multiple timeseries. 
 
-
-TODO change from code to id
-* ```eval_method``` (default ts_ID), what ID type is speciffied in eval_series: if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at ID column. In this case, all components of the timeseries that has the component with eval_series ID are used in the evaluation step. 
+* ```eval_method``` (default ts_ID, only possible options are ts_ID and ID), what ID type is speciffied in eval_series: if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at ID column. In this case, all components of the timeseries that has the component with eval_series ID are used in the evaluation step. 
 
 * ```evaluate_all_ts``` (default false), whether to validate the models for all timeseries, and return the mean of their metrics as a result. Only applicable for multiple time series. In this case, a file is produced (evaluation_results_all_ts) showing detailed results for all metrics and timeseries.  
 
-TODO get rid of input-chunk-length
+* ```shap_input_length``` (default None), The length of each sample of the dataset used during SHAP analysis. Is taken into account only if not evaluating a model with input_chunk_length as one of its parameters. In the latter case, shap_input_length=input_chunk_length
 
 * ```ts_used_id``` (default None), if not None, only time series with this id will be used for training and evaluation. Applicable only on multiple time series files
 

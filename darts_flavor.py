@@ -2,6 +2,11 @@ import os
 from utils import load_model, load_scaler, parse_uri_prediction_input
 import pretty_errors
 
+from urllib3.exceptions import InsecureRequestWarning
+from urllib3 import disable_warnings
+disable_warnings(InsecureRequestWarning)
+
+
 class _MLflowPLDartsModelWrapper:
 
     def __init__(self, darts_model, transformer=None):

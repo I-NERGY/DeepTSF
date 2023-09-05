@@ -12,6 +12,11 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
+from urllib3.exceptions import InsecureRequestWarning
+from urllib3 import disable_warnings
+disable_warnings(InsecureRequestWarning)
+
+
 @click.command()
 @click.option("--pyfunc-model-folder",
               type=str,

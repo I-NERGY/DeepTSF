@@ -1,6 +1,10 @@
 import numpy as np
 import pandas as pd
 
+from urllib3.exceptions import InsecureRequestWarning
+from urllib3 import disable_warnings
+disable_warnings(InsecureRequestWarning)
+
 class EmptyDataframe(Exception):
     """
     Exception raised if dataframe is empty.
@@ -9,12 +13,12 @@ class EmptyDataframe(Exception):
         super().__init__("Dataframe provided is empty" + (" or does not exist in mongo database" if from_mongo else ""))
 
 
-class DatesNotInOrder(Exception):
+class DatetimesNotInOrder(Exception):
     """
     Exception raised if dates in series_csv are not sorted.
     """
     def __init__(self, id=0):
-        super().__init__(f"Dates in series_csv are not sorted for time series component with id {id}. Check date format in input csv.")
+        super().__init__(f"Datetimes in series_csv are not sorted for time series component with id {id}. Check date format in input csv.")
 
 class WrongColumnNames(Exception):
     """

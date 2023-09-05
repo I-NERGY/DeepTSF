@@ -41,6 +41,10 @@ from sklearn.metrics import mean_squared_error as mse
 import numpy as np
 import random
 
+from urllib3.exceptions import InsecureRequestWarning
+from urllib3 import disable_warnings
+disable_warnings(InsecureRequestWarning)
+
 PYTHON_VERSION = "{major}.{minor}.{micro}".format(major=version_info.major,
                                                   minor=version_info.minor,
                                                   micro=version_info.micro)
@@ -407,7 +411,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     ######################
     # Load series and covariates datasets
-    time_col = "Date"
+    time_col = "Datetime"
     series, source_l, source_code_l, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
                 local_path=series_csv,
                 name='series',
@@ -859,7 +863,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                         if eval_series == str(comp):
                             eval_i = i
             else:
-                for i, comps in enumerate(source_code_l):
+                for i, comps in enumerate(id_l):
                     for comp in comps:
                         if eval_series == str(comp):
                             eval_i = i
@@ -1005,8 +1009,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               help="Whether to train on multiple timeseries")
 @click.option("--eval-series",
               type=str,
-              default="Portugal",
-              help="On which country to run the backtesting. Only for multiple timeseries")
+              default="PT",
+              help="On which timeseries to run the backtesting. Only for multiple timeseries")
 @click.option("--n-trials",
               type=str,
               default="100",
@@ -1023,10 +1027,9 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 @click.option("--eval-method",
     type=click.Choice(
         ['ts_ID',
-         'ts_code']),
+         'ID']),
     default="ts_ID",
-    help="What ID type is speciffied in eval_series: \
-    if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at Source Code column ")
+    help="what ID type is speciffied in eval_series: if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at ID column ")
 
 @click.option("--eval-method",
     type=click.Choice(

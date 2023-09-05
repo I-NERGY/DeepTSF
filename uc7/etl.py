@@ -26,6 +26,8 @@ import pytz
 import numpy as np
 from tqdm import tqdm
 from pytz import country_timezones
+from urllib3.exceptions import InsecureRequestWarning
+from urllib3 import disable_warnings
 
 # get environment variables
 from dotenv import load_dotenv
@@ -248,7 +250,7 @@ def remove_outliers(ts: pd.DataFrame,
         The original dataframe with its outliers values replaced with NaNs
     """
 
-    #Dates with NaN values are removed from the dataframe
+    #Datetimes with NaN values are removed from the dataframe
     ts = ts.dropna()
     #Removing all zero values if no negative values are present
     if min(ts["Load"]) >= 0:
@@ -266,7 +268,7 @@ def remove_outliers(ts: pd.DataFrame,
     a = pd.concat([a, ts.loc[ts['Load'] > std_dev * std + mean]])
 
     #Plotting Removed values and new series
-    a = a.sort_values(by='Date')
+    a = a.sort_values(by='Datetime')
     a = a[~a.index.duplicated(keep='first')]
     if print_removed: print(f"Removed from {name}", a)
     fig, ax = plt.subplots(figsize=(8,5))
@@ -335,7 +337,7 @@ def impute(ts: pd.DataFrame,
         Whether to only use linear interpolation 
     cut_date_val
         All dates before cut_date_val that have nan values are imputed using historical data
-        from dates which are also before cut_date_val. Dates after cut_date_val are not affected
+        from dates which are also before cut_date_val. Datetimes after cut_date_val are not affected
         by this
     min_non_nan_interval
         If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
@@ -508,7 +510,7 @@ def utc_to_local(df, country_code):
     #set index to local time
     df.set_index('Local Datetime', inplace=True)
 
-    df.index.name = "Date"
+    df.index.name = "Datetime"
 
     #print(df)
 
@@ -674,7 +676,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
               default='20200101',
               help="Validation set start date [str: 'YYYYMMDD'] \
                   All dates before cut_date_val that have nan values are imputed using historical data \
-                  from dates which are also before cut_date_val. Dates after cut_date_val are not affected \
+                  from dates which are also before cut_date_val. Datetimes after cut_date_val are not affected \
                   by this")
 
 @click.option("--infered-resolution-past",
@@ -716,6 +718,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
     # Also check if current transformations are ok
+
+    disable_warnings(InsecureRequestWarning)
+
 
     if series_uri != "mlflow_artifact_uri":
         download_file_path = download_online_file(series_uri, dst_filename="load.csv")

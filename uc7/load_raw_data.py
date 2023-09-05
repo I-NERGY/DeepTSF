@@ -19,7 +19,7 @@ from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to
 import shutil
 import pretty_errors
 import uuid
-from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatesNotInOrder
+from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder
 from utils import truth_checker, none_checker
 import tempfile
 
@@ -32,6 +32,11 @@ load_dotenv()
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
 MONGO_URL = os.environ.get("MONGO_URL")
+
+from urllib3.exceptions import InsecureRequestWarning
+from urllib3 import disable_warnings
+disable_warnings(InsecureRequestWarning)
+
 
 
 def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
@@ -50,7 +55,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         - All the dates must be sorted
 
     For non multiple timeseries:
-        - Column Date must be used as index 
+        - Column Datetime must be used as index 
         - If the timeseries is the main dataset, Load must be the only other column in the dataframe
         - If the timeseries is a covariates timeseries, there must be only one column in the dataframe
           named arbitrarily
@@ -129,13 +134,13 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     if not multiple:
         #Check that dates are in order. If month is used before day and day_first is set to True, this is not the case.
         if not ts.index.sort_values().equals(ts.index):
-            raise DatesNotInOrder()
-        #Check that column Date is used as index, and that Load is the only other column in the csv for the series csv
-        elif covariates == "series" and not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Date'):
-            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Date', 'Load'])
-        #Check that column Date is used as index, and that there is only other column in the csv for the covariates csvs
-        elif covariates != "series" and not (len(ts.columns) == 1 and ts.index.name == 'Date'):
-            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Date', '<Value Column Name>'])
+            raise DatetimesNotInOrder()
+        #Check that column Datetime is used as index, and that Load is the only other column in the csv for the series csv
+        elif covariates == "series" and not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Datetime'):
+            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', 'Load'])
+        #Check that column Datetime is used as index, and that there is only other column in the csv for the covariates csvs
+        elif covariates != "series" and not (len(ts.columns) == 1 and ts.index.name == 'Datetime'):
+            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', '<Value Column Name>'])
     else:
         #If columns don't exist set defaults
         if "Timeseries ID" not in ts.columns:
@@ -163,7 +168,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         for id in np.unique(ts["ID"]):
             if not ts.loc[ts["ID"] == id]["Day"].sort_values().equals(ts.loc[ts["ID"] == id]["Day"]):
                 #(ts.loc[ts["ID"] == id]["Day"].sort_values()).to_csv("test.csv")
-                raise DatesNotInOrder(id)
+                raise DatetimesNotInOrder(id)
         
         #Check that all timeseries in a multiple timeseries file have the same number of components
         if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
