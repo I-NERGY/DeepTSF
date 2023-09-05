@@ -8,7 +8,7 @@ from utils import ConfigParser, truth_checker
 import tempfile
 import os
 from uc2.load_raw_data import read_and_validate_input
-from exceptions import DatesNotInOrder, WrongColumnNames
+from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
@@ -129,10 +129,10 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
     try:
         ts = read_and_validate_input(fname, day_first)
     except WrongColumnNames:
-        raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with 2 columns with names: 'Date', 'Load'")
-    except DatesNotInOrder:
-        raise HTTPException(status_code=415, detail="There was an error validating the file. Dates are not in order")
-        # return {"message": "There was an error validating the file. Dates are not in order",
+        raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with 2 columns with names: 'Datetime', 'Load'")
+    except DatetimesNotInOrder:
+        raise HTTPException(status_code=415, detail="There was an error validating the file. Datetimes are not in order")
+        # return {"message": "There was an error validating the file. Datetimes are not in order",
         #        "fname": fname}
 
     resolution_minutes = int((ts.index[1] - ts.index[0]).total_seconds() // 60)

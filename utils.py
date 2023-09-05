@@ -13,6 +13,10 @@ load_dotenv()
 from tqdm import tqdm
 import logging
 
+from urllib3.exceptions import InsecureRequestWarning
+from urllib3 import disable_warnings
+disable_warnings(InsecureRequestWarning)
+
 class ConfigParser:
     def __init__(self, config_file_path=f'{cur_dir}/config.yml'):
         import yaml
@@ -256,7 +260,7 @@ def load_local_model_as_torch(local_path):
     model.device = device
     return model
 
-def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Date', last_date=None, multiple = False, day_first=True, resolution="15"):
+def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Datetime', last_date=None, multiple = False, day_first=True, resolution="15"):
 
     import logging
     import darts
@@ -346,18 +350,18 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
     history = load_local_csv_as_darts_timeseries(
         local_path=series_uri,
         name='series',
-        time_col='Date',
+        time_col='Datetime',
         last_date=None)
 
     if none_checker(future_covariates_uri) is not None:
         future_covariates = darts.TimeSeries.from_csv(
-            future_covariates_uri, time_col='Date')
+            future_covariates_uri, time_col='Datetime')
     else:
         future_covariates = None
 
     if none_checker(past_covariates_uri) is not None:
         past_covariates = darts.TimeSeries.from_csv(
-            past_covariates_uri, time_col='Date')
+            past_covariates_uri, time_col='Datetime')
     else:
         past_covariates = None
 
@@ -401,8 +405,8 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         for id in ids:
             curr_comp = curr_ts[curr_ts["ID"] == id]
             curr_comp = pd.melt(curr_comp, id_vars=['Day', 'ID', 'Source', 'Source Code', 'Timeseries ID'], var_name='Time', value_name='Load')
-            curr_comp["Date"] = pd.to_datetime(curr_comp['Day'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
-            curr_comp = curr_comp.set_index("Date")
+            curr_comp["Datetime"] = pd.to_datetime(curr_comp['Day'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
+            curr_comp = curr_comp.set_index("Datetime")
             series = curr_comp[value_name].sort_index().dropna().asfreq(resolution+'min')
             res[-1].append(pd.DataFrame({value_name : series}))
             source[-1].append(curr_comp["Source"].values[0])

@@ -41,6 +41,11 @@ load_dotenv()
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
+from urllib3.exceptions import InsecureRequestWarning
+from urllib3 import disable_warnings
+disable_warnings(InsecureRequestWarning)
+
+
 # DARTS
 
 # def eval_model(model, train, val, n_steps, future_covariates=None, past_covariates=None):
@@ -237,15 +242,14 @@ def backtester(model,
 def build_shap_dataset(size: Union[int, float],
                        train: darts.TimeSeries,
                        test: darts.TimeSeries,
-                       input_chunk_length: int,
-                       output_chunk_length: int,
+                       shap_input_length: int,
+                       shap_output_length: int,
                        past_covs: darts.TimeSeries = None,
                        future_covs: darts.TimeSeries = None):
     """
     Produces the dataset to be fed to SHAP's explainer. It chooses a subset of
     the validation dataset and it returns a dataframe of these samples along
-    with their corresponding covariates if needed by the model. Suports only
-    Global Forecasting Models.
+    with their corresponding covariates if needed by the model. Naive model not supported
     Parameters
     ----------
     size
@@ -258,10 +262,11 @@ def build_shap_dataset(size: Union[int, float],
         of the explainer.
     test
         The validation dataset of the model.
-    input_chunk_length
-        The length of each sample of the dataset. Also, the input_chunk_length of the model.
-    output_chunk_length
-        The output_chunk_length of the model
+    shap_input_length
+        The length of each sample of the dataset. Also, the input_chunk_length of the model if 
+        it exists as a parameter. It can also be set by the user
+    shap_output_length
+        The length of each sample of the result. Also, the forecast horizon used for the model
     past_covs
         Whether the model has been trained with past covariates
     future_covs
@@ -273,10 +278,10 @@ def build_shap_dataset(size: Union[int, float],
             A dataframe consisting of the samples of the validation dataset that
             were chosen, along with their corresponding covariates. Its exact form
             is as follows:
-            0 timestep  1 timestep  ... <input_chunk_length - 1> timestep \
-            Step 0 of past covariate 0 ... Step <input_chunk_length - 1> of past covariate 0 \
-            Step 0 of past covariate 1 ... Step <input_chunk_length - 1> of past covariate <past_covs.n_components> \
-            Step 0 of future covariate 0 ... Step <input_chunk_length + output_chunk_length - 1> of future covariate <future_covs.n_components>
+            0 timestep  1 timestep  ... <shap_input_length - 1> timestep \
+            Step 0 of past covariate 0 ... Step <shap_input_length - 1> of past covariate 0 \
+            Step 0 of past covariate 1 ... Step <shap_input_length - 1> of past covariate <past_covs.n_components> \
+            Step 0 of future covariate 0 ... Step <shap_input_length + shap_output_length - 1> of future covariate <future_covs.n_components>
         -Second position of tuple:
             A dataframe containing the sample providing the values that replace the data's values that are simulated to be
             missing. Each feature's value is the median of the TimeSeries it originates from. So, if it's a covariate feature,
@@ -295,19 +300,19 @@ def build_shap_dataset(size: Union[int, float],
 
     #Choosing the samples of val we will use randomly
     if(type(size) == float):
-        size = int(size*(len(test) - input_chunk_length + 1))
-    if size == len(test) - input_chunk_length + 1:
+        size = int(size*(len(test) - shap_input_length + 1))
+    if size == len(test) - shap_input_length + 1:
         samples = set(range(size))
     else:
         for i in range(size):
             while(True):
-                r = random.randint(0, len(test) - input_chunk_length + 1)
+                r = random.randint(0, len(test) - shap_input_length + 1)
                 if r not in samples:
                     break
             samples.add(r)
 
     for i in samples:
-        curr = test[i:i + input_chunk_length]
+        curr = test[i:i + shap_input_length]
         curr_date = int(curr.time_index[0].timestamp())
         curr_values = curr.random_component_values(copy=False)
         #if np.isnan(curr_values).any():
@@ -316,25 +321,25 @@ def build_shap_dataset(size: Union[int, float],
         data.append(curr_values.flatten())
 #    print(data[-1].flatten())
         if first_iter:
-            columns.extend([str(i) + " timestep" for i in range(input_chunk_length)])
+            columns.extend([str(i) + " timestep" for i in range(shap_input_length)])
             median_of_train = statistics.median(map(lambda x : x.median(axis=0).values()[0,0], train))
 #            print("median of train", median_of_train)
-            background.extend([median_of_train for _ in range(input_chunk_length)])
+            background.extend([median_of_train for _ in range(shap_input_length)])
         if past_covs != None:
             for ii in range(past_covs.n_components):
-                data[-1] = np.concatenate([data[-1], past_covs.univariate_component(ii)[i:i + input_chunk_length].random_component_values(copy=False).flatten()])
+                data[-1] = np.concatenate([data[-1], past_covs.univariate_component(ii)[i:i + shap_input_length].random_component_values(copy=False).flatten()])
                 if first_iter:
-                    columns.extend(["Step " + str(iii) + " of past covariate " + str(ii) for iii in range(input_chunk_length)])
-                    background.extend([past_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(input_chunk_length)])
+                    columns.extend(["Step " + str(iii) + " of past covariate " + str(ii) for iii in range(shap_input_length)])
+                    background.extend([past_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length)])
         if future_covs != None:
             for ii in range(future_covs.n_components):
-                data[-1] = np.concatenate([data[-1], future_covs.univariate_component(ii)[i:i + input_chunk_length + output_chunk_length].random_component_values(copy=False).flatten()])
+                data[-1] = np.concatenate([data[-1], future_covs.univariate_component(ii)[i:i + shap_input_length + shap_output_length].random_component_values(copy=False).flatten()])
                 if first_iter:
-                    columns.extend(["Step " + str(iii) + " of future covariate " + str(ii) for iii in range(input_chunk_length + output_chunk_length)])
-                    background.extend([future_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(input_chunk_length + output_chunk_length)])
+                    columns.extend(["Step " + str(iii) + " of future covariate " + str(ii) for iii in range(shap_input_length + shap_output_length)])
+                    background.extend([future_covs.univariate_component(ii).median(axis=0).values()[0,0] for _ in range(shap_input_length + shap_output_length)])
         data[-1] = np.concatenate([data[-1], [curr_date]])
         if first_iter:
-            columns.extend(["Date"])
+            columns.extend(["Datetime"])
             background.extend([curr_date])
         first_iter = False
 
@@ -345,11 +350,12 @@ def build_shap_dataset(size: Union[int, float],
 def predict(x: darts.TimeSeries,
             n_past_covs: int,
             n_future_covs: int,
-            input_chunk_length: int,
-            output_chunk_length: int,
+            shap_input_length: int,
+            shap_output_length: int,
             model,
             scaler_list: List[darts.dataprocessing.transformers.Scaler],
-            scale: bool = True):
+            scale: bool = True,
+            num_samples: int = 1):
     """
     The function to be given to KernelExplainer, in order for it to produce predictions
     for all samples of x. These samples have the format described in the above function. Also,
@@ -363,10 +369,11 @@ def predict(x: darts.TimeSeries,
         timeseries to be given to the models predict method.
     n_future_covs
         The number of future covariates the model was trained on.
-    input_chunk_length
-        The length of each sample of the dataset. Also, the input_chunk_length of the model.
-    output_chunk_length
-        The length of each sample of the result. Also, the output_chunk_length of the model
+    shap_input_length
+        The length of each sample of the dataset. Also, the input_chunk_length of the model if 
+        it exists as a parameter. It can also be set by the user
+    shap_output_length
+        The length of each sample of the result. Also, the forecast horizon used for the model.
     model
         The model to be explained.
     scaler_list
@@ -378,7 +385,7 @@ def predict(x: darts.TimeSeries,
     -------
     numpy.array
         The numpy array of the model's results. Its line number is equal to the number of samples
-        provided, and its column number is equal to output_chunk_length.
+        provided, and its column number is equal to shap_output_length.
     """
 
     series_list = []
@@ -386,10 +393,10 @@ def predict(x: darts.TimeSeries,
     future_covs_list = []
     for sample in x:
     #    print(sample)
-        index = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(input_chunk_length)]
-        index_future = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(input_chunk_length + output_chunk_length)]
+        index = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length)]
+        index_future = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
         sample = np.array(sample, dtype=np.float32)
-        data = sample[:input_chunk_length]
+        data = sample[:shap_input_length]
         ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Load"]))
     #    print(ts.dtype)
         if scale:
@@ -397,28 +404,28 @@ def predict(x: darts.TimeSeries,
     #    print(ts)
         past_covs = None
         future_covs = None
-        for i in range(input_chunk_length, input_chunk_length*(n_past_covs+1), input_chunk_length):
+        for i in range(shap_input_length, shap_input_length*(n_past_covs+1), shap_input_length):
 #            print(i, "p")
-            data = sample[i:i+input_chunk_length]
-            if i == input_chunk_length:
+            data = sample[i:i+shap_input_length]
+            if i == shap_input_length:
                 past_covs = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Covariate"]))
                 if scale:
-                    past_covs = scaler_list[i//input_chunk_length].transform(past_covs)
+                    past_covs = scaler_list[i//shap_input_length].transform(past_covs)
             else:
                 temp = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Covariate"]))
                 if scale:
-                    past_covs = past_covs.stack(scaler_list[i//input_chunk_length].transform(temp))
+                    past_covs = past_covs.stack(scaler_list[i//shap_input_length].transform(temp))
                 else:
                     past_covs = past_covs.stack(temp)
         if past_covs == None: 
             past_covs_list = None 
         else:
             past_covs_list.append(past_covs)
-        for i in range(input_chunk_length*(n_past_covs+1), input_chunk_length*(n_past_covs+1) + (input_chunk_length + output_chunk_length)*n_future_covs, input_chunk_length + output_chunk_length):
+        for i in range(shap_input_length*(n_past_covs+1), shap_input_length*(n_past_covs+1) + (shap_input_length + shap_output_length)*n_future_covs, shap_input_length + shap_output_length):
 #            print(i, "f")
-            data = sample[i:i+input_chunk_length+output_chunk_length]
-            scale_index = 1 + n_past_covs + (i - input_chunk_length*(n_past_covs+1))//(input_chunk_length+output_chunk_length)
-            if i == input_chunk_length*(n_past_covs+1):
+            data = sample[i:i+shap_input_length+shap_output_length]
+            scale_index = 1 + n_past_covs + (i - shap_input_length*(n_past_covs+1))//(shap_input_length+shap_output_length)
+            if i == shap_input_length*(n_past_covs+1):
                 future_covs = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index_future, columns=["Covariate"]))
                 if scale:
                     future_covs = scaler_list[scale_index].transform(future_covs)
@@ -435,9 +442,9 @@ def predict(x: darts.TimeSeries,
         series_list.append(ts)
     #    print("asdssd", past_covs, future_covs)
     try:
-        res = model.predict(output_chunk_length, series_list, past_covariates=past_covs_list, future_covariates=future_covs_list, num_samples=num_samples)
+        res = model.predict(shap_output_length, series_list, past_covariates=past_covs_list, future_covariates=future_covs_list, num_samples=num_samples)
     except:
-        res = model.predict(output_chunk_length, series_list, num_samples=num_samples)
+        res = model.predict(shap_output_length, series_list, num_samples=num_samples)
     if scale:
         res = list(map(lambda elem : scaler_list[0].inverse_transform(elem).univariate_values(), res))
     else:
@@ -463,13 +470,14 @@ def bar_plot_store_json(shap_values, data, filename):
 
 def call_shap(n_past_covs: int,
               n_future_covs: int,
-              input_chunk_length: int,
-              output_chunk_length: int,
+              shap_input_length: int,
+              shap_output_length: int,
               model,
               scaler_list: List[darts.dataprocessing.transformers.Scaler],
               background: darts.TimeSeries,
               data: darts.TimeSeries,
-              scale: bool = True):
+              scale: bool = True,
+              num_samples: int = 1):
     """
     The function that calls KernelExplainer, and stores to the MLflow server
     some plots explaining the output of the model. More specifficaly, ...
@@ -480,10 +488,11 @@ def call_shap(n_past_covs: int,
         timeseries to be given to the models predict method.
     n_future_covs
         The number of future covariates the model was trained on.
-    input_chunk_length
-        The length of each sample of the dataset. Also, the input_chunk_length of the model.
-    output_chunk_length
-        The length of each sample of the result. Also, the output_chunk_length of the model
+    shap_input_length
+        The length of each sample of the dataset. Also, the input_chunk_length of the model if 
+        it exists as a parameter. It can also be set by the user
+    shap_output_length
+        The length of each sample of the result. Also, the forecast horizon used for the model. 
     model
         The model to be explained.
     scaler_list
@@ -500,14 +509,14 @@ def call_shap(n_past_covs: int,
 
     shap.initjs()
 #    print("background", background)
-    explainer = shap.KernelExplainer(lambda x : predict(x, n_past_covs, n_future_covs, input_chunk_length, output_chunk_length, model, scaler_list, scale), background)
+    explainer = shap.KernelExplainer(lambda x : predict(x, n_past_covs, n_future_covs, shap_input_length, shap_output_length, model, scaler_list, scale), background, num_samples=num_samples)
 #    print("all samples", data)
     shap_values = explainer.shap_values(data, nsamples="auto", normalize=False)
 #    print("values for 0 output", shap_values[0])
     plt.close()
     interprtmpdir = tempfile.mkdtemp()
     sample = random.randint(0, len(data) - 1)
-    for out in [0, output_chunk_length//2, output_chunk_length-1]:
+    for out in [0, shap_output_length//2, shap_output_length-1]:
 #        print(len(shap_values))
 #        print(out)
         shap.summary_plot(shap_values[out], data, show=False)
@@ -591,15 +600,15 @@ def call_shap(n_past_covs: int,
               default="false",
               help="Whether to retrain model during backtesting")
 
-@click.option("--input-chunk-length",
+@click.option("--shap-input-length",
              type=str,
              default="None",
-             help="input_chunk_length of model. Is not None only if evaluating a global forecasting model")
+             help="The length of each sample of the dataset to be used during analysis with SHAP.")
 
-@click.option("--output-chunk-length",
+@click.option("--shap-output-length",
              type=str,
              default="None",
-             help="output_chunk_length of model. Is not None only if evaluating a global forecasting model")
+             help="The length of each sample of the result. Also, the forecast horizon used for the model")
 
 @click.option("--size",
              type=str,
@@ -609,7 +618,7 @@ def call_shap(n_past_covs: int,
 @click.option("--analyze-with-shap",
              type=str,
              default="False",
-             help="Whether to do SHAP analysis on the model. Only global forecasting models are supported")
+             help="Whether to do SHAP analysis on the model. Naive is not supported")
 @click.option("--multiple",
     type=str,
     default="false",
@@ -617,8 +626,8 @@ def call_shap(n_past_covs: int,
 
 @click.option("--eval-series",
     type=str,
-    default="Portugal",
-    help="On which country to run the backtesting. Only for multiple timeseries")
+    default="PT",
+    help="On which timeseries to run the backtesting. Only for multiple timeseries")
 
 @click.option("--cut-date-val",
               type=str,
@@ -638,10 +647,9 @@ def call_shap(n_past_covs: int,
 @click.option("--eval-method",
     type=click.Choice(
         ['ts_ID',
-         'ts_code']),
+         'ID']),
     default="ts_ID",
-    help="What ID type is speciffied in eval_series: \
-    if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at Source Code column ")
+    help="what ID type is speciffied in eval_series: if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at ID column")
 
 @click.option("--evaluate-all-ts",
     type=str,
@@ -659,7 +667,7 @@ def call_shap(n_past_covs: int,
     help="Number of samples to use for evaluating/validating a probabilistic model's output")
 
 
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, input_chunk_length, output_chunk_length, size, analyze_with_shap, multiple, eval_series, cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase, num_samples):
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, shap_input_length, shap_output_length, size, analyze_with_shap, multiple, eval_series, cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase, num_samples):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -680,10 +688,10 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     except:
         size = float(size)
     try:
-        input_chunk_length = int(input_chunk_length)
+        shap_input_length = int(shap_input_length)
     except:
         pass
-    output_chunk_length = int(output_chunk_length)
+    shap_output_length = int(shap_output_length)
 
     # Load model / datasets / scalers from Mlflow server
 
@@ -768,7 +776,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                     if eval_series == str(comp):
                         eval_i = i
         else:
-            for i, comps in enumerate(source_code_l):
+            for i, comps in enumerate(id_l):
                 for comp in comps:
                     if eval_series == str(comp):
                         eval_i = i
@@ -845,8 +853,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                                 train=series_split['train'],
                                                 test=series_split['test']\
                                                      if not multiple else series_split['test'][eval_i],
-                                                input_chunk_length=input_chunk_length,
-                                                output_chunk_length=output_chunk_length,
+                                                shap_input_length=shap_input_length,
+                                                shap_output_length=shap_output_length,
                                                 future_covs=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
                                                 past_covs=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]))
 
@@ -854,13 +862,14 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                 #TODO check SHAP with covariates
                 call_shap(n_past_covs=0 if past_covariates == None else past_covariates.n_components,
                     n_future_covs=0 if future_covariates == None else future_covariates.n_components,
-                    input_chunk_length=input_chunk_length,
-                    output_chunk_length=output_chunk_length,
+                    shap_input_length=shap_input_length,
+                    shap_output_length=shap_output_length,
                     model=model,
                     scaler_list=[scaler if (not multiple or (scaler == None)) else scaler[eval_i],],
                     background=background,
                     data=data,
-                    scale=(scaler != None))
+                    scale=(scaler != None),
+                    num_samples=num_samples)
         if not multiple:
             series_split['test'].to_csv(
                     os.path.join(evaltmpdir, "test.csv"))

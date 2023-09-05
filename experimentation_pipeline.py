@@ -41,6 +41,10 @@ os.environ['MLFLOW_TRACKING_USERNAME'] = MLFLOW_TRACKING_USERNAME
 os.environ['MLFLOW_TRACKING_PASSWORD'] = MLFLOW_TRACKING_PASSWORD
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)"""
 
+from urllib3.exceptions import InsecureRequestWarning
+from urllib3 import disable_warnings
+
+
 def _already_ran(entry_point_name, parameters, git_commit, experiment_id=None):
     """Best-effort detection of if a run with the given entrypoint name,
     parameters, and experiment id already ran. The run must have completed
@@ -278,8 +282,8 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 
 @click.option("--eval-series",
     type=str,
-    default="Portugal",
-    help="On which country to run the backtesting. Only for multiple timeseries")
+    default="PT",
+    help="On which timeseries to run the backtesting. Only for multiple timeseries")
 
 @click.option("--n-trials",
     type=str,
@@ -309,10 +313,9 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 @click.option("--eval-method",
     type=click.Choice(
         ['ts_ID',
-         'ts_code']),
+         'ID']),
     default="ts_ID",
-    help="What ID type is speciffied in eval_series: \
-    if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at Source Code column ")
+    help="what ID type is speciffied in eval_series: if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at ID column ")
 @click.option("--l-interpolation",
     type=str,
     default="false",
@@ -348,10 +351,12 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     default="false",
     help="Whether to run a grid search or use tpe in optuna")
 
-@click.option("--input-chunk-length",
+@click.option("--shap-input-length",
              type=str,
              default="None",
-             help="input_chunk_length of samples of SHAP. Is taken into account only if not evaluating a global forecasting model")
+             help="The length of each sample of the dataset used during SHAP analysis. Is taken into account \
+             only if not evaluating a model with input_chunk_length as one of its parameters. In the latter case, \
+             shap_input_length=input_chunk_length")
 
 @click.option("--ts-used-id",
     type=str,
@@ -381,8 +386,11 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_series, n_trials, opt_test, from_mongo, mongo_name, num_workers, eval_method,
-             l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, input_chunk_length,
+             l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, shap_input_length,
              ts_used_id, m_mase, min_non_nan_interval, num_samples):
+
+    disable_warnings(InsecureRequestWarning)
+
 
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
@@ -547,8 +555,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "forecast_horizon": forecast_horizon,
                 "stride": stride,
                 "retrain": retrain,
-                "input_chunk_length" : 0,
-                "output_chunk_length" : 0,
+                "shap_input_length" : shap_input_length,
+                "shap_output_length" : forecast_horizon,
                 "size" : shap_data_size,
                 "analyze_with_shap" : analyze_with_shap,
                 "multiple": multiple,
@@ -562,14 +570,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
             }
 
         if "input_chunk_length" in train_opt_run.data.params:
-            eval_params["input_chunk_length"] = train_opt_run.data.params["input_chunk_length"]
-        else:
-            eval_params["input_chunk_length"] = input_chunk_length
-
-        if "output_chunk_length" in train_opt_run.data.params:
-            eval_params["output_chunk_length"] = train_opt_run.data.params["output_chunk_length"]
-        else:
-            eval_params["output_chunk_length"] = forecast_horizon
+            eval_params["shap_input_length"] = train_opt_run.data.params["input_chunk_length"]
             
         # Naive models require retrain=True
         if "naive" in [train_opt_run.data.params["darts_model"].lower()]:

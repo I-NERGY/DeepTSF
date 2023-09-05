@@ -52,6 +52,10 @@ load_dotenv()
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 
+from urllib3.exceptions import InsecureRequestWarning
+from urllib3 import disable_warnings
+disable_warnings(InsecureRequestWarning)
+
 # stop training when validation loss does not decrease more than 0.05 (`min_delta`) over
 # a period of 5 epochs (`patience`)
 my_stopper = EarlyStopping(
@@ -255,7 +259,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
         ######################
         # Load series and covariates datasets
-        time_col = "Date"
+        time_col = "Datetime"
         series, source_l, source_code_l, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
                 local_path=series_csv,
                 name='series',
