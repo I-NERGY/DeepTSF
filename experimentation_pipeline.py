@@ -275,6 +275,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
              type=str,
              default="False",
              help="Whether to do SHAP analysis on the model. Only global forecasting models are supported")
+
 @click.option("--multiple",
     type=str,
     default="false",

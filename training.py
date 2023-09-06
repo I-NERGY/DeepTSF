@@ -260,7 +260,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         ######################
         # Load series and covariates datasets
         time_col = "Datetime"
-        series, source_l, source_code_l, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
+        series, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
                 local_path=series_csv,
                 name='series',
                 time_col=time_col,
@@ -269,7 +269,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 day_first=day_first,
                 resolution=resolution)
         if future_covariates is not None:
-            future_covariates, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
+            future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
@@ -278,9 +278,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 day_first=day_first,
                 resolution=resolution)
         else:
-            future_covariates, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = None, None, None, None, None
+            future_covariates, id_l_future_covs, ts_id_l_future_covs = None, None, None
         if past_covariates is not None:
-            past_covariates, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
+            past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
                 local_path=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
@@ -289,7 +289,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 day_first=day_first,
                 resolution=resolution)
         else:
-            past_covariates, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = None, None, None, None, None
+            past_covariates, id_l_past_covs, ts_id_l_past_covs = None, None, None
         #print("NUM NULL", series[0].pd_dataframe().isnull().sum().sum())
 
         print("\nCreating local folders...")
@@ -316,8 +316,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             name='series',
             conf_file_name='split_info.yml',
             multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
             id_l=id_l,
             ts_id_l=ts_id_l)
         ## future covariates
@@ -329,8 +327,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             # store_dir=features_dir,
             name='future_covariates',
             multiple=True,
-            source_l=source_l_future_covs,
-            source_code_l=source_code_l_future_covs,
             id_l=id_l_future_covs,
             ts_id_l=ts_id_l_future_covs)
         ## past covariates
@@ -342,8 +338,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             # store_dir=features_dir,
             name='past_covariates',
             multiple=True,
-            source_l=source_l_past_covs,
-            source_code_l=source_code_l_past_covs,
             id_l=id_l_past_covs,
             ts_id_l=ts_id_l_past_covs)
         
@@ -361,8 +355,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             filename_suffix="series_transformed.csv",
             scale=scale,
             multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
             id_l=id_l,
             ts_id_l=ts_id_l
             )
@@ -375,8 +367,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             filename_suffix="future_covariates_transformed.csv",
             scale=scale_covs,
             multiple=True,
-            source_l=source_l_future_covs,
-            source_code_l=source_code_l_future_covs,
             id_l=id_l_future_covs,
             ts_id_l=ts_id_l_future_covs
             )
@@ -387,8 +377,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             filename_suffix="past_covariates_transformed.csv",
             scale=scale_covs,
             multiple=True,
-            source_l=source_l_past_covs,
-            source_code_l=source_code_l_past_covs,
             id_l=id_l_past_covs,
             ts_id_l=ts_id_l_past_covs
             )

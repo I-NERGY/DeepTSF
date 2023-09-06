@@ -55,7 +55,7 @@ def split_nans(covariates, past_covs, future_covs):
 def split_dataset(covariates, val_start_date_str, test_start_date_str,
         test_end_date=None, store_dir=None, name='series',
         conf_file_name='split_info.yml', multiple=False,
-        source_l=[], source_code_l=[], id_l=[], ts_id_l=[]):
+        id_l=[], ts_id_l=[]):
     if covariates is not None:
         if not multiple:
             covariates = [covariates]
@@ -104,7 +104,7 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
             if not multiple:
                 covariates_return[0].to_csv(f"{store_dir}/{name}.csv")
             else:
-                multiple_dfs_to_ts_file(covariates_return, source_l, source_code_l, id_l, ts_id_l, f"{store_dir}/{name}.csv")
+                multiple_dfs_to_ts_file(covariates_return, id_l, ts_id_l, f"{store_dir}/{name}.csv")
         if not multiple:
             covariates_train = covariates_train[0]
             covariates_val = covariates_val[0]
@@ -123,7 +123,7 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
             "all": covariates_return
            }
 
-def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale=True, multiple=False, source_l=[], source_code_l=[], id_l=[], ts_id_l=[]):
+def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale=True, multiple=False, id_l=[], ts_id_l=[]):
     covariates_train = covariates_split['train']
     covariates_val = covariates_split['val']
     covariates_test = covariates_split['test']
@@ -182,7 +182,7 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale
                 covariates_transformed.to_csv(
                     f"{store_dir}/{filename_suffix}")
             else:
-                multiple_dfs_to_ts_file(covariates_transformed, source_l, source_code_l, id_l, ts_id_l, f"{store_dir}/{filename_suffix}")
+                multiple_dfs_to_ts_file(covariates_transformed, id_l, ts_id_l, f"{store_dir}/{filename_suffix}")
 
 
         return {"train": covariates_train_transformed,
