@@ -154,7 +154,6 @@ from dates which are also before cut_date_val.
  The parameters of the pipeline associated with this method are presented below, along with all parameters of data pre-processing:
 
 ### Parameters of the pipeline
-TODO: Check that leave it be
 * ```resolution``` (default 15), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and then afterwards resampling is performed. 
 
 * ```year_range``` (default 2009-2019), the years to use from the datasets (inclusive). All values outside of those dates will be dropped.
@@ -255,7 +254,7 @@ scale: ["list", "True", "False"]
 
 * ```retrain``` (default false), whether to retrain model during backtesting.
 
-TODO: not working ?
+[TODO: not working ?]::
 
 * ```ignore_previous_runs``` (default true), whether to ignore previous step runs while running the pipeline. If true, all stages of the pipeline will be run again. If false, and there are mlflow runs with exactly the same parameters saved on the tracking server, the pipeline will use these results instead of executing the run again.  
 
@@ -297,8 +296,9 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 
 * ```stride``` (default None), the number of time steps between two consecutive steps of backtesting. If it is None, then stride = forecast_horizon
 
-TODO: SHAP ask if changes are ok
-SHAP with covariates fix
+[TODO: SHAP ask if changes are ok]::
+[SHAP with covariates fix]::
+
 * ```shap_data_size``` (default 10), The size of shap dataset in samples. The SHAP coefficients are going to be computed for this number of random samples of the test dataset. If it is a float, it represents the proportion of samples of the test dataset that will be chosen. If it is an int, it represents the absolute number of samples to be produced.
 
 * ```shap_data_size``` (default false), whether to do SHAP analysis on the model.
