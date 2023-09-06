@@ -412,7 +412,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     ######################
     # Load series and covariates datasets
     time_col = "Datetime"
-    series, source_l, source_code_l, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
+    series, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
                 local_path=series_csv,
                 name='series',
                 time_col=time_col,
@@ -421,7 +421,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 day_first=day_first,
                 resolution=resolution)
     if future_covariates is not None:
-        future_covariates, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
+        future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
                 name='future covariates',
                 time_col=time_col,
@@ -430,9 +430,9 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 day_first=day_first,
                 resolution=resolution)
     else:
-        future_covariates, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = None, None, None, None, None
+        future_covariates, id_l_future_covs, ts_id_l_future_covs = None, None, None
     if past_covariates is not None:
-        past_covariates, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
+        past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
                 local_path=past_covs_csv,
                 name='past covariates',
                 time_col=time_col,
@@ -441,7 +441,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 day_first=day_first,
                 resolution=resolution)
     else:
-        past_covariates, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = None, None, None, None, None
+        past_covariates, id_l_past_covs, ts_id_l_past_covs = None, None, None
 
     if scale:
         scalers_dir = tempfile.mkdtemp()
@@ -466,8 +466,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             name='series',
             conf_file_name='split_info.yml',
             multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
             id_l=id_l,
             ts_id_l=ts_id_l)
         ## future covariates
@@ -479,8 +477,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             # store_dir=features_dir,
             name='future_covariates',
             multiple=True,
-            source_l=source_l_future_covs,
-            source_code_l=source_code_l_future_covs,
             id_l=id_l_future_covs,
             ts_id_l=ts_id_l_future_covs)
         ## past covariates
@@ -492,8 +488,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             # store_dir=features_dir,
             name='past_covariates',
             multiple=True,
-            source_l=source_l_past_covs,
-            source_code_l=source_code_l_past_covs,
             id_l=id_l_past_covs,
             ts_id_l=ts_id_l_past_covs)
     #################
@@ -508,8 +502,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             filename_suffix="series_transformed.csv",
             scale=scale,
             multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
             id_l=id_l,
             ts_id_l=ts_id_l
             )
@@ -522,8 +514,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             filename_suffix="future_covariates_transformed.csv",
             scale=scale_covs,
             multiple=True,
-            source_l=source_l_future_covs,
-            source_code_l=source_code_l_future_covs,
             id_l=id_l_future_covs,
             ts_id_l=ts_id_l_future_covs
             )
@@ -534,8 +524,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             filename_suffix="past_covariates_transformed.csv",
             scale=scale_covs,
             multiple=True,
-            source_l=source_l_past_covs,
-            source_code_l=source_code_l_past_covs,
             id_l=id_l_past_covs,
             ts_id_l=ts_id_l_past_covs
             )
@@ -770,7 +758,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     ## load series from MLflow
     series_path = download_online_file(
         series_uri, "series.csv") if mode == 'remote' else series_uri
-    series, source_l, source_code_l, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
+    series, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
         local_path=series_path,
         last_date=test_end_date,
         multiple=multiple,
@@ -792,8 +780,6 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
             test_start_date_str=cut_date_test,
             test_end_date=test_end_date,
             multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
             id_l=id_l,
             ts_id_l=ts_id_l)
 
@@ -804,8 +790,6 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
             test_start_date_str=cut_date_test,
             test_end_date=test_end_date,
             multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
             id_l=id_l,
             ts_id_l=ts_id_l)
         
@@ -818,8 +802,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
             backtest_series_transformed = darts.timeseries.concatenate([series_transformed_split['train'][eval_i], series_transformed_split['val'][eval_i]]) if multiple else \
                             darts.timeseries.concatenate([series_transformed_split['train'], series_transformed_split['val']])
             #print("testing on", eval_i, backtest_series_transformed)
-            print(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
-            logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
+            print(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}...")
+            logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}...")
             print(f"Validating from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
             logging.info(f"Validating from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
             print("")
@@ -877,8 +861,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                         darts.timeseries.concatenate([series_transformed_split['train'], series_transformed_split['val']])
         #print("testing on", eval_i, backtest_series_transformed)
         if multiple:
-            print(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
-            logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
+            print(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}...")
+            logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}...")
 
         print(f"Validating from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
         logging.info(f"Validating from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
@@ -1034,10 +1018,9 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 @click.option("--eval-method",
     type=click.Choice(
         ['ts_ID',
-         'ts_code']),
+         'ID']),
     default="ts_ID",
-    help="What ID type is speciffied in eval_series: \
-    if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at Source Code column ")
+    help="what ID type is speciffied in eval_series: if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at ID column ")
 
 @click.option("--loss-function",
     type=click.Choice(

@@ -270,7 +270,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
     try:
         if multiple:
             #TODO Fix this too
-            ts_list, source_l, source_code_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=True, resolution=resolution)
+            ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=True, resolution=resolution)
             covariate_l  = []
             #print("liiiist", local_path)
             #print(ts_list[0])
@@ -294,7 +294,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
                         covariate_l[-1] = covariate_l[-1].stack(covariates)
             covariates = covariate_l
         else:
-            source_code_l, source_l, id_l, ts_id_l = [[]], [[]], [[]], [[]]
+            id_l, ts_id_l = [[]], [[]]
             covariates = darts.TimeSeries.from_csv(
                 local_path, time_col=time_col,
                 fill_missing_dates=True,
@@ -318,7 +318,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             f"\nBad {name} file. The model won't include {name}...")
         covariates = None
     print("NUM NULL AFTER APPEND", covariates[-1].pd_dataframe().isnull().sum().sum())
-    return covariates, source_l, source_code_l, id_l, ts_id_l
+    return covariates, id_l, ts_id_l
 
 
 def parse_uri_prediction_input(model_input: dict, model) -> dict:
@@ -387,8 +387,6 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      engine='python')
     #print("ts", ts, sep="\n")
     res = []
-    source = []
-    source_code = []
     id_l = []
     ts_id_l = []
     ts_ids = list(np.unique(ts["Timeseries ID"]))
@@ -398,50 +396,43 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         curr_ts = ts[ts["Timeseries ID"] == ts_id]
         ids = list(np.unique(curr_ts["ID"]))
         res.append([])
-        source.append([])
-        source_code.append([])
         id_l.append([])
         ts_id_l.append([])
         for id in ids:
             curr_comp = curr_ts[curr_ts["ID"] == id]
-            curr_comp = pd.melt(curr_comp, id_vars=['Day', 'ID', 'Source', 'Source Code', 'Timeseries ID'], var_name='Time', value_name='Load')
-            curr_comp["Datetime"] = pd.to_datetime(curr_comp['Day'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
+            curr_comp = pd.melt(curr_comp, id_vars=['Date', 'ID', 'Timeseries ID'], var_name='Time', value_name='Load')
+            curr_comp["Datetime"] = pd.to_datetime(curr_comp['Date'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
             curr_comp = curr_comp.set_index("Datetime")
             series = curr_comp[value_name].sort_index().dropna().asfreq(resolution+'min')
             res[-1].append(pd.DataFrame({value_name : series}))
-            source[-1].append(curr_comp["Source"].values[0])
-            source_code[-1].append(curr_comp["Source Code"].values[0])
             id_l[-1].append(id)
             ts_id_l[-1].append(ts_id)
-    return res, source, source_code, id_l, ts_id_l
+    return res, id_l, ts_id_l
 
-def multiple_dfs_to_ts_file(res_l, source_l, source_code_l, id_l, ts_id_l, save_dir, save=True):
+def multiple_dfs_to_ts_file(res_l, id_l, ts_id_l, save_dir, save=True):
     ts_list = []
     print(res_l)
-    print(source_l)
     print(ts_id_l)
     print("\nTurning dataframe list to multiple ts file...")
     logging.info("\nTurning dataframe list to multiple ts file...")
-    for ts_num, (ts, source_ts, source_code_ts, id_ts, ts_id_ts) in tqdm(list(enumerate(zip(res_l, source_l, source_code_l, id_l, ts_id_l)))):
+    for ts_num, (ts, id_ts, ts_id_ts) in tqdm(list(enumerate(zip(res_l, id_l, ts_id_l)))):
 #        print("ts_num", ts)
         print(type(ts))
         print(ts)
         if type(ts) == darts.timeseries.TimeSeries:
             ts = [ts.univariate_component(i).pd_dataframe() for i in range(ts.n_components)]
-        for comp_num, (comp, source, source_code, id, ts_id) in enumerate(zip(ts, source_ts, source_code_ts, id_ts, ts_id_ts)):
+        for comp_num, (comp, id, ts_id) in enumerate(zip(ts, id_ts, ts_id_ts)):
  #           print(comp)
             load_col = comp.columns[0]
-            comp["Day"] = comp.index.date
+            comp["Date"] = comp.index.date
             comp["Time"] = comp.index.time
-            comp = pd.pivot_table(comp, index=["Day"], columns=["Time"])
+            comp = pd.pivot_table(comp, index=["Date"], columns=["Time"])
             comp = comp[load_col]
             comp["ID"] = id
             comp["Timeseries ID"] = ts_id
-            comp["Source"] = source
-            comp["Source Code"] = source_code
             ts_list.append(comp)
-    res = pd.concat(ts_list).sort_values(by=["Day", "ID"])
-    columns = list(res.columns)[-4:] + list(res.columns)[:-4]
+    res = pd.concat(ts_list).sort_values(by=["Date", "ID"])
+    columns = list(res.columns)[-2:] + list(res.columns)[:-2]
     res = res[columns].reset_index()
     if save:
         res.to_csv(save_dir)

@@ -698,7 +698,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     ## load series from MLflow
     series_path = download_online_file(
         series_uri, "series.csv") if mode == 'remote' else series_uri
-    series, source_l, source_code_l, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
+    series, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
         local_path=series_path,
         last_date=test_end_date,
         multiple=multiple,
@@ -709,7 +709,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     if future_covariates_uri is not None:
         future_covs_path = download_online_file(
             future_covariates_uri, "future_covariates.csv") if mode == 'remote' else future_covariates_uri
-        future_covariates, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
+        future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
             local_path=future_covs_path,
             last_date=test_end_date,
             multiple=True,
@@ -721,7 +721,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     if past_covariates_uri is not None:
         past_covs_path = download_online_file(
             past_covariates_uri, "past_covariates.csv") if mode == 'remote' else past_covariates_uri
-        past_covariates, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
+        past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
             local_path=past_covs_path,
             last_date=test_end_date,
             multiple=True,
@@ -751,8 +751,6 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             test_start_date_str=cut_date_test,
             test_end_date=test_end_date,
             multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
             id_l=id_l,
             ts_id_l=ts_id_l)
 
@@ -762,8 +760,6 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             test_start_date_str=cut_date_test,
             test_end_date=test_end_date,
             multiple=multiple,
-            source_l=source_l,
-            source_code_l=source_code_l,
             id_l=id_l,
             ts_id_l=ts_id_l)
 
@@ -794,8 +790,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             for eval_i in range(ts_n):
                 backtest_series_transformed = series_transformed_split['all'] if not multiple else series_transformed_split['all'][eval_i]
                 #print("testing on", eval_i, backtest_series_transformed)
-                print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
-                logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}...")
+                print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}...")
+                logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}...")
                 print(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
                 logging.info(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
                 print("")
@@ -826,8 +822,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             evaluation_results["metrics"] = eval_results.mean(axis=0, numeric_only=True).to_dict()
         else:
             if multiple:
-                print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
-                logging.info(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and Source Code of first component {source_code_l[eval_i][0]}")
+                print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}")
+                logging.info(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}")
 
             backtest_series_transformed = series_transformed_split['all'] if not multiple else series_transformed_split['all'][eval_i]
             print(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
@@ -874,7 +870,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             series_split['test'].to_csv(
                     os.path.join(evaltmpdir, "test.csv"))
         else:
-            multiple_dfs_to_ts_file(series_split['test'], source_l, source_code_l, id_l, ts_id_l, os.path.join(evaltmpdir, "test.csv"))
+            multiple_dfs_to_ts_file(series_split['test'], id_l, ts_id_l, os.path.join(evaltmpdir, "test.csv"))
 
         print("\nUploading evaluation results to MLflow server...")
         logging.info("\nUploading evaluation results to MLflow server...")

@@ -767,18 +767,18 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     logging.info("\nLoading source dataset..")
 
     if past_covs_csv != None:
-        ts_list_past_covs, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = \
+        ts_list_past_covs, id_l_past_covs, ts_id_l_past_covs = \
                 multiple_ts_file_to_dfs(past_covs_csv, day_first, infered_resolution_past)
     else:
-        ts_list_past_covs, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs = [], [], [], [], []
+        ts_list_past_covs, id_l_past_covs, ts_id_l_past_covs = [], [], []
     if future_covs_csv != None:
-        ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = \
+        ts_list_future_covs, id_l_future_covs, ts_id_l_future_covs = \
                 multiple_ts_file_to_dfs(future_covs_csv, day_first, infered_resolution_future)
     else:
-        ts_list_future_covs, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs = [], [], [], [], []
+        ts_list_future_covs, id_l_future_covs, ts_id_l_future_covs = [], [], []
 
     if multiple:
-        ts_list, source_l, source_code_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, infered_resolution_series)
+        ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, infered_resolution_series)
         if ts_used_id != None:
             try:
                 ts_used_id = int(ts_used_id)
@@ -787,20 +787,14 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
             index = ts_id_l.index([ts_used_id for _ in range(len(ts_id_l[0]))])
             #TODO: return error if not found
             ts_list = [ts_list[index]]
-            source_l = [source_l[index]]
-            source_code_l = [source_code_l[index]]
             id_l = [id_l[index]]
             ts_id_l = [ts_id_l[index]]
             if past_covs_csv != None:
                 ts_list_past_covs = [ts_list_past_covs[index]]
-                source_l_past_covs = [source_l_past_covs[index]]
-                source_code_l_past_covs = [source_code_l_past_covs[index]]
                 id_l_past_covs = [id_l_past_covs[index]]
                 ts_id_l_past_covs = [ts_id_l_past_covs[index]]
             if future_covs_csv != None:
                 ts_list_future_covs = [ts_list_future_covs[index]]
-                source_l_future_covs = [source_l_future_covs[index]]
-                source_code_l_future_covs = [source_code_l_future_covs[index]]
                 id_l_future_covs = [id_l_future_covs[index]]
                 ts_id_l_future_covs = [ts_id_l_future_covs[index]]
 
@@ -812,7 +806,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                          index_col=0,
                          parse_dates=True,
                          dayfirst=day_first)]]
-        source_l, source_code_l, id_l, ts_id_l = [[country]], [[country]], [[country]], [[country]]
+        id_l, ts_id_l = [[country]], [[country]]
 
     # Year range handling
     if none_checker(year_range) is None:
@@ -843,17 +837,17 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
             res_.append([])
             for comp_num, comp in enumerate(ts):
                 # temporal filtering
-                print(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}, Source {source_l[ts_num][comp_num]}...")
-                logging.info(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}, Source {source_l[ts_num][comp_num]}...")
+                print(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}...")
+                logging.info(f"\n---> Starting etl of ts {ts_num+1} / {len(ts_list)}, component {comp_num+1} / {len(ts)}, id {id_l[ts_num][comp_num]}...")
                 if convert_to_local_tz:
                     print(f"\nConverting to local Timezone...")
                     logging.info(f"\nConverting to local Timezone...")
                     try:
-                        utc_to_local(comp, source_code_l[ts_num][comp_num])
+                        utc_to_local(comp, id_l[ts_num][comp_num])
                     except:
                         try:
-                            print(f"\nSource Code not a country code, trying country argument...")
-                            logging.info(f"\nSource Code not a country code, trying country argument...")
+                            print(f"\ID not a country code, trying country argument...")
+                            logging.info(f"\ID not a country code, trying country argument...")
                             utc_to_local(comp, country)
                         except:
                             print(f"\nError occured, keeping time provided by the file...")
@@ -876,17 +870,17 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                     print("\nPerfrorming Outlier Detection...")
                     logging.info("\nPerfrorming Outlier Detection...")
                     comp_res, removed = remove_outliers(ts=comp_res,
-                                                        name=source_l[ts_num][comp_num],
+                                                        name=id_l[ts_num][comp_num],
                                                         std_dev=std_dev,
                                                         resolution=infered_resolution_series)
                 #holidays_: The holidays of country
                 try:
-                    code = compile(f"holidays.{source_l[ts_num][comp_num]}()", "<string>", "eval")
+                    code = compile(f"holidays.{id_l[ts_num][comp_num]}()", "<string>", "eval")
                     country_holidays = eval(code)
                 except:
                     country_holidays = []
-                    print("\nSource column does not specify valid country. Using country argument instead")
-                    logging.info("\nSource column does not specify valid country. Using country argument instead")
+                    print("\nID column does not specify valid country. Using country argument instead")
+                    logging.info("\nID column does not specify valid country. Using country argument instead")
                     try:
                         code = compile(f"holidays.{country}()", "<string>", "eval")
                         country_holidays = eval(code)
@@ -895,7 +889,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 print("\nPerfrorming Imputation of the Dataset...")
                 logging.info("\nPerfrorming Imputation of the Dataset...")
                 #print(comp_res)
-                #comp_res.to_csv(f"../../notebooks/{source_l[ts_num][comp_num]}.csv")
                 comp_res, imputed_values = impute(ts=comp_res,
                                                   holidays=country_holidays,
                                                   max_thr=max_thr,
@@ -904,7 +897,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   ycutoff=ycutoff,
                                                   ydcutoff=ydcutoff,
                                                   resolution=infered_resolution_series,
-                                                  name=source_l[ts_num][comp_num],
+                                                  name=id_l[ts_num][comp_num],
                                                   l_interpolation=l_interpolation,
                                                   cut_date_val=cut_date_val,
                                                   min_non_nan_interval=min_non_nan_interval)
@@ -915,7 +908,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                     comp_res = comp_res.resample(resolution+'min').apply(sum_wo_nans)
                 
                 if comp_res.isnull().sum().sum() > 0:
-                    save_consecutive_nans(comp_res, resolution, impute_dir, source_l[ts_num][comp_num])
+                    save_consecutive_nans(comp_res, resolution, impute_dir, id_l[ts_num][comp_num])
                     
                 print("\nCreating darts data frame...")
                 logging.info("\nCreating darts data frame...")
@@ -947,29 +940,23 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                         print("\nCreating time covariates dataset...")
                         logging.info("\nCreating time covariates dataset...")
                         try:
-                            ts_list_covariates, source_l_covariates, source_code_l_covariates, id_l_covariates, ts_id_l_covariates = get_time_covariates(comp_res_darts, source_l[ts_num][comp_num], ts_id_l[ts_num][0])
+                            ts_list_covariates, id_l_covariates, ts_id_l_covariates = get_time_covariates(comp_res_darts, id_l[ts_num][comp_num], ts_id_l[ts_num][0])
                         except:
-                            print("\nSource column does not specify valid country. Using country argument instead")
-                            logging.info("\nSource column does not specify valid country. Using country argument instead")
+                            print("\nID column does not specify valid country. Using country argument instead")
+                            logging.info("\nID column does not specify valid country. Using country argument instead")
                             try:
-                                ts_list_covariates, source_l_covariates, source_code_l_covariates, id_l_covariates, ts_id_l_covariates = get_time_covariates(comp_res_darts, country,  ts_id_l[ts_num][0])
+                                ts_list_covariates, id_l_covariates, ts_id_l_covariates = get_time_covariates(comp_res_darts, country,  ts_id_l[ts_num][0])
                             except:
                                 raise CountryDoesNotExist()
                         print(ts_list_covariates)
-                        print(source_l_covariates)
-                        print(source_code_l_covariates)
                         print(id_l_covariates)
                         if future_covs_csv == None:
                             res_future.append(ts_list_covariates) 
-                            source_l_future_covs.append(source_l_covariates)
-                            source_code_l_future_covs.append(source_code_l_covariates)
                             id_l_future_covs.append(id_l_covariates)
                             ts_id_l_future_covs.append(ts_id_l_covariates)
                             #TODO check multivariate and multiple
                         else:
                             res_future[-1].extend(ts_list_covariates) 
-                            source_l_future_covs[-1].extend(source_l_covariates)
-                            source_code_l_future_covs[-1].extend(source_code_l_covariates)
                             id_l_future_covs[-1].extend(id_l_covariates)
                             ts_id_l_future_covs[-1].extend(ts_id_l_covariates)
 
@@ -977,15 +964,15 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                     else:
                         print("\nSkipping the creation of time covariates")
                         logging.info("\nSkipping the creation of time covariates")
-                        ts_list_covariates, source_l_covariates, source_code_l_covariates, id_l_covariates, ts_id_l_covariates = None, None, None, None, None
+                        ts_list_covariates, id_l_covariates, ts_id_l_covariates = None, None, None
                 if rmv_outliers:
                     print("\nStoring removed values from outlier detection as csv locally...")
                     logging.info("\nStoring removed values from outlier detection as csv...")
-                    removed.to_csv(f'{outlier_dir}/removed_{source_l[ts_num][comp_num]}.csv')
+                    removed.to_csv(f'{outlier_dir}/removed_{id_l[ts_num][comp_num]}.csv')
 
                 print("\nStoring imputed dates and their values as csv locally...")
                 logging.info("\nStoring imputed dates and their values as csv locally...")
-                imputed_values.to_csv(f'{impute_dir}/imputed_values_{source_l[ts_num][comp_num]}.csv')
+                imputed_values.to_csv(f'{impute_dir}/imputed_values_{id_l[ts_num][comp_num]}.csv')
 
 
                 res_[-1].append(comp_res)
@@ -1000,11 +987,11 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
             print("\nStoring datasets locally...")
             logging.info("\nStoring datasets...")
         else:
-            multiple_dfs_to_ts_file(res_, source_l, source_code_l, id_l, ts_id_l, f'{tmpdir}/series.csv')
+            multiple_dfs_to_ts_file(res_, id_l, ts_id_l, f'{tmpdir}/series.csv')
         if past_covs_csv != None:
-            multiple_dfs_to_ts_file(res_past, source_l_past_covs, source_code_l_past_covs, id_l_past_covs, ts_id_l_past_covs, f'{tmpdir}/past_covs.csv')
+            multiple_dfs_to_ts_file(res_past, id_l_past_covs, ts_id_l_past_covs, f'{tmpdir}/past_covs.csv')
         if (future_covs_csv != None) or time_covs:
-            multiple_dfs_to_ts_file(res_future, source_l_future_covs, source_code_l_future_covs, id_l_future_covs, ts_id_l_future_covs, f'{tmpdir}/future_covs.csv')
+            multiple_dfs_to_ts_file(res_future, id_l_future_covs, ts_id_l_future_covs, f'{tmpdir}/future_covs.csv')
         print("\nUploading features to MLflow server...")
         logging.info("\nUploading features to MLflow server...")
         mlflow.log_artifacts(tmpdir, "features")

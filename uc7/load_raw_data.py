@@ -61,7 +61,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
           named arbitrarily
 
     For multiple timeseries:
-        - Columns 'Day', 'ID', and the time columns exist in any order
+        - Columns 'Date', 'ID', and the time columns exist in any order
         - Only the permitted column names exist in the dataframe (see Multiple timeseries file format bellow)
         - All timeseries in the dataframe have the same number of components
 
@@ -70,23 +70,16 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
     Multiple timeseries file format (along with example values):
 
-    Index | Day         | ID | Source  | Source Code  | Timeseries ID | 00:00:00 | 00:00:00 + resolution | ... | 24:00:00 - resolution
-    0     | 2015-04-09  | 0  | Portugal| PT           |  0            | 5248     | 5109                  | ... | 5345
-    1     | 2015-04-09  | 1  | Spain   | ES           |  1            | 25497    | 23492                 | ... | 25487
+    Index | Date         | ID | Timeseries ID | 00:00:00 | 00:00:00 + resolution | ... | 24:00:00 - resolution
+    0     | 2015-04-09   | PT | PT            | 5248     | 5109                  | ... | 5345
+    1     | 2015-04-09   | ES | ES            | 25497    | 23492                 | ... | 25487
     .
     .
     The columns that can be present in the csv have the following meaning:
         - Index: Simply a monotonic integer range
-        - Day: The Day each row is referring to
+        - Date: The Date each row is referring to
         - ID: Each ID corresponds to a component of a timeseries in the file. 
               This ID must be unique for each timeseries component in the file.
-        - Source (Optional): The Source of the timeseries. If referring to country
-              loads it can be the country name. If it is not provided, it is set
-              to ID.
-        - Source Code (Optional): The Source Code of the timeseries. If referring to country
-              loads it can be the country code. In this case, this will be used to obtain 
-              the country holidays for the imputation function as well as the time covariates.
-              If it is not provided, it is set to ID.
         - Timeseries ID (Optional): Timeseries ID column is not compulsory, and shows the 
               timeseries to which each component belongs. If Timeseries ID is not present, it is 
               assumed that each component represents one seperate series (the column is set to ID).
@@ -123,7 +116,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      sep=None,
                      header=0,
                      index_col=0,
-                     parse_dates=(['Day'] if multiple else True),
+                     parse_dates=(['Date'] if multiple else True),
                      dayfirst=day_first,
                      engine='python')
     
@@ -145,10 +138,6 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         #If columns don't exist set defaults
         if "Timeseries ID" not in ts.columns:
             ts["Timeseries ID"] = ts["ID"]
-        if "Source Code" not in ts.columns:
-            ts["Source Code"] = ts["ID"]
-        if "Source" not in ts.columns:
-            ts["Source"] = ts["ID"]
 
         #Infering resolution for multiple timeseries
         times = []
@@ -160,14 +149,14 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         times.sort()
         resolution = (times[1] - times[0]).seconds // 60
 
-        des_columns = list(map(str, ['Day', 'ID', 'Source', 'Source Code', 'Timeseries ID'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
-        #Check that all columns 'Day', 'ID', 'Source', 'Source Code' 'Timeseries ID' and the time columns exist in any order.
+        des_columns = list(map(str, ['Date', 'ID', 'Timeseries ID'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
+        #Check that all columns 'Date', 'ID', 'Timeseries ID' and the time columns exist in any order.
         if not set(des_columns) == set(list(ts.columns)):
             raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
-        #Check that all dates for each source component are sorted
+        #Check that all dates for each component are sorted
         for id in np.unique(ts["ID"]):
-            if not ts.loc[ts["ID"] == id]["Day"].sort_values().equals(ts.loc[ts["ID"] == id]["Day"]):
-                #(ts.loc[ts["ID"] == id]["Day"].sort_values()).to_csv("test.csv")
+            if not ts.loc[ts["ID"] == id]["Date"].sort_values().equals(ts.loc[ts["ID"] == id]["Date"]):
+                #(ts.loc[ts["ID"] == id]["Date"].sort_values()).to_csv("test.csv")
                 raise DatetimesNotInOrder(id)
         
         #Check that all timeseries in a multiple timeseries file have the same number of components
@@ -227,20 +216,13 @@ def load_data_to_csv(tmpdir, mongo_name):
     db = client['inergy_prod_db']
     collection = db[mongo_name]
     df = pd.DataFrame(collection.find()).drop(columns={'_id', ''}, errors='ignore')
-    df["Source"] = df["id"] + " " + df["energy_type"]
+    df["ID"] = df["id"] + " " + df["energy_type"]
     cols_to_drop = {'date', 'id', 'energy_type'}
-    df["Source Code"] = df["Source"]
-    
-    unique_ts = pd.unique(df["Source"])
-    name_to_ID = {}
-    for i in range(len(unique_ts)):
-        name_to_ID[unique_ts[i]] = str(i)
-    df["ID"] = df["Source"].apply(lambda x: name_to_ID[x])
-    df["Timeseries ID"] = df["Source"]
+    df["Timeseries ID"] = df["ID"]
 
-    df["Day"] = df["date"]
-    df = df.drop_duplicates(subset=["Day", "ID"]).\
-            sort_values(by=["Day", "ID"], ignore_index=True).\
+    df["Date"] = df["date"]
+    df = df.drop_duplicates(subset=["Date", "ID"]).\
+            sort_values(by=["Date", "ID"], ignore_index=True).\
             drop(columns=cols_to_drop)
     #print("2", df)
     df.to_csv(f'{tmpdir}/load.csv', index=True)
@@ -470,8 +452,8 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
 
         # set mlflow tags for next steps
         if multiple:
-            mlflow.set_tag("dataset_start", datetime.strftime(ts["Day"].iloc[0], "%Y%m%d"))
-            mlflow.set_tag("dataset_end", datetime.strftime(ts["Day"].iloc[-1], "%Y%m%d"))
+            mlflow.set_tag("dataset_start", datetime.strftime(ts["Date"].iloc[0], "%Y%m%d"))
+            mlflow.set_tag("dataset_end", datetime.strftime(ts["Date"].iloc[-1], "%Y%m%d"))
             pass
         else:
             mlflow.set_tag("dataset_start", datetime.strftime(ts.index[0], "%Y%m%d"))
