@@ -12,6 +12,7 @@ import numpy as np
 load_dotenv()
 from tqdm import tqdm
 import logging
+from exceptions import MandatoryArgNotSet
 
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
@@ -437,6 +438,12 @@ def multiple_dfs_to_ts_file(res_l, id_l, ts_id_l, save_dir, save=True):
     if save:
         res.to_csv(save_dir)
     return res
+
+
+def check_mandatory(argument, argument_name, mandatory_prerequisites):
+    if none_checker(argument) is None:
+        raise MandatoryArgNotSet(argument_name, mandatory_prerequisites)
+
 
 #epestrepse kai IDs
 #prwta psakse ID meta SC

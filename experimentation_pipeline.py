@@ -11,7 +11,7 @@ import mlflow
 import click
 import os
 import pretty_errors
-from utils import download_online_file
+from utils import download_online_file, check_mandatory
 # from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
 import pretty_errors
 import click
@@ -391,6 +391,11 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
              ts_used_id, m_mase, min_non_nan_interval, num_samples):
 
     disable_warnings(InsecureRequestWarning)
+
+    #check mandatory arguments:
+    #check_mandatory(eval_series, "eval_series", [["multiple", "True"], ["evaluate_all_ts", "False"]])
+    #multiple=True, and evaluate_all_ts=False
+
 
 
     # Argument preprocessing

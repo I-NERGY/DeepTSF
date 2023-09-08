@@ -59,3 +59,16 @@ class NanInSet(Exception):
     def __init__(self):
         self.message = f'Validation and test set can not have any nan values'
         super().__init__(self.message)
+
+class MandatoryArgNotSet(Exception):
+    """
+    Exception raised if a mandatory argument was not set by the user.
+    """
+    def __init__(self, argument_name, mandatory_prerequisites):
+        if mandatory_prerequisites:
+            mandatory_prerequisites = "\n".join((args[0] + "=" + args[1]) for args in mandatory_prerequisites)
+            self.message = f'Argument {argument_name} is mandatory since the following conditions apply: {mandatory_prerequisites}. It was not set.'
+        else:
+            self.message = f'Argument {argument_name} is mandatory and not set.'
+        super().__init__(self.message)
+

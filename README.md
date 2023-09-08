@@ -92,9 +92,16 @@ For multiple timeseries:
 
 ### Parameters of the pipeline
 
-* ```series_csv``` (default series.csv), the path to the local time series file to use. If series_uri has a non-default value, or if from_mongo is true, then series_csv has no effect.
+#TODO change to from_database
+* ```from_mongo``` (default false), whether to read the dataset from mongodb, or from other sources. If this is true, it overrides all other options (series_csv, series_uri)
 
-* ```series_uri``` (default online_artifact), the uri of the online time series file to use. If series_uri is not online_artifact, and from_mongo is false, then this is the time series DeepTSF will use. 
+#TODO change to database_name
+* ```mongo_name``` (mandatory if from_mongo=true), which mongo file to read
+
+#TODO change default to None
+* ```series_uri``` (default None), the uri of the online time series file to use. If series_uri is not None, and from_mongo is false, then this is the time series DeepTSF will use.
+
+* ```series_csv``` (mandatory if series_uri is None and from_mongo is false), the path to the local time series file to use. If series_uri has a non-default value, or if from_mongo is true, then series_csv has no effect.
 
 * ```past_covs_csv``` (default None), the path to the local time series file to use as past covariates. If past_covs_uri is not None, then this has no effect.
 
@@ -107,10 +114,6 @@ For multiple timeseries:
 * ```day_first``` (default true), whether the date has the day before the month in timeseries file.
 
 * ```multiple``` (default false), whether to train on multiple timeseries. This applies to the main time series. Covariates can be multivariate, but the number of time series must be the same as the main time series. The only exception to this is if we have multiple time series and a single past or future covariate. In this case, we consider this series to be the covariate to all the main time series.
-
-* ```from_mongo``` (default false), whether to read the dataset from mongodb, or from other sources. If this is true, it overrides all other options (series_csv, series_uri)
-
-* ```mongo_name``` (default rdn_load_data), which mongo file to read
 
 ## Data pre-processing
 
@@ -154,8 +157,9 @@ from dates which are also before cut_date_val.
  The parameters of the pipeline associated with this method are presented below, along with all parameters of data pre-processing:
 
 ### Parameters of the pipeline
-* ```resolution``` (default 15), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and then afterwards resampling is performed. 
+* ```resolution``` (mandatory), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and then afterwards resampling is performed. 
 
+#TODO change default to use start and finish?
 * ```year_range``` (default 2009-2019), the years to use from the datasets (inclusive). All values outside of those dates will be dropped.
 
 * ```time_covs``` (default false), whether to add time covariates to the time series. If true, then the following time covariates will be added as future covariates:
@@ -229,7 +233,7 @@ scale: ["list", "True", "False"]
 
 ### Parameters of the pipeline
 
-* ```darts_model``` (default RNN), the base architecture of the model to be trained. The possible options are:
+* ```darts_model``` (mandatory), the base architecture of the model to be trained. The possible options are:
     * NBEATS
     * NHiTS
     * Transformer
@@ -241,12 +245,12 @@ scale: ["list", "True", "False"]
     * RandomForest
     * Naive
 
-* ```hyperparams_entrypoint``` (default LSTM1), the entry point containing the desired hyperparameters for the selected model. The file that will be searched for the entrypoint will be config.yml if opt_test is false, and config_opt.yml otherwise. More info for the required file format above
+* ```hyperparams_entrypoint``` (mandatory), the entry point containing the desired hyperparameters for the selected model. The file that will be searched for the entrypoint will be config.yml if opt_test is false, and config_opt.yml otherwise. More info for the required file format above
 
-* ```cut_date_val``` (default 20190101), the validation set start date (if cut_date_val=YYYYMMDD, then the validation set starts at YYYY-MM-DD 00:00:00). All values before that will be the training series. Format: str, 'YYYYMMDD'
+* ```cut_date_val``` (mandatory), the validation set start date (if cut_date_val=YYYYMMDD, then the validation set starts at YYYY-MM-DD 00:00:00). All values before that will be the training series. Format: str, 'YYYYMMDD'
 
 
-* ```cut_date_test``` (default 20200101), the test set start date (if cut_date_test=YYYYMMDD, then the test set starts at YYYY-MM-DD 00:00:00). Values between that (non inclusive) and cut_date_val (inclusive) will be the validation series. If cut_date_test = cut_date_test, then the test and validation sets will be the same (from cut_date_test to test_end_date, both inclusive). Format: str, 'YYYYMMDD'
+* ```cut_date_test``` (mandatory), the test set start date (if cut_date_test=YYYYMMDD, then the test set starts at YYYY-MM-DD 00:00:00). Values between that (non inclusive) and cut_date_val (inclusive) will be the validation series. If cut_date_test = cut_date_test, then the test and validation sets will be the same (from cut_date_test to test_end_date, both inclusive). Format: str, 'YYYYMMDD'
 
 * ```test_end_date``` (default None), the test set ending date (if test_end_date=YYYYMMDD, then the test set ends at YYYY-MM-DD 23:00:00). Values between that and cut_date_test (both inclusive) will be the testing series. All values after that will be ignored. If None, all the timeseries from cut_date_test will be the test set. Format: str, 'YYYYMMDD'
 
@@ -292,18 +296,18 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 
 ### Parameters of the pipeline
 
-* ```forecast_horizon``` (default 96), the number of timesteps that the model being evaluated is going to predict in each step of backtesting.
+* ```forecast_horizon``` (mandatory) the number of timesteps that the model being evaluated is going to predict in each step of backtesting.
 
 * ```stride``` (default None), the number of time steps between two consecutive steps of backtesting. If it is None, then stride = forecast_horizon
 
 [TODO: SHAP ask if changes are ok]::
 [SHAP with covariates fix]::
+#TODO Change default to 100
+* ```shap_data_size``` (default 100), The size of shap dataset in samples. The SHAP coefficients are going to be computed for this number of random samples of the test dataset. If it is a float, it represents the proportion of samples of the test dataset that will be chosen. If it is an int, it represents the absolute number of samples to be produced.
 
-* ```shap_data_size``` (default 10), The size of shap dataset in samples. The SHAP coefficients are going to be computed for this number of random samples of the test dataset. If it is a float, it represents the proportion of samples of the test dataset that will be chosen. If it is an int, it represents the absolute number of samples to be produced.
+* ```analyze_with_shap``` (default false), whether to do SHAP analysis on the model.
 
-* ```shap_data_size``` (default false), whether to do SHAP analysis on the model.
-
-* ```eval_series``` (default PT), on which timeseries to run the backtesting. Only for multiple timeseries. 
+* ```eval_series``` (mandatory if multiple=True, and evaluate_all_ts=False), on which timeseries to run the backtesting. Only for multiple timeseries. 
 
 * ```eval_method``` (default ts_ID, only possible options are ts_ID and ID), what ID type is speciffied in eval_series: if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at ID column. In this case, all components of the timeseries that has the component with eval_series ID are used in the evaluation step. 
 
