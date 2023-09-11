@@ -112,7 +112,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     help="Local timeseries file"
     )
 @click.option("--series-uri",
-    default="online_artifact",
+    default="None",
     help="Online link to download the series from"
     )
 @click.option("--past-covs-csv",
@@ -140,7 +140,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     help="Change the resolution of the dataset (minutes)."
 )
 @click.option('--year-range',
-    default="2009-2019",
+    default="None",
     type=str,
     help='Choose year range to include in the dataset.'
 )
@@ -268,7 +268,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 
 @click.option("--shap-data-size",
              type=str,
-             default="10",
+             default="100",
              help="Size of shap dataset in samples")
 
 @click.option("--analyze-with-shap",
@@ -296,15 +296,15 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     default="false",
     help="Whether we are running optuna")
 
-@click.option("--from-mongo",
+@click.option("--from-database",
     default="false",
     type=str,
-    help="Whether to read the dataset from mongodb."
+    help="Whether to read the dataset from the database."
 )
-@click.option("--mongo-name",
+@click.option("--database-name",
     default="rdn_load_data",
     type=str,
-    help="Which mongo file to read."
+    help="Which database file to read."
 )
 @click.option("--num-workers",
         type=str,
@@ -386,7 +386,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
              resolution, time_covs, darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
-             multiple, eval_series, n_trials, opt_test, from_mongo, mongo_name, num_workers, eval_method,
+             multiple, eval_series, n_trials, opt_test, from_database, database_name, num_workers, eval_method,
              l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, shap_input_length,
              ts_used_id, m_mase, min_non_nan_interval, num_samples):
 
@@ -401,7 +401,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
     # Argument preprocessing
     ignore_previous_runs = truth_checker(ignore_previous_runs)
     opt_test = truth_checker(opt_test)
-    from_mongo = truth_checker(from_mongo)
+    from_database = truth_checker(from_database)
     time_covs = truth_checker(time_covs)
 
 
@@ -421,8 +421,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                                 "future_covs_uri": future_covs_uri,
                                 "day_first": day_first, 
                                 "multiple": multiple, 
-                                "from_mongo": from_mongo,
-                                "mongo_name": mongo_name,
+                                "from_database": from_database,
+                                "database_name": database_name,
                                 "resolution":resolution}
         
         load_raw_data_run = _get_or_run("load_raw_data", load_raw_data_params, git_commit, ignore_previous_runs)

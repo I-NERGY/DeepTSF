@@ -874,6 +874,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                         std_dev=std_dev,
                                                         resolution=infered_resolution_series)
                 #holidays_: The holidays of country
+                #TODO check only if l_interpolation
                 try:
                     code = compile(f"holidays.{id_l[ts_num][comp_num]}()", "<string>", "eval")
                     country_holidays = eval(code)

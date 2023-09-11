@@ -612,7 +612,7 @@ def call_shap(n_past_covs: int,
 
 @click.option("--size",
              type=str,
-             default="10",
+             default="100",
              help="Size of shap dataset in samples")
 
 @click.option("--analyze-with-shap",

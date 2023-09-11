@@ -912,7 +912,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               default='mlflow_artifact_uri'
               )
 @click.option('--year-range',
-    default="2009-2019",
+    default="None",
     type=str,
     help='Choose year range to include in the dataset.'
 )
