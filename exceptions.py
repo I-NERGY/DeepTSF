@@ -9,8 +9,8 @@ class EmptyDataframe(Exception):
     """
     Exception raised if dataframe is empty.
     """
-    def __init__(self, from_mongo):
-        super().__init__("Dataframe provided is empty" + (" or does not exist in mongo database" if from_mongo else ""))
+    def __init__(self, from_database):
+        super().__init__("Dataframe provided is empty" + (" or does not exist in mongo database" if from_database else ""))
 
 
 class DatetimesNotInOrder(Exception):

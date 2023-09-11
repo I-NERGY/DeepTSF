@@ -92,16 +92,16 @@ For multiple timeseries:
 
 ### Parameters of the pipeline
 
-#TODO change to from_database
-* ```from_mongo``` (default false), whether to read the dataset from mongodb, or from other sources. If this is true, it overrides all other options (series_csv, series_uri)
+#DONE change to from_database
+* ```from_database``` (default false), whether to read the dataset from the database (mongodb in our case), or from other sources. If this is true, it overrides all other options (series_csv, series_uri)
 
-#TODO change to database_name
-* ```mongo_name``` (mandatory if from_mongo=true), which mongo file to read
+#DONE change to database_name
+* ```database_name``` (mandatory if from_database=true), which database file to read
 
-#TODO change default to None
-* ```series_uri``` (default None), the uri of the online time series file to use. If series_uri is not None, and from_mongo is false, then this is the time series DeepTSF will use.
+#DONE change default to None
+* ```series_uri``` (default None), the uri of the online time series file to use. If series_uri is not None, and from_database is false, then this is the time series DeepTSF will use.
 
-* ```series_csv``` (mandatory if series_uri is None and from_mongo is false), the path to the local time series file to use. If series_uri has a non-default value, or if from_mongo is true, then series_csv has no effect.
+* ```series_csv``` (mandatory if series_uri is None and from_database is false), the path to the local time series file to use. If series_uri has a non-default value, or if from_database is true, then series_csv has no effect.
 
 * ```past_covs_csv``` (default None), the path to the local time series file to use as past covariates. If past_covs_uri is not None, then this has no effect.
 
@@ -113,7 +113,7 @@ For multiple timeseries:
 
 * ```day_first``` (default true), whether the date has the day before the month in timeseries file.
 
-* ```multiple``` (default false), whether to train on multiple timeseries. This applies to the main time series. Covariates can be multivariate, but the number of time series must be the same as the main time series. The only exception to this is if we have multiple time series and a single past or future covariate. In this case, we consider this series to be the covariate to all the main time series.
+* ```multiple``` (default false), whether the file used to extract the main series uses multiple file format. If true, the user could use multiple and / or multivariate series. This applies to the main time series. Covariates can be multivariate, but the number of time series must be the same as the main time series. The only exception to this is if we have multiple time series and a single past or future covariate. In this case, we consider this series to be the covariate to all the main time series.
 
 ## Data pre-processing
 
@@ -159,8 +159,8 @@ from dates which are also before cut_date_val.
 ### Parameters of the pipeline
 * ```resolution``` (mandatory), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and then afterwards resampling is performed. 
 
-#TODO change default to use start and finish?
-* ```year_range``` (default 2009-2019), the years to use from the datasets (inclusive). All values outside of those dates will be dropped.
+#DONE change default to use start and finish?
+* ```year_range``` (default None), the years to use from the datasets (inclusive). All values outside of those dates will be dropped.
 
 * ```time_covs``` (default false), whether to add time covariates to the time series. If true, then the following time covariates will be added as future covariates:
     * The month
