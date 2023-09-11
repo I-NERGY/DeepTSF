@@ -6,7 +6,7 @@ entry_points:
 
   load_raw_data:
     parameters:
-      series_csv: {type: str, default: series.csv}
+      series_csv: {type: str, default: None}
       series_uri: {type: str, default: None}
       past_covs_csv: {type: str, default: None}
       past_covs_uri: {type: str, default: None}
@@ -24,7 +24,7 @@ entry_points:
 
   etl:
     parameters:
-      series_csv: {type: str, default: series.csv}
+      series_csv: {type: str, default: None}
       series_uri: {type: str, default: mlflow_artifact_uri}
       resolution: {type: str, default: 15}
       year_range: {type: str, default: None}
@@ -56,7 +56,7 @@ entry_points:
 
   train:
     parameters:
-      series_csv: {type: str, default: ../../RDN/Load_Data/series.csv}
+      series_csv: {type: str, default: None}
       series_uri: {type: str, default: mlflow_artifact_uri}
       future_covs_csv: {type: str, default: None}
       future_covs_uri: {type: str, default: mlflow_artifact_uri}
@@ -113,7 +113,7 @@ entry_points:
 
   optuna_search:
     parameters:
-      series_csv: {type: str, default: ../../RDN/Load_Data/series.csv}
+      series_csv: {type: str, default: None}
       series_uri: {type: str, default: mlflow_artifact_uri}
       future_covs_csv: {type: str, default: None}
       future_covs_uri: {type: str, default: mlflow_artifact_uri}
@@ -150,7 +150,7 @@ entry_points:
 
   exp_pipeline:
     parameters:
-      series_csv: {type: str, default: series.csv}
+      series_csv: {type: str, default: None}
       series_uri: {type: str, default: None}
       past_covs_csv: {type: str, default: None}
       past_covs_uri: {type: str, default: None}
@@ -208,7 +208,7 @@ entry_points:
     parameters:
       pyfunc_model_folder: {type: str, default: s3://mlflow-bucket/2/33d85746285c42a7b3ef403eb2f5c95f/artifacts/pyfunc_model}
       forecast_horizon:  {type: str, default: 960}
-      series_uri: {type: str, default: ENG/series.csv}
+      series_uri: {type: str, default: None}
       past_covariates_uri: {type: str, default: "None"}
       future_covariates_uri: {type: str, default: "None"}
       roll_size: {type: str, default: 96}

@@ -887,7 +887,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 # load arguments
 @click.option("--series-csv",
               type=str,
-              default="../../RDN/Load_Data/series.csv",
+              default="None",
               help="Local timeseries csv. If set, it overwrites the local value."
               )
 @click.option("--series-uri",

@@ -244,7 +244,7 @@ def load_data_to_csv(tmpdir, database_name):
 # TODO: Update that to accept url as input instead of local file
 @click.option("--series-csv",
     type=str,
-    default="../../RDN/Load_Data/2009-2019-global-load.csv",
+    default="None",
     help="Local time series csv file"
     )
 @click.option("--series-uri",

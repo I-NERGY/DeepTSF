@@ -563,7 +563,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 )
 @click.option("--series-csv",
     type=str,
-    default="../../RDN/Load_Data/2009-2019-global-load.csv",
+    default="None",
     help="Local timeseries csv. It gets overwritten by uri if given."
 )
 @click.option("--series-uri",

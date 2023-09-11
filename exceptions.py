@@ -67,8 +67,8 @@ class MandatoryArgNotSet(Exception):
     def __init__(self, argument_name, mandatory_prerequisites):
         if mandatory_prerequisites:
             mandatory_prerequisites = "\n".join(("- " + args[0] + "=" + args[1]) for args in mandatory_prerequisites)
-            self.message = f'Argument {argument_name} is mandatory since the following conditions apply: \n{mandatory_prerequisites}.\nIt was not set.'
+            self.message = f'Argument {argument_name} is mandatory since the following conditions apply: \n{mandatory_prerequisites}.\nIt was set to None / not set.'
         else:
-            self.message = f'Argument {argument_name} is mandatory and not set.'
+            self.message = f'Argument {argument_name} is mandatory and set to None / not set.'
         super().__init__(self.message)
 

@@ -96,7 +96,7 @@ For multiple timeseries:
 * ```from_database``` (default false), whether to read the dataset from the database (mongodb in our case), or from other sources. If this is true, it overrides all other options (series_csv, series_uri)
 
 #DONE change to database_name
-* ```database_name``` (mandatory if from_database=true), which database file to read
+* ```database_name``` (rdn_load_data), which database file to read
 
 #DONE change default to None
 * ```series_uri``` (default None), the uri of the online time series file to use. If series_uri is not None, and from_database is false, then this is the time series DeepTSF will use.
