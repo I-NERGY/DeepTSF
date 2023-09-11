@@ -217,21 +217,14 @@ def load_data_to_csv(tmpdir, database_name):
     collection = db["asm_historical_smart_meters_uc6_power"]
     df = pd.DataFrame(collection.find()).drop(columns={'_id', ''}, errors='ignore')
     #df.index = list(range(len(df)))
-    df["Source"] = df["id"] + " " + df["power_type"]
+    df["ID"] = df["id"] + " " + df["power_type"]
     cols_to_drop = {'date', 'id', 'power_type'}
 
-    df["Source Code"] = df["Source"]
     
-    unique_ts = pd.unique(df["Source"])
-    name_to_ID = {}
-    for i in range(len(unique_ts)):
-        name_to_ID[unique_ts[i]] = i
-    df["ID"] = df["Source"].apply(lambda x: name_to_ID[x])
-
-    df["Day"] = df["date"]
+    df["Date"] = df["date"]
     #print("1", df)
-    df = df.drop_duplicates(subset=["Day", "ID"]).\
-            sort_values(by=["Day", "ID"], ignore_index=True).\
+    df = df.drop_duplicates(subset=["Date", "ID"]).\
+            sort_values(by=["Date", "ID"], ignore_index=True).\
             drop(columns=cols_to_drop)
     #print("2", df)
     df.to_csv(f'{tmpdir}/load.csv', index=True)
