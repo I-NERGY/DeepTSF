@@ -108,7 +108,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 # load arguments
 @click.option("--series-csv",
     type=str,
-    default="../../RDN/Load_Data/2009-2021-global-load.csv",
+    default="None",
     help="Local timeseries file"
     )
 @click.option("--series-uri",
@@ -393,7 +393,11 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
     disable_warnings(InsecureRequestWarning)
 
     #check mandatory arguments:
+    #database_name``` (mandatory if from_database=true
 
+    
+    if none_checker(series_uri) == None and truth_checker(from_database) == False:
+        check_mandatory(series_csv, "series_csv", [["series_uri", "None"], ["from_database", "False"]])
     #check_mandatory(eval_series, "eval_series", [["multiple", "True"], ["evaluate_all_ts", "False"]])
     #multiple=True, and evaluate_all_ts=False
 

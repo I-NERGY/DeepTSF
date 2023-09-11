@@ -68,7 +68,7 @@ my_stopper = EarlyStopping(
 @click.command()
 @click.option("--series-csv",
               type=str,
-              default="../../RDN/Load_Data/series.csv",
+              default="None",
               help="Local timeseries csv. If set, it overwrites the local value."
               )
 @click.option("--series-uri",
