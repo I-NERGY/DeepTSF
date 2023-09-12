@@ -58,4 +58,6 @@ class RemoteAuthValidator:
 # Validators responsible for check authentication and authorization for the different routes
 # allowed roles will have permission using the routes where validators are passed as dependencies
 admin_validator = RemoteAuthValidator(allowed_roles=settings.admin_routes_roles)
-basic_validator = RemoteAuthValidator(allowed_roles=settings.basic_routes_roles)
+scientist_validator = RemoteAuthValidator(allowed_roles=settings.scientist_routes_roles)
+engineer_validator = RemoteAuthValidator(allowed_roles=settings.engineer_routes_roles)
+common_validator = RemoteAuthValidator(allowed_roles=settings.common_routes_roles)
