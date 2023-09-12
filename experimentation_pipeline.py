@@ -396,8 +396,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
     #database_name``` (mandatory if from_database=true
 
     
-    if none_checker(series_uri) == None and truth_checker(from_database) == False:
-        check_mandatory(series_csv, "series_csv", [["series_uri", "None"], ["from_database", "False"]])
+    #if none_checker(series_uri) == None and truth_checker(from_database) == False:
+    #    check_mandatory(series_csv, "series_csv", [["series_uri", "None"], ["from_database", "False"]])
     #check_mandatory(eval_series, "eval_series", [["multiple", "True"], ["evaluate_all_ts", "False"]])
     #multiple=True, and evaluate_all_ts=False
 
