@@ -36,7 +36,7 @@ tags_metadata = [
     {"name": "Model Evaluation", "description": "REST APIs for retrieving model evaluation results"},
     {"name": "System Monitoring", "description": "REST APIs for monitoring the host machine of the API"},
 ]
-
+#TODO add field covariates: past future both
 models = [
     {"model_name": "NBEATS", "search_term": "nbeats"},
     {"model_name": "TCN", "search_term": "tcn"},
@@ -192,11 +192,14 @@ def mlflow_run(params: dict, experiment_name: str):
 @scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
 async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks):
     params = {
+        #
         "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
+        #
         "resolution": parameters["resolution"], # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
         "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
         "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
         "test_end_date": parameters["test_end_date"],  # input: user | type: str | example: "20220101" | Choose from calendar, should be > cut_date_test and <= dataset_end, defaults to dataset_end
+        #TODO ADD models
         "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
         "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
         "hyperparams_entrypoint": parameters["hyperparams_entrypoint"], # input: user | type: str | example: "nbeats0_2" | get values from config.yaml headers

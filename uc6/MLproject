@@ -6,8 +6,8 @@ entry_points:
 
   load_raw_data:
     parameters:
-      series_csv: {type: str, default: series.csv}
-      series_uri: {type: str, default: online_artifact}
+      series_csv: {type: str, default: None}
+      series_uri: {type: str, default: None}
       past_covs_csv: {type: str, default: None}
       past_covs_uri: {type: str, default: None}
       future_covs_csv: {type: str, default: None}
@@ -15,16 +15,16 @@ entry_points:
       day_first: {type: str, default: "true"}
       multiple: {type: str, default: "false"}
       resolution: {type: str, default: 15}
-      from_mongo: {type: str, default: "false"}
-      mongo_name: {type: str, default: "rdn_load_data"}
+      from_database: {type: str, default: "false"}
+      database_name: {type: str, default: "rdn_load_data"}
 
     command: |
-      python load_raw_data.py --series-csv {series_csv} --series-uri {series_uri} --day-first {day_first} --multiple {multiple} --resolution {resolution} --from-mongo {from_mongo} --mongo-name {mongo_name} --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} 
+      python load_raw_data.py --series-csv {series_csv} --series-uri {series_uri} --day-first {day_first} --multiple {multiple} --resolution {resolution} --from-database {from_database} --database-name {database_name} --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} 
 
 
   etl:
     parameters:
-      series_csv: {type: str, default: series.csv}
+      series_csv: {type: str, default: None}
       series_uri: {type: str, default: mlflow_artifact_uri}
       resolution: {type: str, default: 15}
       year_range: {type: str, default: None}
@@ -56,7 +56,7 @@ entry_points:
 
   train:
     parameters:
-      series_csv: {type: str, default: ../../RDN/Load_Data/series.csv}
+      series_csv: {type: str, default: None}
       series_uri: {type: str, default: mlflow_artifact_uri}
       future_covs_csv: {type: str, default: None}
       future_covs_uri: {type: str, default: mlflow_artifact_uri}
@@ -113,7 +113,7 @@ entry_points:
 
   optuna_search:
     parameters:
-      series_csv: {type: str, default: ../../RDN/Load_Data/series.csv}
+      series_csv: {type: str, default: None}
       series_uri: {type: str, default: mlflow_artifact_uri}
       future_covs_csv: {type: str, default: None}
       future_covs_uri: {type: str, default: mlflow_artifact_uri}
@@ -150,8 +150,8 @@ entry_points:
 
   exp_pipeline:
     parameters:
-      series_csv: {type: str, default: series.csv}
-      series_uri: {type: str, default: online_artifact}
+      series_csv: {type: str, default: None}
+      series_uri: {type: str, default: None}
       past_covs_csv: {type: str, default: None}
       past_covs_uri: {type: str, default: None}
       future_covs_csv: {type: str, default: None}
@@ -185,8 +185,8 @@ entry_points:
       eval_series: {type: str, default: "PT"}
       n_trials: {type: str, default: 100}
       opt_test: {type: str, default: "false"}
-      from_mongo: {type: str, default: "false"}
-      mongo_name: {type: str, default: "rdn_load_data"}
+      from_database: {type: str, default: "false"}
+      database_name: {type: str, default: "rdn_load_data"}
       num_workers: {type: str, default: 4}
       eval_method: {type: str, default: "ts_ID"}
       l_interpolation: {type: str, default : "false"}
@@ -202,13 +202,13 @@ entry_points:
       num_samples: {type: str, default: "1"}
 
     command: |
-      python ../experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --shap-data-size {shap_data_size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --opt-test {opt_test} --from-mongo {from_mongo} --mongo-name {mongo_name} --num-workers {num_workers} --eval-method {eval_method} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --convert-to-local-tz {convert_to_local_tz} --grid-search {grid_search} --shap-input-length {shap_input_length} --ts-used-id {ts_used_id} --m-mase {m_mase} --min-non-nan-interval {min_non_nan_interval} --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --num-samples {num_samples}
+      python ../experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --shap-data-size {shap_data_size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --opt-test {opt_test} --from-database {from_database} --database-name {database_name} --num-workers {num_workers} --eval-method {eval_method} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --convert-to-local-tz {convert_to_local_tz} --grid-search {grid_search} --shap-input-length {shap_input_length} --ts-used-id {ts_used_id} --m-mase {m_mase} --min-non-nan-interval {min_non_nan_interval} --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --num-samples {num_samples}
 
   inference:
     parameters:
       pyfunc_model_folder: {type: str, default: s3://mlflow-bucket/2/33d85746285c42a7b3ef403eb2f5c95f/artifacts/pyfunc_model}
       forecast_horizon:  {type: str, default: 960}
-      series_uri: {type: str, default: ENG/series.csv}
+      series_uri: {type: str, default: None}
       past_covariates_uri: {type: str, default: "None"}
       future_covariates_uri: {type: str, default: "None"}
       roll_size: {type: str, default: 96}

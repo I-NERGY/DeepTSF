@@ -887,7 +887,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 # load arguments
 @click.option("--series-csv",
               type=str,
-              default="../../RDN/Load_Data/series.csv",
+              default="None",
               help="Local timeseries csv. If set, it overwrites the local value."
               )
 @click.option("--series-uri",
@@ -912,7 +912,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               default='mlflow_artifact_uri'
               )
 @click.option('--year-range',
-    default="2009-2019",
+    default="None",
     type=str,
     help='Choose year range to include in the dataset.'
 )
