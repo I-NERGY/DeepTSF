@@ -1,6 +1,7 @@
 from distutils.log import error
 from enum import Enum
 import uvicorn
+import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends
 import pandas as pd
 import mlflow
@@ -17,14 +18,16 @@ import psutil, nvsmi
 import os
 from dotenv import load_dotenv
 from fastapi import APIRouter
-from app.auth import admin_validator, basic_validator
+from app.auth import admin_validator, scientist_validator, engineer_validator, common_validator, oauth2_scheme
+from app.config import settings
+
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 # allows automated type check with pydantic
-#class ModelName(str, Enum):
+# class ModelName(str, Enum):
 
 tags_metadata = [
     {"name": "MLflow Info", "description": "REST APIs for retrieving elements from MLflow"},
@@ -67,7 +70,6 @@ app = FastAPI(
     },
 )
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -81,9 +83,15 @@ app.add_middleware(
 admin_router = APIRouter(
     dependencies=[Depends(admin_validator)]
 )
-# basic validator passed as dependency
-basic_router = APIRouter(
-    dependencies=[Depends(basic_validator)]
+# scientist validator passed as dependency
+scientist_router = APIRouter(
+    dependencies=[Depends(scientist_validator)]
+)
+engineer_router = APIRouter(
+    dependencies=[Depends(engineer_validator)]
+)
+common_router = APIRouter(
+    dependencies=[Depends(common_validator)]
 )
 
 # implement this method for login functionality
@@ -91,19 +99,22 @@ basic_router = APIRouter(
 # def login(request: Request):
 #     token = ''
 #     return {"access_token": token, "token_type": "bearer"}
-@basic_router.get("/")
+@scientist_router.get("/")
 async def root():
     return {"message": "Congratulations! Your API is working as expected. Now head over to http://localhost:8000/docs"}
 
-@admin_router.get("/models/get_model_names", tags=['Hardcoded Info'])
+
+@scientist_router.get("/models/get_model_names", tags=['Hardcoded Info'])
 async def get_model_names():
     return models
 
-@admin_router.get("/metrics/get_metric_names", tags=['Hardcoded Info'])
+
+@engineer_router.get("/metrics/get_metric_names", tags=['Hardcoded Info'])
 async def get_metric_names():
     return metrics
 
-@admin_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
+
+@scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
 async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True)):
     # Loading
     print("Uploading file...")
@@ -164,7 +175,7 @@ async def get_experimentation_pipeline_hparam_entrypoints():
 #async def get_resolutions():
 #    return ResolutionMinutes.dict()
 
-@basic_router.get('/get_mlflow_tracking_uri', tags=['MLflow Info'])
+@admin_router.get('/get_mlflow_tracking_uri', tags=['MLflow Info'])
 async def get_mlflow_tracking_uri():
     return mlflow.tracking.get_tracking_uri()
 
@@ -177,7 +188,8 @@ def mlflow_run(params: dict, experiment_name: str):
             env_manager="local"
             )
 
-@admin_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
+
+@scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
 async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks):
     params = {
         "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
@@ -227,7 +239,8 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
 #	   }
     return {"message": "Experimentation pipeline initiated. Proceed to MLflow for details..."}
 
-@basic_router.get('/results/get_list_of_experiments', tags=['MLflow Info', 'Model Evaluation'])
+
+@engineer_router.get('/results/get_list_of_experiments', tags=['MLflow Info', 'Model Evaluation'])
 async def get_list_of_mlflow_experiments():
     client = MlflowClient()
     experiments = client.list_experiments()
@@ -242,7 +255,9 @@ async def get_list_of_mlflow_experiments():
     ]
     return experiments_response
 
-@basic_router.get('/results/get_best_run_id_by_mlflow_experiment/{experiment_id}/{metric}', tags=['MLflow Info', 'Model Evaluation'])
+
+@engineer_router.get('/results/get_best_run_id_by_mlflow_experiment/{experiment_id}/{metric}',
+                     tags=['MLflow Info', 'Model Evaluation'])
 async def get_best_run_id_by_mlflow_experiment(experiment_id: str, metric: str = 'mape'):
     df = mlflow.search_runs([experiment_id], order_by=[f"metrics.{metric} ASC"])
     if df.empty:
@@ -251,7 +266,8 @@ async def get_best_run_id_by_mlflow_experiment(experiment_id: str, metric: str =
        best_run_id = df.loc[0, 'run_id']
        return best_run_id
 
-@basic_router.get('/results/get_forecast_vs_actual/{run_id}/n_samples/{n}', tags=['MLflow Info', 'Model Evaluation'])
+
+@engineer_router.get('/results/get_forecast_vs_actual/{run_id}/n_samples/{n}', tags=['MLflow Info', 'Model Evaluation'])
 async def get_forecast_vs_actual(run_id: str, n: int):
     forecast = load_artifacts(
         run_id=run_id, src_path="eval_results/predictions.csv")
@@ -268,14 +284,16 @@ async def get_forecast_vs_actual(run_id: str, n: int):
                 "actual":  actual_response}
     return response
 
-@basic_router.get('/results/get_metric_list/{run_id}', tags=['MLflow Info', 'Model Evaluation'])
+
+@engineer_router.get('/results/get_metric_list/{run_id}', tags=['MLflow Info', 'Model Evaluation'])
 async def get_metric_list(run_id: str):
     client = MlflowClient()
     metrix = client.get_run(run_id).data.metrics
     metrix_response = {"labels":[i for i in metrix.keys()], "data": [i for i in metrix.values()]}
     return metrix_response
 
-@basic_router.get('/system_monitoring/get_cpu_usage', tags=['System Monitoring'])
+
+@admin_router.get('/system_monitoring/get_cpu_usage', tags=['System Monitoring'])
 async def get_cpu_usage():
     cpu_count_logical = psutil.cpu_count()
     cpu_count = psutil.cpu_count(logical=False)
@@ -286,7 +304,8 @@ async def get_cpu_usage():
                 'text_2': cpu_count_logical}
     return response
 
-@basic_router.get('/system_monitoring/get_memory_usage', tags=['System Monitoring'])
+
+@admin_router.get('/system_monitoring/get_memory_usage', tags=['System Monitoring'])
 async def get_memory_usage():
     virtual_memory = psutil.virtual_memory()
     swap_memory = psutil.swap_memory()
@@ -303,7 +322,8 @@ async def get_memory_usage():
         'progressbar_2': swap_memory_response}
     return response
 
-@basic_router.get('/system_monitoring/get_gpu_usage', tags=['System Monitoring'])
+
+@admin_router.get('/system_monitoring/get_gpu_usage', tags=['System Monitoring'])
 async def get_gpu_usage():
     gpus_stats = nvsmi.get_gpus()
     response = {}
@@ -316,9 +336,28 @@ async def get_gpu_usage():
     print(response)
     return response
 
-app.include_router(admin_router)
-app.include_router(basic_router)
 
+@common_router.get("/user/info")
+async def get_info(token: str = Depends(oauth2_scheme)):
+    headers = {
+        'accept': 'application/json',
+        'cache-control': 'no-cache',
+        'content-type': 'application/x-www-form-urlencoded',
+    }
+    data = {
+        'client_id': settings.client_id,
+        'client_secret': settings.client_secret,
+        'token': token,
+    }
+    url = settings.token_issuer + '/introspect'
+    response = httpx.post(url, headers=headers, data=data)
+    return response.json()
+
+
+app.include_router(admin_router)
+app.include_router(scientist_router)
+app.include_router(engineer_router)
+app.include_router(common_router)
 
 # if __name__ == "__main__":
 #     uvicorn.run('api:app', reload=True)
