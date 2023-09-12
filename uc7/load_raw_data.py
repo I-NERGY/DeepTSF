@@ -43,7 +43,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                             day_first: bool = True,
                             multiple: bool = False,
                             resolution: int = 15,
-                            from_mongo: bool = False,
+                            from_database: bool = False,
                             covariates: str = "series"):
     """
     Validates the input after read_csv is called and throws apropriate exception if it detects an error.
@@ -99,7 +99,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         Whether to train on multiple timeseries
     resolution
         The resolution of the dataset
-    from_mongo
+    from_database
         Whether the dataset was from MongoDB
     covariates
         If the function is called for the main dataset, then this equal to "series".
@@ -122,7 +122,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     
     #Dataframe can not be empty
     if ts.empty:
-        raise EmptyDataframe(from_mongo)
+        raise EmptyDataframe(from_database)
     
     if not multiple:
         #Check that dates are in order. If month is used before day and day_first is set to True, this is not the case.
@@ -182,7 +182,7 @@ def make_multiple(ts_covs, series_csv, day_first, inf_resolution):
         Whether to train on multiple timeseries
     resolution
         The resolution of the dataset
-    from_mongo
+    from_database
         Whether the dataset was from MongoDB
     covariates
         If the function is called for the main dataset, then this equal to "series".
@@ -212,9 +212,9 @@ import pandas as pd
 
 client = MongoClient(MONGO_URL)
 
-def load_data_to_csv(tmpdir, mongo_name):
+def load_data_to_csv(tmpdir, database_name):
     db = client['inergy_prod_db']
-    collection = db[mongo_name]
+    collection = db[database_name]
     df = pd.DataFrame(collection.find()).drop(columns={'_id', ''}, errors='ignore')
     df["ID"] = df["id"] + " " + df["energy_type"]
     cols_to_drop = {'date', 'id', 'energy_type'}
@@ -238,11 +238,11 @@ def load_data_to_csv(tmpdir, mongo_name):
 # TODO: Update that to accept url as input instead of local file
 @click.option("--series-csv",
     type=str,
-    default="../../RDN/Load_Data/2009-2019-global-load.csv",
+    default="None",
     help="Local time series csv file"
     )
 @click.option("--series-uri",
-    default="online_artifact",
+    default="None",
     help="Remote time series csv file. If set, it overwrites the local value."
     )
 @click.option("--past-covs-csv",
@@ -276,20 +276,20 @@ def load_data_to_csv(tmpdir, mongo_name):
     type=str,
     help="The resolution of the dataset in minutes."
 )
-@click.option("--from-mongo",
+@click.option("--from-database",
     default="false",
     type=str,
-    help="Whether to read the dataset from mongodb."
+    help="Whether to read the dataset from the database."
 )
-@click.option("--mongo-name",
+@click.option("--database-name",
     default="rdn_load_data",
     type=str,
-    help="Which mongo file to read."
+    help="Which database file to read."
 )
 
-def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, day_first, multiple, resolution, from_mongo, mongo_name):
-    mongo_name = "asm_historical_smart_meters_uc7"
-    from_mongo = truth_checker(from_mongo)
+def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, day_first, multiple, resolution, from_database, database_name):
+    database_name = "asm_historical_smart_meters_uc7"
+    from_database = truth_checker(from_database)
     tmpdir = tempfile.mkdtemp()
 
     past_covs_csv = none_checker(past_covs_csv)
@@ -297,11 +297,11 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
     future_covs_csv = none_checker(future_covs_csv)
     future_covs_uri = none_checker(future_covs_uri)
 
-    if from_mongo:
-        load_data_to_csv(tmpdir, mongo_name)
+    if from_database:
+        load_data_to_csv(tmpdir, database_name)
         series_csv = f'{tmpdir}/load.csv'
 
-    elif series_uri != "online_artifact":
+    elif series_uri != "None":
         download_file_path = download_online_file(series_uri, dst_filename="series.csv")
         series_csv = download_file_path
 
@@ -325,7 +325,7 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
 
     with mlflow.start_run(run_name='load_data', nested=True) as mlrun:
 
-        ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, resolution=resolution, from_mongo=from_mongo)
+        ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, resolution=resolution, from_database=from_database)
 
         print(f'Validating timeseries on local file: {series_csv}')
         logging.info(f'Validating timeseries on local file: {series_csv}')
@@ -352,14 +352,14 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
                                                               day_first,
                                                               multiple=True,
                                                               resolution=resolution,
-                                                              from_mongo=from_mongo,
+                                                              from_database=from_database,
                                                               covariates="past")
                 except:
                     ts_past_covs, inf_resolution = read_and_validate_input(past_covs_csv,
                                                                            day_first,
                                                                            multiple=False,
                                                                            resolution=resolution,
-                                                                           from_mongo=from_mongo,
+                                                                           from_database=from_database,
                                                                            covariates="past")
                     ts_past_covs = make_multiple(ts_past_covs,
                                                  series_csv,
@@ -371,7 +371,7 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
                                                        day_first,
                                                        multiple=multiple,
                                                        resolution=resolution,
-                                                       from_mongo=from_mongo,
+                                                       from_database=from_database,
                                                        covariates="past")
                 
                 #TODO Infer resolution on single timeseries also
@@ -406,14 +406,14 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
                                                               day_first,
                                                               multiple=True,
                                                               resolution=resolution,
-                                                              from_mongo=from_mongo,
+                                                              from_database=from_database,
                                                               covariates="future")
                 except:
                     ts_future_covs, inf_resolution = read_and_validate_input(future_covs_csv,
                                                                            day_first,
                                                                            multiple=False,
                                                                            resolution=resolution,
-                                                                           from_mongo=from_mongo,
+                                                                           from_database=from_database,
                                                                            covariates="future")
                     ts_future_covs = make_multiple(ts_future_covs,
                                                  series_csv,
@@ -425,7 +425,7 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
                                                        day_first,
                                                        multiple=multiple,
                                                        resolution=resolution,
-                                                       from_mongo=from_mongo,
+                                                       from_database=from_database,
                                                        covariates="future")
                 
                 ts_future_covs = make_multiple(ts_future_covs, 

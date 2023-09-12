@@ -563,7 +563,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 )
 @click.option("--series-csv",
     type=str,
-    default="../../RDN/Load_Data/2009-2019-global-load.csv",
+    default="None",
     help="Local timeseries csv. It gets overwritten by uri if given."
 )
 @click.option("--series-uri",
@@ -874,6 +874,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                         std_dev=std_dev,
                                                         resolution=infered_resolution_series)
                 #holidays_: The holidays of country
+                #TODO check only if l_interpolation
                 try:
                     code = compile(f"holidays.{id_l[ts_num][comp_num]}()", "<string>", "eval")
                     country_holidays = eval(code)

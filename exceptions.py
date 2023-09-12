@@ -9,8 +9,8 @@ class EmptyDataframe(Exception):
     """
     Exception raised if dataframe is empty.
     """
-    def __init__(self, from_mongo):
-        super().__init__("Dataframe provided is empty" + (" or does not exist in mongo database" if from_mongo else ""))
+    def __init__(self, from_database):
+        super().__init__("Dataframe provided is empty" + (" or does not exist in mongo database" if from_database else ""))
 
 
 class DatetimesNotInOrder(Exception):
@@ -66,9 +66,9 @@ class MandatoryArgNotSet(Exception):
     """
     def __init__(self, argument_name, mandatory_prerequisites):
         if mandatory_prerequisites:
-            mandatory_prerequisites = "\n".join((args[0] + "=" + args[1]) for args in mandatory_prerequisites)
-            self.message = f'Argument {argument_name} is mandatory since the following conditions apply: {mandatory_prerequisites}. It was not set.'
+            mandatory_prerequisites = "\n".join(("- " + args[0] + "=" + args[1]) for args in mandatory_prerequisites)
+            self.message = f'Argument {argument_name} is mandatory since the following conditions apply: \n{mandatory_prerequisites}.\nIt was set to None / not set.'
         else:
-            self.message = f'Argument {argument_name} is mandatory and not set.'
+            self.message = f'Argument {argument_name} is mandatory and set to None / not set.'
         super().__init__(self.message)
 
