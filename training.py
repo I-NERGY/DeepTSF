@@ -105,23 +105,23 @@ my_stopper = EarlyStopping(
                    'RandomForest',
                    'Naive']),
               multiple=False,
-              default='RNN',
+              default='None',
               help="The base architecture of the model to be trained"
               )
 @click.option("--hyperparams-entrypoint", "-h",
               type=str,
-              default='LSTM1',
+              default='None',
               help=""" The entry point of config.yml under the 'hyperparams'
               one containing the desired hyperparameters for the selected model"""
               )
 @click.option("--cut-date-val",
               type=str,
-              default='20200101',
+              default='None',
               help="Validation set start date [str: 'YYYYMMDD']"
               )
 @click.option("--cut-date-test",
               type=str,
-              default='20210101',
+              default='None',
               help="Test set start date [str: 'YYYYMMDD']",
               )
 @click.option("--test-end-date",
@@ -164,7 +164,7 @@ my_stopper = EarlyStopping(
     default="true",
     help="Whether the date has the day before the month")
 @click.option("--resolution",
-    default="15",
+    default="None",
     type=str,
     help="The resolution of the dataset in minutes."
 )

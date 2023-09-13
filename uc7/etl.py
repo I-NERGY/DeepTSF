@@ -577,7 +577,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
     help='The year range to include in the dataset.'
 )
 @click.option("--resolution",
-    default="15",
+    default="None",
     type=str,
     help="The resolution of the dataset in minutes."
 )
@@ -673,7 +673,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 
 @click.option("--cut-date-val",
               type=str,
-              default='20200101',
+              default='None',
               help="Validation set start date [str: 'YYYYMMDD'] \
                   All dates before cut_date_val that have nan values are imputed using historical data \
                   from dates which are also before cut_date_val. Datetimes after cut_date_val are not affected \
