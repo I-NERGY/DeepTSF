@@ -278,7 +278,7 @@ def load_data_to_csv(tmpdir, database_name):
     default="false",
     help="Whether to train on multiple timeseries")
 @click.option("--resolution",
-    default="15",
+    default="None",
     type=str,
     help="The resolution of the dataset in minutes."
 )

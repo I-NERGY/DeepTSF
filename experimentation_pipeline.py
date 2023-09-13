@@ -135,7 +135,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     )
 # etl arguments
 @click.option("--resolution",
-    default="15",
+    default="None",
     type=str,
     help="Change the resolution of the dataset (minutes)."
 )
@@ -164,23 +164,23 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
                    'Naive',
                    'AutoARIMA']),
               multiple=False,
-              default='RNN',
+              default='None',
               help="The base architecture of the model to be trained"
               )
 @click.option("--hyperparams-entrypoint", "-h",
               type=str,
-              default='LSTM1',
+              default='None',
               help=""" The entry point of config.yml under the 'hyperparams'
               one containing the desired hyperparameters for the selected model"""
               )
 @click.option("--cut-date-val",
               type=str,
-              default='20190101',
+              default='None',
               help="Validation set start date [str: 'YYYYMMDD']"
               )
 @click.option("--cut-date-test",
               type=str,
-              default='20200101',
+              default='None',
               help="Test set start date [str: 'YYYYMMDD']",
               )
 @click.option("--test-end-date",
@@ -198,7 +198,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 # eval
 @click.option("--forecast-horizon",
               type=str,
-              default="96")
+              default="None")
 @click.option("--stride",
               type=str,
               default="None")
@@ -283,7 +283,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 
 @click.option("--eval-series",
     type=str,
-    default="PT",
+    default="None",
     help="On which timeseries to run the backtesting. Only for multiple timeseries")
 
 @click.option("--n-trials",
@@ -391,16 +391,30 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
              ts_used_id, m_mase, min_non_nan_interval, num_samples):
 
     disable_warnings(InsecureRequestWarning)
-
-    #check mandatory arguments:
-    #database_name``` (mandatory if from_database=true
-
     
-    #if none_checker(series_uri) == None and truth_checker(from_database) == False:
-    #    check_mandatory(series_csv, "series_csv", [["series_uri", "None"], ["from_database", "False"]])
-    #check_mandatory(eval_series, "eval_series", [["multiple", "True"], ["evaluate_all_ts", "False"]])
-    #multiple=True, and evaluate_all_ts=False
+    if none_checker(series_uri) == None and not truth_checker(from_database) and none_checker(series_uri) == None:
+        check_mandatory(series_csv, "series_csv", [["series_uri", "None"], ["from_database", "False"]])
 
+    if none_checker(resolution) == None:
+        check_mandatory(resolution, "resolution", [])
+
+    if none_checker(darts_model) == None:
+        check_mandatory(darts_model, "darts_model", [])
+    
+    if none_checker(hyperparams_entrypoint) == None:
+        check_mandatory(hyperparams_entrypoint, "hyperparams_entrypoint", [])
+
+    if none_checker(cut_date_val) == None:
+        check_mandatory(cut_date_val, "cut_date_val", [])
+
+    if none_checker(cut_date_test) == None:
+        check_mandatory(cut_date_test, "cut_date_test", [])
+
+    if none_checker(forecast_horizon) == None:
+        check_mandatory(forecast_horizon, "forecast_horizon", [])
+
+    if none_checker(eval_series) == None and truth_checker(multiple) and not truth_checker(evaluate_all_ts):
+        check_mandatory(eval_series, "eval_series", [["multiple", "True"], ["evaluate_all_ts", "False"]])
 
 
     # Argument preprocessing

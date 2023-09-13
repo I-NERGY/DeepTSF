@@ -569,7 +569,7 @@ def call_shap(n_past_covs: int,
               )
 @click.option("--cut-date-test",
               type=str,
-              default='20210101',
+              default='None',
               help="Test set start date [str: 'YYYYMMDD']",
               )
 @click.option("--test-end-date",
@@ -591,7 +591,7 @@ def call_shap(n_past_covs: int,
               )
 @click.option("--forecast-horizon",
               type=str,
-              default="96")
+              default="None")
 @click.option("--stride",
               type=str,
               default="None")
@@ -626,12 +626,12 @@ def call_shap(n_past_covs: int,
 
 @click.option("--eval-series",
     type=str,
-    default="PT",
+    default="None",
     help="On which timeseries to run the backtesting. Only for multiple timeseries")
 
 @click.option("--cut-date-val",
               type=str,
-              default='20210101',
+              default='None',
               help="Val set start date [str: 'YYYYMMDD']",
               )
 @click.option("--day-first",
@@ -640,7 +640,7 @@ def call_shap(n_past_covs: int,
     help="Whether the date has the day before the month")
 
 @click.option("--resolution",
-    default="15",
+    default="None",
     type=str,
     help="The resolution of the dataset in minutes."
 )

@@ -918,7 +918,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 )
 
 @click.option("--resolution",
-    default="15",
+    default="None",
     type=str,
     help="Change the resolution of the dataset (minutes)."
 )
@@ -937,23 +937,23 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                    'Naive',
                    'AutoARIMA']),
               multiple=False,
-              default='RNN',
+              default='None',
               help="The base architecture of the model to be trained"
               )
 @click.option("--hyperparams-entrypoint", "-h",
               type=str,
-              default='LSTM1',
+              default='None',
               help=""" The entry point of config.yml under the 'hyperparams'
               one containing the desired hyperparameters for the selected model"""
               )
 @click.option("--cut-date-val",
               type=str,
-              default='20190101',
+              default='None',
               help="Validation set start date [str: 'YYYYMMDD']"
               )
 @click.option("--cut-date-test",
               type=str,
-              default='20200101',
+              default='None',
               help="Test set start date [str: 'YYYYMMDD']",
               )
 @click.option("--test-end-date",
@@ -971,7 +971,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 # eval
 @click.option("--forecast-horizon",
               type=str,
-              default="96")
+              default="None")
 @click.option("--stride",
               type=str,
               default="None")
@@ -993,7 +993,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               help="Whether to train on multiple timeseries")
 @click.option("--eval-series",
               type=str,
-              default="PT",
+              default="None",
               help="On which timeseries to run the backtesting. Only for multiple timeseries")
 @click.option("--n-trials",
               type=str,
