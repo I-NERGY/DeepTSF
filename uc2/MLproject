@@ -25,7 +25,7 @@ entry_points:
   etl:
     parameters:
       series_csv: {type: str, default: None}
-      series_uri: {type: str, default: mlflow_artifact_uri}
+      series_uri: {type: str, default: None}
       resolution: {type: str, default: None}
       year_range: {type: str, default: None}
       time_covs: {type: str, default: "false"}
@@ -41,27 +41,27 @@ entry_points:
       l_interpolation: {type: str, default : "false"}
       rmv_outliers: {type: str, default: "true"}
       convert_to_local_tz: {type: str, default: "true"}
-      ts_used_id: {type: str, default: "None"}
+      ts_used_id: {type: str, default: None}
       infered_resolution_series: {type: str, default: "15"}
       min_non_nan_interval: {type: str, default: "24"}
       cut_date_val: {type: str, default: None}
       infered_resolution_past: {type: str, default: "15"} 
-      past_covs_csv: {type: str, default: "None"} 
-      past_covs_uri: {type: str, default: "None"}
+      past_covs_csv: {type: str, default: None} 
+      past_covs_uri: {type: str, default: None}
       infered_resolution_future: {type: str, default: "15"} 
-      future_covs_csv: {type: str, default: "None"} 
-      future_covs_uri: {type: str, default: "None"} 
+      future_covs_csv: {type: str, default: None} 
+      future_covs_uri: {type: str, default: None} 
     command: |
       python etl.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --multiple {multiple} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --convert-to-local-tz {convert_to_local_tz} --ts-used-id {ts_used_id} --infered-resolution-series {infered_resolution_series} --min-non-nan-interval {min_non_nan_interval} --cut-date-val {cut_date_val} --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --infered-resolution-past {infered_resolution_past}  --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --infered-resolution-future {infered_resolution_future} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri}
 
   train:
     parameters:
       series_csv: {type: str, default: None}
-      series_uri: {type: str, default: mlflow_artifact_uri}
+      series_uri: {type: str, default: None}
       future_covs_csv: {type: str, default: None}
-      future_covs_uri: {type: str, default: mlflow_artifact_uri}
+      future_covs_uri: {type: str, default: None}
       past_covs_csv: {type: str, default: None}
-      past_covs_uri: {type: str, default: mlflow_artifact_uri}
+      past_covs_uri: {type: str, default: None}
       cut_date_val: {type: str, default: None}
       cut_date_test: {type: str, default: None}
       test_end_date: {type: str, default: None}
@@ -71,7 +71,7 @@ entry_points:
       scale: {type: str, default: "true"}
       scale_covs: {type: str, default: "true"}
       multiple: {type: str, default: "false"}
-      training_dict: {type: str, default: "None"}
+      training_dict: {type: str, default: None}
       num_workers: {type: str, default: 4}
       day_first: {type: str, default: "true"}
       resolution: {type: str, default: None}
@@ -82,13 +82,13 @@ entry_points:
   eval:
     parameters:
       mode: {type: str, default: remote}
-      series_uri: {type: str, default: mlflow_artifact_uri}
-      future_covs_uri: {type: str, default: mlflow_artifact_uri}
-      past_covs_uri: {type: str, default: mlflow_artifact_uri}
-      scaler_uri: {type: str, default: mlflow_artifact_uri}
+      series_uri: {type: str, default: None}
+      future_covs_uri: {type: str, default: None}
+      past_covs_uri: {type: str, default: None}
+      scaler_uri: {type: str, default: None}
       cut_date_test: {type: str, default: None}
       test_end_date: {type: str, default: None}
-      model_uri: {type: str, default: mlflow_artifact_uri}
+      model_uri: {type: str, default: None}
       model_type: {type: str, default: pl}
       forecast_horizon: {type: str, default: None}
       stride: {type: str, default: None}
@@ -114,11 +114,11 @@ entry_points:
   optuna_search:
     parameters:
       series_csv: {type: str, default: None}
-      series_uri: {type: str, default: mlflow_artifact_uri}
+      series_uri: {type: str, default: None}
       future_covs_csv: {type: str, default: None}
-      future_covs_uri: {type: str, default: mlflow_artifact_uri}
+      future_covs_uri: {type: str, default: None}
       past_covs_csv: {type: str, default: None}
-      past_covs_uri: {type: str, default: mlflow_artifact_uri}
+      past_covs_uri: {type: str, default: None}
       resolution: {type: str, default: None}
       year_range: {type: str, default: None}
       darts_model: {type: str, default: None}
@@ -179,7 +179,7 @@ entry_points:
       wncutoff: {type: str, default: 0.000694}
       ycutoff: {type: str, default: 3}
       ydcutoff: {type: str, default: 30}
-      shap_data_size: {type: str, default: 10}
+      shap_data_size: {type: str, default: 100}
       analyze_with_shap: {type: str, default: false}
       multiple: {type: str, default: "false"}
       eval_series: {type: str, default: None}
@@ -196,7 +196,7 @@ entry_points:
       convert_to_local_tz: {type: str, default: "true"}
       grid_search: {type: str, default: "false"}
       shap_input_length: {type: str, default: None}
-      ts_used_id: {type: str, default: "None"}
+      ts_used_id: {type: str, default: None}
       m_mase: {type: str, default: "1"}
       min_non_nan_interval: {type: str, default: "24"}
       num_samples: {type: str, default: "1"}
@@ -209,8 +209,8 @@ entry_points:
       pyfunc_model_folder: {type: str, default: s3://mlflow-bucket/2/33d85746285c42a7b3ef403eb2f5c95f/artifacts/pyfunc_model}
       forecast_horizon:  {type: str, default: None}
       series_uri: {type: str, default: None}
-      past_covariates_uri: {type: str, default: "None"}
-      future_covariates_uri: {type: str, default: "None"}
+      past_covariates_uri: {type: str, default: None}
+      future_covariates_uri: {type: str, default: None}
       roll_size: {type: str, default: 96}
       batch_size:  {type: str, default: 1}
 

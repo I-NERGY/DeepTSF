@@ -1,7 +1,40 @@
 # DeepTSF
 
-Repository for DeepTSF timeseries forecasting tool.  
+This is the repository for DeepTSF timeseries forecasting tool.
 
+To set up DeepTSF in your system, the first step is to clone this repository
+
+```git clone https://github.com/I-NERGY/DeepTSF.git```
+
+```cd DeepTSF```
+
+After that, you can set up DeepTSF either using conda or docker
+
+## Set up locally using conda
+
+You can use conda.yaml to reproduce the conda environment manually. Simply 
+execute the following command which creates a new conda enviroment called
+DeepTSF_env
+
+```conda env create -f conda.yaml```
+
+Then you have to activate the new enviroment
+
+```conda acitvate DeepTSF_env```
+
+Alternativelly to those 2 commands, you can reproduce the conda environment automatically,
+by runing any 'mlflow run' command *without* the option `--env-manager=local`
+
+Now you are ready to go! Choose the file which best corresponds to your 
+problem, and switch to that:
+    - uc2 for general problems. The app will execute a national load forecasting
+    use case if from_database is set to true
+    - uc6 and uc7 are related to other use cases and are under construction.
+```cd uc2```
+
+
+
+#TODO is that needed?
 ## To create conda environment file
 
 ```conda env export conda.yaml```
@@ -17,12 +50,12 @@ And remember to remove any windows related dependencies such as:
 - win_inet_pton
 - pywin32
 
-## Reproduce the conda environment manually
-```conda env create -f conda.yaml```
+Then, you can execute any experiment you want. An example command (also shown in the paper), is shown below:
 
-## Reproduce the conda environment automatically
-Run any 'mlflow run' command *without* the option `--env-manager=local`
+```mlflow run --experiment-name example --entry-point exp_pipeline . -P series_csv=Italy.csv -P convert_to_local_tz=false -P day_first=false -P from_database=false -P multiple=false -P l_interpolation=false -P resolution=60 -P rmv_outliers=true -P country=IT -P year_range=2015-2022 -P cut_date_val=20200101 -P cut_date_test=20210101 -P test_end_date=20211231 -P scale=true -P darts_model=NBEATS -P hyperparams_entrypoint=NBEATS_example -P loss_function=mape -P opt_test=true -P grid_search=false -P n_trials=100 -P device=gpu -P ignore_previous_runs=t -P forecast_horizon=24 -P m_mase=24 -P analyze_with_shap=False --env-manager=local```
 
+
+TODO : Also these
 ## Inference example (replace uris accordingly)
 ```mlflow run --experiment-name trash --entry-point inference . --env-manager=local -P series_uri=runs:/bd0c727f76a849b48824daa7147f4b82/artifacts/features/series.csv -P pyfunc_model_folder=runs:/bd0c727f76a849b48824daa7147f4b82/pyfunc_model```  
 
@@ -170,7 +203,7 @@ from dates which are also before cut_date_val.
     * The week of the year
     * Whether its a holiday or not
 
-* ```convert_to_local_tz``` (default false), whether to convert to local time. If we have a multiple time series file, ID column is considered as the country to transform each time series' time to. If this is not a country code, then country argument is used.
+* ```convert_to_local_tz``` (default true), whether to convert to local time. If we have a multiple time series file, ID column is considered as the country to transform each time series' time to. If this is not a country code, then country argument is used.
 
 * ```min_non_nan_interval``` (default 24), if after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval hours, these intervals are all replaced by nan values
 
@@ -252,7 +285,7 @@ scale: ["list", "True", "False"]
 
 * ```cut_date_test``` (mandatory), the test set start date (if cut_date_test=YYYYMMDD, then the test set starts at YYYY-MM-DD 00:00:00). Values between that (non inclusive) and cut_date_val (inclusive) will be the validation series. If cut_date_test = cut_date_test, then the test and validation sets will be the same (from cut_date_test to test_end_date, both inclusive). Format: str, 'YYYYMMDD'
 
-* ```test_end_date``` (default None), the test set ending date (if test_end_date=YYYYMMDD, then the test set ends at YYYY-MM-DD 23:00:00). Values between that and cut_date_test (both inclusive) will be the testing series. All values after that will be ignored. If None, all the timeseries from cut_date_test will be the test set. Format: str, 'YYYYMMDD'
+* ```test_end_date``` (default None), the test set ending date (if test_end_date=YYYYMMDD, then the test set ends at the last datetime of YYYY-MM-DD). Values between that and cut_date_test (both inclusive) will be the testing series. All values after that will be ignored. If None, all the timeseries from cut_date_test will be the test set. Format: str, 'YYYYMMDD'
 
 * ```device``` (default gpu), whether to run the pipeline on the gpu, or just use the cpu. 
 

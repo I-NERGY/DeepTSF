@@ -568,7 +568,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 )
 @click.option("--series-uri",
     type=str,
-    default="mlflow_artifact_uri",
+    default="None",
     help="Remote timeseries csv file.  If set, it overwrites the local value."
 )
 @click.option('--year-range',
@@ -722,7 +722,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     disable_warnings(InsecureRequestWarning)
 
 
-    if series_uri != "mlflow_artifact_uri":
+    if none_checker(series_uri) != None:
         download_file_path = download_online_file(series_uri, dst_filename="load.csv")
         series_csv = download_file_path
 
@@ -810,7 +810,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
     # Year range handling
     if none_checker(year_range) is None:
-        year_range = f"{ts_list[0].index[0].year}-{ts_list[0].index[-1].year}"
+        year_range = f"{ts_list[0][0].index[0].year}-{ts_list[0][0].index[-1].year}"
     if "-" in year_range:
         year_range = year_range.split("-")
     if isinstance(year_range, list):
