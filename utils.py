@@ -348,11 +348,18 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
         print('\nDownloading remote file of recent time series history...')
         series_uri = download_mlflow_file(series_uri)
 
-    history = load_local_csv_as_darts_timeseries(
-        local_path=series_uri,
-        name='series',
-        time_col='Datetime',
-        last_date=None)
+    if "history" not in model_input:
+        history = load_local_csv_as_darts_timeseries(
+            local_path=series_uri,
+            name='series',
+            time_col='Datetime',
+            last_date=None)
+    else:
+            history = darts.TimeSeries.from_dataframe(
+                model_input["history"],
+                fill_missing_dates=True,
+                freq=None)
+            history = [history.astype(np.float32)]
 
     if none_checker(future_covariates_uri) is not None:
         future_covariates = darts.TimeSeries.from_csv(

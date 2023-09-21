@@ -549,22 +549,22 @@ def call_shap(n_past_covs: int,
               )
 @click.option("--series-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help='Provide the uri of the series file'
               )
 @click.option("--future-covs-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help='Provide the uri of the future covariates file'
               )
 @click.option("--past-covs-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help='Provide the uri of the past covariates file'
               )
 @click.option("--scaler-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help='Provide the uri of the future covariates file'
               )
 @click.option("--cut-date-test",
@@ -579,7 +579,7 @@ def call_shap(n_past_covs: int,
               )
 @click.option("--model-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help='Remote URI of the model to be evaluated'
               )
 @click.option("--model-type",

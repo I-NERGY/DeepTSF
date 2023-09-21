@@ -73,7 +73,7 @@ my_stopper = EarlyStopping(
               )
 @click.option("--series-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help="Remote timeseries csv file. If set, it overwrites the local value."
               )
 @click.option("--future-covs-csv",
@@ -82,7 +82,7 @@ my_stopper = EarlyStopping(
               )
 @click.option("--future-covs-uri",
               type=str,
-              default='mlflow_artifact_uri'
+              default='None'
               )
 @click.option("--past-covs-csv",
               type=str,
@@ -90,7 +90,7 @@ my_stopper = EarlyStopping(
               )
 @click.option("--past-covs-uri",
               type=str,
-              default='mlflow_artifact_uri'
+              default='None'
               )
 @click.option("--darts-model",
               type=click.Choice(
@@ -539,7 +539,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         mlflow.pyfunc.log_model(mlflow_model_root_dir,
                                 loader_module="darts_flavor",
                                 data_path=logs_path_new,
-                                code_path=['../utils.py', '../inference.py', '../darts_flavor.py'],
+                                code_path=['../exceptions.py', '../utils.py', '../inference.py', '../darts_flavor.py'],
                                 conda_env=mlflow_serve_conda_env)
         # elif model_type == 'pkl':
         #     mlflow.pyfunc.log_model(mlflow_model_root_dir,
@@ -562,7 +562,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 'scaler_uri',
                 f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_series.pkl')
         else:
-            mlflow.set_tag('scaler_uri', 'mlflow_artifact_uri')
+            mlflow.set_tag('scaler_uri', 'None')
 
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "training")
@@ -581,7 +581,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         else:
             mlflow.set_tag(
                 'future_covariates_uri',
-                'mlflow_artifact_uri')
+                'None')
 
         if past_covariates is not None:
             mlflow.set_tag(
@@ -589,7 +589,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 f'{mlrun.info.artifact_uri}/features/past_covariates_transformed.csv')
         else:
             mlflow.set_tag('past_covariates_uri',
-                'mlflow_artifact_uri')
+                'None')
 
         mlflow.set_tag(
             'setup_uri',

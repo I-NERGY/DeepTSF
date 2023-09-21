@@ -216,6 +216,8 @@ def load_data_to_csv(tmpdir, database_name):
     db = client['inergy_prod_db']
     collection = db["asm_historical_smart_meters_uc6_power"]
     df = pd.DataFrame(collection.find()).drop(columns={'_id', ''}, errors='ignore')
+    res = collection.find({}, {"date":1, "_id":0})
+    print(pd.DataFrame(res))
     #df.index = list(range(len(df)))
     df["ID"] = df["id"] + " " + df["power_type"]
     cols_to_drop = {'date', 'id', 'power_type'}

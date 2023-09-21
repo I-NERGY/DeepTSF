@@ -131,7 +131,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
         mlflow.pyfunc.log_model(mlflow_model_root_dir,
                             loader_module="darts_flavor",
                             data_path=logs_path_new,
-                            code_path=['../utils.py', '../inference.py', '../darts_flavor.py'],
+                            code_path=['../exceptions.py', '../utils.py', '../inference.py', '../darts_flavor.py'],
                             conda_env=mlflow_serve_conda_env)
             
         shutil.rmtree(logs_path_new)
@@ -146,7 +146,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
                 'scaler_uri',
                 f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_series.pkl')
         else:
-            mlflow.set_tag('scaler_uri', 'mlflow_artifact_uri')
+            mlflow.set_tag('scaler_uri', 'None')
 
 
 
@@ -177,7 +177,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
         else:
             mlflow.set_tag(
                 'future_covariates_uri',
-                'mlflow_artifact_uri')
+                'None')
 
         if past_covariates is not None:
             mlflow.set_tag(
@@ -185,7 +185,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
                 f'{mlrun.info.artifact_uri}/features/past_covariates_transformed.csv')
         else:
             mlflow.set_tag('past_covariates_uri',
-                'mlflow_artifact_uri')
+                'None')
 
         print("\nArtifacts uploaded.")
         logging.info("\nArtifacts uploaded.")
@@ -892,7 +892,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               )
 @click.option("--series-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help="Remote timeseries csv file. If set, it overwrites the local value."
               )
 @click.option("--future-covs-csv",
@@ -901,7 +901,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               )
 @click.option("--future-covs-uri",
               type=str,
-              default='mlflow_artifact_uri'
+              default='None'
               )
 @click.option("--past-covs-csv",
               type=str,
@@ -909,7 +909,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               )
 @click.option("--past-covs-uri",
               type=str,
-              default='mlflow_artifact_uri'
+              default='None'
               )
 @click.option('--year-range',
     default="None",
