@@ -2,15 +2,36 @@
 
 This is the repository for DeepTSF timeseries forecasting tool.
 
-To set up DeepTSF in your system, the first step is to clone this repository
+## Set up mlflow tracking server
+
+To run this system you first need to install the mlflow tracking and minio server.
+
+```git clone https://github.com/I-NERGY/mlflow-tracking-server.git```
+
+```cd mlflow-server```
+
+After that, you need to get the server to run
+
+```docker-compose up```
+
+The server and client may run on different computers. In this case, remember to change
+the addresses on the .env file.
+
+## Set up DeepTSF
+
+To set up DeepTSF in your system, you need clone this repository
 
 ```git clone https://github.com/I-NERGY/DeepTSF.git```
 
 ```cd DeepTSF```
 
+Also, in order for the client to communicate with the servers, 
+a .env file is needed. An example (.env.example) is provided,
+with the default values of the servers.
+
 After that, you can set up DeepTSF either using conda or docker
 
-## Set up locally using conda
+### Set up locally using conda
 
 You can use conda.yaml to reproduce the conda environment manually. Simply 
 execute the following command which creates a new conda enviroment called
@@ -18,7 +39,10 @@ DeepTSF_env
 
 ```conda env create -f conda.yaml```
 
-Then you have to activate the new enviroment
+Then, after you set MLFLOW_TRACKING_URI to the uri of the
+mlflow tracking server (by default https://localhost:9000) you have to activate the new enviroment
+
+```export MLFLOW_TRACKING_URI=https://localhost:9000```
 
 ```conda acitvate DeepTSF_env```
 
@@ -32,43 +56,41 @@ problem, and switch to that:
     - uc6 and uc7 are related to other use cases and are under construction.
 ```cd uc2```
 
-
-
-#TODO is that needed?
-## To create conda environment file
-
-```conda env export conda.yaml```
-
-If it is packaged from windows to linux do the following instead:
-
-```conda env export --no-builds > conda.yaml```
-
-And remember to remove any windows related dependencies such as:
-- vc
-- wincertstore
-- vs2015_runtime
-- win_inet_pton
-- pywin32
-
 Then, you can execute any experiment you want. An example command (also shown in the paper), is shown below:
 
 ```mlflow run --experiment-name example --entry-point exp_pipeline . -P series_csv=Italy.csv -P convert_to_local_tz=false -P day_first=false -P from_database=false -P multiple=false -P l_interpolation=false -P resolution=60 -P rmv_outliers=true -P country=IT -P year_range=2015-2022 -P cut_date_val=20200101 -P cut_date_test=20210101 -P test_end_date=20211231 -P scale=true -P darts_model=NBEATS -P hyperparams_entrypoint=NBEATS_example -P loss_function=mape -P opt_test=true -P grid_search=false -P n_trials=100 -P device=gpu -P ignore_previous_runs=t -P forecast_horizon=24 -P m_mase=24 -P analyze_with_shap=False --env-manager=local```
 
+### Set up locally using docker
 
-TODO : Also these
-## Inference example (replace uris accordingly)
-```mlflow run --experiment-name trash --entry-point inference . --env-manager=local -P series_uri=runs:/bd0c727f76a849b48824daa7147f4b82/artifacts/features/series.csv -P pyfunc_model_folder=runs:/bd0c727f76a849b48824daa7147f4b82/pyfunc_model```  
+Alternaativelly, you can also set up the client system using docker. 
 
-or  
+You first need to get the client to run
 
-```python inference.py --pyfunc-model-folder runs:/bd0c727f76a849b48824daa7147f4b82/pyfunc_model --series-uri runs:/bd0c727f76a849b48824daa7147f4b82/artifacts/features/series.csv```  
+```docker-compose up```
 
-or  
+After that, in a new terminal window, you can copy the timeseries file you
+want to run into the container, and then run bash and have access to the 
+container's file system:
+```docker cp <path_to_file> DeepTSF-backend:/app```
 
-```python inference.py --pyfunc-model-folder s3://mlflow-bucket/2/bd0c727f76a849b48824daa7147f4b82/artifacts/pyfunc_model --series-uri s3://mlflow-bucket/2/bd0c727f76a849b48824daa7147f4b82/artifacts/features/series.csv```
+```docker exec -it DeepTSF-backend bash```
 
-## Full pipeline example
-```mlflow run --experiment-name 2009-2019 --entry-point exp_pipeline . -P hyperparams_entrypoint=nbeats0_10 -P darts_model=NBEATS -P ignore_previous_runs=t -P cut_date_val=20180101 -P cut_date_test=20190101 -P year_range=2009-2019 -P time_covs=None --env-manager=local```
+Now you are running bash in the container! You can change to the uc you
+want to run, and after executing the following commands you will be
+able to run mlflow experiments like the one described above:
+
+```cd uc3```
+
+```conda activate DeepTSF_env```
+
+```export MLFLOW_TRACKING_URI=https://localhost:9000```
+
+```export GIT_PYTHON_REFRESH=quiet```
+
+Don't forget to change series_csv to match the file's location in the container (it
+is located in the parent directory).
+
+## Pipeline stages and parameters
 
 The stages of the pipeline, along with the MLflow parameters that are related to each one are presented below:
 
