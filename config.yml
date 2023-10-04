@@ -839,6 +839,7 @@ hyperparameters:
     generic_architecture: True
     activation: 'ReLU'
     layer_widths: 64
+    dropout: 0
     expansion_coefficient_dim: 5
     n_epochs: 300
     random_state: 0
@@ -852,6 +853,7 @@ hyperparameters:
     num_blocks: 3
     num_layers: 3
     layer_widths: 64
+    dropout: 0 
     n_epochs: 300
     random_state: 0
     nr_epochs_val_period: 2
@@ -864,7 +866,7 @@ hyperparameters:
     nhead: 4
     num_encoder_layers: 3
     dim_feedforward: 512
-    dropout: 0.1 
+    dropout: 0
     activation: 'relu'
     n_epochs: 300
     random_state: 0
@@ -908,13 +910,13 @@ hyperparameters:
     dilation_base: 2
     weight_norm: True
     dropout: 0
-    n_epochs: 2
+    n_epochs: 300
     random_state: 0
     nr_epochs_val_period: 1
     batch_size: 1024
 
   TFT:
-    input_chunk_length: 168
+    input_chunk_length: 120
     output_chunk_length: 24
     lstm_layers: 1
     dropout: 0
