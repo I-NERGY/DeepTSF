@@ -829,3 +829,110 @@ hyperparameters:
 
   LGBM_uc6:
     lags: 672
+
+  NBEATS:
+    input_chunk_length: 120
+    output_chunk_length: 24
+    num_stacks: 3
+    num_blocks: 6
+    num_layers: 1
+    generic_architecture: True
+    activation: 'ReLU'
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 512
+
+  NHiTS:
+    input_chunk_length: 120
+    output_chunk_length: 24
+    num_stacks: 3
+    num_blocks: 3
+    num_layers: 3
+    layer_widths: 64
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+
+  Transformer:
+    input_chunk_length: 120
+    output_chunk_length: 24
+    d_model: 64
+    nhead: 4
+    num_encoder_layers: 3
+    dim_feedforward: 512
+    dropout: 0.1 
+    activation: 'relu'
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 32
+
+  BlockRNN:
+     input_chunk_length: 120
+     output_chunk_length: 24
+     model: RNN
+     n_rnn_layers: 1
+     hidden_dim:  128
+     n_epochs: 300
+     random_state: 0
+     nr_epochs_val_period: 2
+     dropout: 0
+     learning_rate: 0.0008
+     likelihood: Gaussian
+     batch_size: 32
+
+  RNN:
+     input_chunk_length: 120
+     model: RNN
+     n_rnn_layers: 1
+     hidden_dim:  128
+     n_epochs: 300
+     training_length: 24
+     random_state: 0
+     nr_epochs_val_period: 2
+     dropout: 0
+     learning_rate: 0.0008
+     likelihood: Gaussian
+     batch_size: 32
+
+
+  TCN:
+    input_chunk_length: 120
+    output_chunk_length: 24
+    kernel_size: 3
+    num_filters: 3
+    dilation_base: 2
+    weight_norm: True
+    dropout: 0
+    n_epochs: 2
+    random_state: 0
+    nr_epochs_val_period: 1
+    batch_size: 1024
+
+  TFT:
+    input_chunk_length: 168
+    output_chunk_length: 24
+    lstm_layers: 1
+    dropout: 0
+    num_attention_heads: 1
+    hidden_size: 64
+    batch_size: 1024
+    n_epochs: 150
+    add_relative_index: "True"
+
+  LightGBM:
+    lags: [-1, -120]
+    random_state: 0
+    output_chunk_length: 24
+
+  RandomForest:
+    lags: [-1, -120]
+    random_state: 0
+    output_chunk_length: 24
+
+  Naive:
+    days_seasonality: 7

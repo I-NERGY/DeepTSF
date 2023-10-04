@@ -238,7 +238,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
              num_workers, day_first, eval_method, loss_function, opt_all_results,
              evaluate_all_ts, num_samples):
 
-                hyperparameters = ConfigParser('../config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
+                hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
                     if type(value) == list and value and value[0] == "range":
@@ -1060,7 +1060,7 @@ def optuna_search(series_csv, series_uri, future_covs_csv, future_covs_uri,
         evaluate_all_ts = truth_checker(evaluate_all_ts)
         with mlflow.start_run(run_name=f'optuna_test_{darts_model}', nested=True) as mlrun:
             if grid_search:
-                hyperparameters = ConfigParser('../config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
+                hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
                     if type(value) == list and value and value[0] == "range":
