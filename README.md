@@ -4,7 +4,7 @@ This is the repository for DeepTSF timeseries forecasting tool.
 
 ## Set up mlflow tracking server
 
-To run this system you first need to install the mlflow tracking and minio server.
+To run DeepTSF on your system you first need to install the mlflow tracking and minio server.
 
 ```git clone https://github.com/I-NERGY/mlflow-tracking-server.git```
 
@@ -19,7 +19,7 @@ the addresses on the .env file.
 
 ## Set up DeepTSF
 
-To set up DeepTSF in your system, you need clone this repository
+To set up DeepTSF on your system, you need clone this repository
 
 ```git clone https://github.com/I-NERGY/DeepTSF.git```
 
@@ -42,7 +42,7 @@ DeepTSF_env
 Then, after you set MLFLOW_TRACKING_URI to the uri of the
 mlflow tracking server (by default https://localhost:9000) you have to activate the new enviroment
 
-```export MLFLOW_TRACKING_URI=https://localhost:9000```
+```export MLFLOW_TRACKING_URI=https://localhost:5000```
 
 ```conda acitvate DeepTSF_env```
 
@@ -83,7 +83,7 @@ able to run mlflow experiments like the one described above:
 
 ```conda activate DeepTSF_env```
 
-```export MLFLOW_TRACKING_URI=https://localhost:9000```
+```export MLFLOW_TRACKING_URI=https://localhost:5000```
 
 ```export GIT_PYTHON_REFRESH=quiet```
 

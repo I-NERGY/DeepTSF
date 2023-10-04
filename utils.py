@@ -12,21 +12,31 @@ import numpy as np
 load_dotenv()
 from tqdm import tqdm
 import logging
-from exceptions import MandatoryArgNotSet
-
+from exceptions import MandatoryArgNotSet, NotValidConfig
+import json
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
 
 class ConfigParser:
-    def __init__(self, config_file_path=f'{cur_dir}/config.yml'):
+    def __init__(self, config_file=f'{cur_dir}/config.yml', config_string=None):
         import yaml
-        with open(config_file_path, "r") as ymlfile:
-            self.config = yaml.safe_load(ymlfile)
-            # self.mlflow_tracking_uri = self.config['mlflow_settings']['mlflow_tracking_uri']
+        try:
+            with open(config_file, "r") as ymlfile:
+                self.config = yaml.safe_load(ymlfile)
+                if config_string != None:
+                    assert config_string in self.config['hyperparameters']
+        except:
+            try:
+                self.config = yaml.safe_load(config_string)
+            except:
+                raise NotValidConfig()
 
-    def read_hyperparameters(self, hyperparams_entrypoint):
-        return self.config['hyperparameters'][hyperparams_entrypoint]
+    def read_hyperparameters(self, hyperparams_entrypoint=""):
+            try:
+                return self.config['hyperparameters'][hyperparams_entrypoint]
+            except:
+                return self.config
 
     def read_entrypoints(self):
         return self.config['hyperparameters']
@@ -450,7 +460,6 @@ def multiple_dfs_to_ts_file(res_l, id_l, ts_id_l, save_dir, save=True):
 def check_mandatory(argument, argument_name, mandatory_prerequisites):
     if none_checker(argument) is None:
         raise MandatoryArgNotSet(argument_name, mandatory_prerequisites)
-
 
 #epestrepse kai IDs
 #prwta psakse ID meta SC

@@ -3,7 +3,7 @@ from utils import none_checker, ConfigParser, download_online_file, load_local_c
 from preprocessing import scale_covariates, split_dataset, split_nans
 
 # the following are used through eval(darts_model + 'Model')
-from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel#, NHiTSModel, TransformerModel
+from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
 # from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.gradient_boosted_model import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
@@ -192,7 +192,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
 
     ## hyperparameters
-    hyperparameters = ConfigParser().read_hyperparameters(hyperparams_entrypoint)
+    hyperparameters = ConfigParser(config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
+    print(hyperparameters)
 
     ## device
     #print("param", hyperparameters)
