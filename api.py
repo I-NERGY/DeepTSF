@@ -38,42 +38,6 @@ tags_metadata = [
     {"name": "System Monitoring", "description": "REST APIs for monitoring the host machine of the API"},
 ]
 
-
-# models = [
-#     {"model_name": "NBEATS", "search_term": "nbeats"},
-#     {"model_name": "TCN", "search_term": "tcn"},
-#     {"model_name": "BlockRNN", "search_term": "blocklstm"},
-#     {"model_name": "LightGBM", "search_term": "lgbm"},
-#     {"model_name": "RandomForest", "search_term": "rf"}
-# ]
-
-
-# models = [
-#     {"model_name": "NBEATS", "search_term": "nbeats", "covariates": "past"},
-#     {"model_name": "NHiTS", "search_term": "nhits", "covariates": "past"},
-#     {"model_name": "Transformer", "search_term": "transformer", "covariates": "past"},
-#     {"model_name": "RNN", "search_term": "rnn", "covariates": "future"},
-#     {"model_name": "TFT", "search_term": "tft", "covariates": "both"},
-#     {"model_name": "Naive", "search_term": "naive", "covariates": "none"},
-#     {"model_name": "TCN", "search_term": "tcn", "covariates": "past"},
-#     {"model_name": "BlockRNN", "search_term": "blocklstm", "covariates": "past"},
-#     {"model_name": "LightGBM", "search_term": "lgbm", "covariates": "both"},
-#     {"model_name": "RandomForest", "search_term": "rf", "covariates": "both"},
-# ]
-
-# models = [
-#     {"model_name": "NBEATS", "search_term": "nbeats", "covariates": "past"},
-#     {"model_name": "NHiTS", "search_term": "nhits", "covariates": "past"},
-#     {"model_name": "Transformer", "search_term": "transformer", "covariates": "past"},
-#     {"model_name": "RNN", "search_term": "rnn", "covariates": "future"},
-#     {"model_name": "TFT", "search_term": "tft", "covariates": "both"},
-#     {"model_name": "Naive", "search_term": "naive", "covariates": "none"},
-#     {"model_name": "TCN", "search_term": "tcn", "covariates": "past"},
-#     {"model_name": "BlockRNN", "search_term": "blocklstm", "covariates": "past"},
-#     {"model_name": "LightGBM", "search_term": "lgbm", "covariates": "both"},
-#     {"model_name": "RandomForest", "search_term": "rf", "covariates": "both"},
-# ]
-
 # metrics = [
 #     {"metric_name": "mape", "search_term": "mape"},
 #     {"metric_name": "mase", "search_term": "mase"},
@@ -164,7 +128,7 @@ async def get_model_names():
         {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 1, 'max': 1000, 'default': 300},
         {"name": "expansion_coefficient_dim", "type": "int", "description": "Dimension of expansion coefficient", 'min': 1, 'max': 10, 'default': 5},
         {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000,'default': 42},
-        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 2048, 'default': 16},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
         ]
 
     hparams_nhits = [
@@ -177,7 +141,7 @@ async def get_model_names():
         {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
         {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 300},
         {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000, 'default': 42},
-        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1000, 'default': 16},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
     ]
 
     hparams_transformer = [   
@@ -190,7 +154,7 @@ async def get_model_names():
         {"name": "dim_feedforward", "type": "int", "description": "Dimension of the feedforward network model", 'min': 1, 'max': 1024, 'default': 64},
         {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 1, 'max': 1000},
         {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000},
-        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1000},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
     ]
 
     hparams_rnn = [
@@ -204,7 +168,7 @@ async def get_model_names():
         {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
         {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 700},
         {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000, 'default': 42},
-        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1000, 'default': 16},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
         ]
 
     hparams_tft = [    
@@ -215,9 +179,8 @@ async def get_model_names():
         {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
         {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 700},
         {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000, 'default': 42},
-        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1000, 'default': 16},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
         ]
-
 
     hparams_tcn = [
         {"name": "input_chunk_length", "type": "int", "description": "Lookback window length", 'min': 1, 'max': 1000, 'default': default_input_chunk},
@@ -228,7 +191,7 @@ async def get_model_names():
         {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
         {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 500},
         {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000, 'default': 42},
-        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1000, 'default': 16},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
         {"name": "weight_norm", "type": "bool", "description": "Weight normalization", 'default': True},
     ]
 
@@ -242,7 +205,7 @@ async def get_model_names():
         {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
         {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 700},
         {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000, 'default': 42},
-        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1000, 'default': 16},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
     ]
 
     hparams_lgbm = [    
@@ -269,6 +232,7 @@ async def get_model_names():
         {"model_name": "LightGBM", "hparams": hparams_lgbm},
         {"model_name": "RandomForest", "hparams": hparams_rf},
         ]
+    
     return models
 
 
