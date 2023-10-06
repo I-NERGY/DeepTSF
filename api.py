@@ -1,6 +1,7 @@
 from distutils.log import error
 from enum import Enum
 import uvicorn
+import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends
 import pandas as pd
 import mlflow
@@ -17,14 +18,17 @@ import psutil, nvsmi
 import os
 from dotenv import load_dotenv
 from fastapi import APIRouter
-from app.auth import admin_validator, basic_validator
+from app.auth import admin_validator, scientist_validator, engineer_validator, common_validator, oauth2_scheme
+from app.config import settings
+import pretty_errors
+
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 # allows automated type check with pydantic
-#class ModelName(str, Enum):
+# class ModelName(str, Enum):
 
 tags_metadata = [
     {"name": "MLflow Info", "description": "REST APIs for retrieving elements from MLflow"},
@@ -33,21 +37,21 @@ tags_metadata = [
     {"name": "Model Evaluation", "description": "REST APIs for retrieving model evaluation results"},
     {"name": "System Monitoring", "description": "REST APIs for monitoring the host machine of the API"},
 ]
-#TODO add field covariates: past future both
-models = [
-    {"model_name": "NBEATS", "search_term": "nbeats"},
-    {"model_name": "TCN", "search_term": "tcn"},
-    {"model_name": "BlockRNN", "search_term": "blocklstm"},
-    {"model_name": "LightGBM", "search_term": "lgbm"},
-    {"model_name": "RandomForest", "search_term": "rf"}
-]
 
+# metrics = [
+#     {"metric_name": "mape", "search_term": "mape"},
+#     {"metric_name": "mase", "search_term": "mase"},
+#     {"metric_name": "mae", "search_term": "mae"},
+#     {"metric_name": "rmse", "search_term": "rmse"},
+#     {"metric_name": "smape", "search_term": "smape"}]
 metrics = [
     {"metric_name": "mape", "search_term": "mape"},
     {"metric_name": "mase", "search_term": "mase"},
     {"metric_name": "mae", "search_term": "mae"},
     {"metric_name": "rmse", "search_term": "rmse"},
-    {"metric_name": "smape", "search_term": "smape"}]
+    {"metric_name": "smape", "search_term": "smape"},
+    {"metric_name": "nrmse_max", "search_term": "nrmse_max"},
+    {"metric_name": "nrmse_mean", "search_term": "nrmse_mean"}]
 
 class DateLimits(int, Enum):
     """This function will read the uploaded csv before running the pipeline and will decide which are the allowed values
@@ -67,7 +71,6 @@ app = FastAPI(
     },
 )
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -81,9 +84,15 @@ app.add_middleware(
 admin_router = APIRouter(
     dependencies=[Depends(admin_validator)]
 )
-# basic validator passed as dependency
-basic_router = APIRouter(
-    dependencies=[Depends(basic_validator)]
+# scientist validator passed as dependency
+scientist_router = APIRouter(
+    dependencies=[Depends(scientist_validator)]
+)
+engineer_router = APIRouter(
+    dependencies=[Depends(engineer_validator)]
+)
+common_router = APIRouter(
+    dependencies=[Depends(common_validator)]
 )
 
 # implement this method for login functionality
@@ -91,19 +100,148 @@ basic_router = APIRouter(
 # def login(request: Request):
 #     token = ''
 #     return {"access_token": token, "token_type": "bearer"}
-@basic_router.get("/")
+@scientist_router.get("/")
 async def root():
-    return {"message": "Congratulations! Your API is working as expected. Now head over to http://localhost:8000/docs"}
+    return {"message": "Congratulations! Your API is working as expected. Now head over to http://localhost:8080/docs"}
 
-@admin_router.get("/models/get_model_names", tags=['Hardcoded Info'])
+
+@scientist_router.get("/models/get_model_names", tags=['Hardcoded Info'])
 async def get_model_names():
+
+    # TODO: make function POST and get resolution to create defaults for input_chunk_length and output_chunk length
+    default_input_chunk = 168
+    default_output_chunk = 24
+
+
+    hparams_naive = [ 
+        {"name": "days_seasonality", "type": "int", "description": "Period of sNaive model (in days)", 'min': 1, 'max': 366, 'default': 1}   
+        ]
+
+    hparams_nbeats = [    
+        {"name": "input_chunk_length", "type": "int", "description": "Lookback window length", 'min': 1, 'max': 1000, 'default': default_input_chunk},
+        {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
+        {"name": "num_stacks", "type": "int", "description": "Number of stacks", 'min': 1, 'max': 10, 'default': 2},
+        {"name": "num_blocks", "type": "int", "description": "Number of blocks", 'min': 1, 'max': 10, 'default': 3},
+        {"name": "num_layers", "type": "int", "description": "Number of layers", 'min': 1, 'max': 10, 'default': 1},
+        {"name": "layer_widths", "type": "int", "description": "Layer of widths", 'min': 1, 'max': 512, 'default': 64},
+        {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
+        {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 1, 'max': 1000, 'default': 300},
+        {"name": "expansion_coefficient_dim", "type": "int", "description": "Dimension of expansion coefficient", 'min': 1, 'max': 10, 'default': 5},
+        {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000,'default': 42},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
+        ]
+
+    hparams_nhits = [
+        {"name": "input_chunk_length", "type": "int", "description": "Lookback window length", 'min': 1, 'max': 1000, 'default': 120, 'default': default_input_chunk},
+        {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': 24, 'default': default_output_chunk},
+        {"name": "num_stacks", "type": "int", "description": "Number of stacks", 'min': 1, 'max': 1000, 'default': 2},
+        {"name": "num_blocks", "type": "int", "description": "Number of blocks", 'min': 1, 'max': 1000, 'default': 3},
+        {"name": "num_layers", "type": "int", "description": "Number of layers", 'min': 1, 'max': 1000, 'default': 1},
+        {"name": "layer_widths", "type": "int", "description": "Layer of widths", 'min': 1, 'max': 1000, 'default': 64},
+        {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
+        {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 300},
+        {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000, 'default': 42},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
+    ]
+
+    hparams_transformer = [   
+        {"name": "input_chunk_length", "type": "int", "description": "Lookback window length", 'min': 1, 'max': 1000, 'default': default_input_chunk},
+        {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
+        {"name": "d_model", "type": "int", "description": "Number of encoder/decoder features", 'min': 1, 'max': 128, 'default': 16},
+        {"name": "nhead", "type": "int", "description": "Number of attention heads", 'min': 1, 'max': 6, 'default': 2},
+        {"name": "num_encoder_layers", "type": "int", "description": "Number of encoder layers", 'min': 1, 'max': 20, 'default': 1},
+        {"name": "num_decoder_layers", "type": "int", "description": "Number of decoder layers", 'min': 1, 'max': 20, 'default': 1},
+        {"name": "dim_feedforward", "type": "int", "description": "Dimension of the feedforward network model", 'min': 1, 'max': 1024, 'default': 64},
+        {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 1, 'max': 1000},
+        {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
+    ]
+
+    hparams_rnn = [
+        {"name": "input_chunk_length", "type": "int", "description": "Lookback window length", 'min': 1, 'max': 1000, 'default': default_input_chunk},
+        {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
+        {"name": "model", "type": "str", "description": "Number of recurrent layers", 'range': ['RNN', 'LSTM', 'GRU'], 'default': 'LSTM'},
+        {"name": "n_rnn_layers", "type": "int", "description": "Number of recurrent layers", 'min': 1, 'max': 5, 'default': 1},
+        {"name": "hidden_dim", "type": "int", "description": "Hidden dimension size within each RNN layer", 'type':'free-text', 'min': 1, 'max': 512, 'default': 8},
+        {"name": "learning rate", "type": "float", "description": "Learning rate", 'min': 0.000000001, 'max': 1, 'default': 0.0008},
+        # {"name": "training_length", "type": "int", "description": "Training length", 'min': 1, 'max': 1000},
+        {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
+        {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 700},
+        {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000, 'default': 42},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
+        ]
+
+    hparams_tft = [    
+        {"name": "input_chunk_length", "type": "int", "description": "Lookback window length", 'min': 1, 'max': 1000, 'default': default_input_chunk},
+        {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
+        {"name": "lstm_layers", "type": "int", "description": "Number of LSTM layers", 'min': 1, 'max': 5,  'default': 1},
+        {"name": "num_attention_heads", "type": "int", "description": "Number of attention heads", 'min': 1, 'max': 6, 'default': 1},
+        {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
+        {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 700},
+        {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000, 'default': 42},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
+        ]
+
+    hparams_tcn = [
+        {"name": "input_chunk_length", "type": "int", "description": "Lookback window length", 'min': 1, 'max': 1000, 'default': default_input_chunk},
+        {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
+        {"name": "kernel_size", "type": "int", "description": "Number of recurrent layers", 'min': 1, 'max': 10, 'default': 3},
+        {"name": "num_filters", "type": "int", "description": "Number of recurrent layers", 'min': 1, 'max': 1000, 'default': 3},
+        {"name": "dilation_base", "type": "int", "description": "Number of recurrent layers", 'min': 1, 'max': 1000, 'default': 2},
+        {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
+        {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 500},
+        {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000, 'default': 42},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
+        {"name": "weight_norm", "type": "bool", "description": "Weight normalization", 'default': True},
+    ]
+
+    hparams_blockrnn = [    
+        {"name": "input_chunk_length", "type": "int", "description": "Lookback window length", 'min': 1, 'max': 1000, 'default': default_input_chunk},
+        {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
+        {"name": "model", "type": "str", "description": "Number of recurrent layers", 'range': ['RNN', 'LSTM', 'GRU'], 'default': 'LSTM'},
+        {"name": "n_rnn_layers", "type": "int", "description": "Number of recurrent layers", 'min': 1, 'max': 5, 'default': 1},
+        {"name": "hidden_dim", "type": "int", "description": "Hidden dimension size within each RNN layer", 'type':'free-text', 'min': 1, 'max': 512, 'default': 8},
+        {"name": "learning rate", "type": "float", "description": "Learning rate", 'min': 0.000000001, 'max': 1, 'default': 0.0008},
+        {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
+        {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 700},
+        {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000, 'default': 42},
+        {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
+    ]
+
+    hparams_lgbm = [    
+        {"name": "lags", "type": "int", "description": "Lookback window length", 'min': 1, 'max': 1000, 'default': default_input_chunk},
+        {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
+        {"name": "random_state", "type": "int", "description": "Randomness of weight initialization", 'min': 0, 'max': 10000, 'default': 42},
+        ]
+
+    hparams_rf = [   
+        {"name": "lags", "type": "int", "description": "Lookback window length", 'min': 1, 'max': 1000, 'default': default_input_chunk},
+        {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
+        {"name": "random_state", "type": "int", "description": "Randomness of weight initialization", 'min': 0, 'max': 10000, 'default': 42},
+        ]
+
+    models = [
+        {"model_name": "Naive", "hparams": hparams_naive},
+        {"model_name": "NBEATS", "hparams": hparams_nbeats},
+        {"model_name": "NHiTS", "hparams": hparams_nhits},
+        {"model_name": "Transformer", "hparams": hparams_transformer},
+        {"model_name": "RNN", "hparams": hparams_rnn},
+        {"model_name": "TFT", "hparams": hparams_tft},
+        {"model_name": "TCN", "hparams": hparams_tcn},
+        {"model_name": "BlockRNN", "hparams": hparams_blockrnn},
+        {"model_name": "LightGBM", "hparams": hparams_lgbm},
+        {"model_name": "RandomForest", "hparams": hparams_rf},
+        ]
+    
     return models
 
-@admin_router.get("/metrics/get_metric_names", tags=['Hardcoded Info'])
+
+@engineer_router.get("/metrics/get_metric_names", tags=['Hardcoded Info'])
 async def get_metric_names():
     return metrics
 
-@admin_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
+
+@scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
 async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True)):
     # Loading
     print("Uploading file...")
@@ -127,15 +265,14 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
         raise HTTPException(
             status_code=415, detail="Unsupported file type provided. Please upload CSV file")
     try:
-        ts = read_and_validate_input(fname, day_first)
+        ts, _ = read_and_validate_input(fname, day_first)
     except WrongColumnNames:
         raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with 2 columns with names: 'Datetime', 'Load'")
     except DatetimesNotInOrder:
         raise HTTPException(status_code=415, detail="There was an error validating the file. Datetimes are not in order")
-        # return {"message": "There was an error validating the file. Datetimes are not in order",
-        #        "fname": fname}
 
     resolution_minutes = int((ts.index[1] - ts.index[0]).total_seconds() // 60)
+
     if resolution_minutes < 1 and resolution_minutes > 180:
        raise HTTPException(status_code=415, detail="Dataset resolution should be between 1 and 180 minutes")
        # return {"message": "Dataset resolution should be between 1 and 180 minutes"}
@@ -164,7 +301,7 @@ async def get_experimentation_pipeline_hparam_entrypoints():
 #async def get_resolutions():
 #    return ResolutionMinutes.dict()
 
-@basic_router.get('/get_mlflow_tracking_uri', tags=['MLflow Info'])
+@admin_router.get('/get_mlflow_tracking_uri', tags=['MLflow Info'])
 async def get_mlflow_tracking_uri():
     return mlflow.tracking.get_tracking_uri()
 
@@ -177,24 +314,41 @@ def mlflow_run(params: dict, experiment_name: str):
             env_manager="local"
             )
 
-@admin_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
+
+@scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
 async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks):
-    params = {
-        #
+
+    # params = {
+    #     "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
+    #     "resolution": parameters["resolution"], # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
+    #     "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
+    #     "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
+    #     "test_end_date": parameters["test_end_date"],  # input: user | type: str | example: "20220101" | Choose from calendar, should be > cut_date_test and <= dataset_end, defaults to dataset_end
+    #     "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
+    #     "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
+    #     "hyperparams_entrypoint": parameters["hyperparams_entrypoint"], # input: user | type: str | example: "nbeats0_2" | get values from config.yml headers
+    #     "ignore_previous_runs": parameters["ignore_previous_runs"], # input: user | type: str | example: "true" | allowed values "true" or "false", defaults to false)
+    #     "time_covs": "None", # can give it as param to the pipeline and insert from front end: Need a list of all country codes to give to the user for selection
+    #  }
+    
+    print(parameters)
+    
+    params = { 
+        "rmv_outliers": parameters["rmv_outliers"],  
+        "multiple": parameters["multiple"],
         "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
-        #
         "resolution": parameters["resolution"], # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
         "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
         "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
         "test_end_date": parameters["test_end_date"],  # input: user | type: str | example: "20220101" | Choose from calendar, should be > cut_date_test and <= dataset_end, defaults to dataset_end
-        #TODO ADD models
         "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
         "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
         "hyperparams_entrypoint": parameters["hyperparams_entrypoint"], # input: user | type: str | example: "nbeats0_2" | get values from config.yaml headers
-        "ignore_previous_runs": parameters["ignore_previous_runs"], # input: user | type: str | example: "true" | allowed values "true" or "false", defaults to false)
-        "time_covs": "None", # can give it as param to the pipeline and insert from front end: Need a list of all country codes to give to the user for selection
+        "ignore_previous_runs": True,
+        "l_interpolation": True,
+        # "country": parameters["country"], this should be given if we want to have advanced imputation
      }
-
+    
     # TODO: generalize for all countries
     # if parameters["model"] != "NBEATS":
     #    params["time_covs"] = "PT"
@@ -230,7 +384,8 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
 #	   }
     return {"message": "Experimentation pipeline initiated. Proceed to MLflow for details..."}
 
-@basic_router.get('/results/get_list_of_experiments', tags=['MLflow Info', 'Model Evaluation'])
+
+@engineer_router.get('/results/get_list_of_experiments', tags=['MLflow Info', 'Model Evaluation'])
 async def get_list_of_mlflow_experiments():
     client = MlflowClient()
     experiments = client.list_experiments()
@@ -245,7 +400,9 @@ async def get_list_of_mlflow_experiments():
     ]
     return experiments_response
 
-@basic_router.get('/results/get_best_run_id_by_mlflow_experiment/{experiment_id}/{metric}', tags=['MLflow Info', 'Model Evaluation'])
+
+@engineer_router.get('/results/get_best_run_id_by_mlflow_experiment/{experiment_id}/{metric}',
+                     tags=['MLflow Info', 'Model Evaluation'])
 async def get_best_run_id_by_mlflow_experiment(experiment_id: str, metric: str = 'mape'):
     df = mlflow.search_runs([experiment_id], order_by=[f"metrics.{metric} ASC"])
     if df.empty:
@@ -254,7 +411,8 @@ async def get_best_run_id_by_mlflow_experiment(experiment_id: str, metric: str =
        best_run_id = df.loc[0, 'run_id']
        return best_run_id
 
-@basic_router.get('/results/get_forecast_vs_actual/{run_id}/n_samples/{n}', tags=['MLflow Info', 'Model Evaluation'])
+
+@engineer_router.get('/results/get_forecast_vs_actual/{run_id}/n_samples/{n}', tags=['MLflow Info', 'Model Evaluation'])
 async def get_forecast_vs_actual(run_id: str, n: int):
     forecast = load_artifacts(
         run_id=run_id, src_path="eval_results/predictions.csv")
@@ -271,14 +429,16 @@ async def get_forecast_vs_actual(run_id: str, n: int):
                 "actual":  actual_response}
     return response
 
-@basic_router.get('/results/get_metric_list/{run_id}', tags=['MLflow Info', 'Model Evaluation'])
+
+@engineer_router.get('/results/get_metric_list/{run_id}', tags=['MLflow Info', 'Model Evaluation'])
 async def get_metric_list(run_id: str):
     client = MlflowClient()
     metrix = client.get_run(run_id).data.metrics
     metrix_response = {"labels":[i for i in metrix.keys()], "data": [i for i in metrix.values()]}
     return metrix_response
 
-@basic_router.get('/system_monitoring/get_cpu_usage', tags=['System Monitoring'])
+
+@admin_router.get('/system_monitoring/get_cpu_usage', tags=['System Monitoring'])
 async def get_cpu_usage():
     cpu_count_logical = psutil.cpu_count()
     cpu_count = psutil.cpu_count(logical=False)
@@ -289,7 +449,8 @@ async def get_cpu_usage():
                 'text_2': cpu_count_logical}
     return response
 
-@basic_router.get('/system_monitoring/get_memory_usage', tags=['System Monitoring'])
+
+@admin_router.get('/system_monitoring/get_memory_usage', tags=['System Monitoring'])
 async def get_memory_usage():
     virtual_memory = psutil.virtual_memory()
     swap_memory = psutil.swap_memory()
@@ -306,7 +467,8 @@ async def get_memory_usage():
         'progressbar_2': swap_memory_response}
     return response
 
-@basic_router.get('/system_monitoring/get_gpu_usage', tags=['System Monitoring'])
+
+@admin_router.get('/system_monitoring/get_gpu_usage', tags=['System Monitoring'])
 async def get_gpu_usage():
     gpus_stats = nvsmi.get_gpus()
     response = {}
@@ -319,9 +481,28 @@ async def get_gpu_usage():
     print(response)
     return response
 
-app.include_router(admin_router)
-app.include_router(basic_router)
 
+@common_router.get("/user/info")
+async def get_info(token: str = Depends(oauth2_scheme)):
+    headers = {
+        'accept': 'application/json',
+        'cache-control': 'no-cache',
+        'content-type': 'application/x-www-form-urlencoded',
+    }
+    data = {
+        'client_id': settings.client_id,
+        'client_secret': settings.client_secret,
+        'token': token,
+    }
+    url = settings.token_issuer + '/introspect'
+    response = httpx.post(url, headers=headers, data=data)
+    return response.json()
+
+
+app.include_router(admin_router)
+app.include_router(scientist_router)
+app.include_router(engineer_router)
+app.include_router(common_router)
 
 # if __name__ == "__main__":
 #     uvicorn.run('api:app', reload=True)
