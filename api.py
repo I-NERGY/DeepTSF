@@ -32,7 +32,7 @@ mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
 tags_metadata = [
     {"name": "MLflow Info", "description": "REST APIs for retrieving elements from MLflow"},
-    {"name": "Hardcoded Info", "description": "REST APIs for retrieving hard coded elements"},
+    {"name": "Metrics and models retrieval", "description": "REST APIs for retrieving available metrics, alongside models and their respective hyperparameters"},
     {"name": "Experimentation Pipeline", "description": "REST APIs for setting up and running the experimentation pipeline"},
     {"name": "Model Evaluation", "description": "REST APIs for retrieving model evaluation results"},
     {"name": "System Monitoring", "description": "REST APIs for monitoring the host machine of the API"},
@@ -105,12 +105,12 @@ async def root():
     return {"message": "Congratulations! Your API is working as expected. Now head over to http://localhost:8080/docs"}
 
 
-@scientist_router.get("/models/get_model_names", tags=['Hardcoded Info'])
-async def get_model_names():
+@scientist_router.post("/models/get_model_names", tags=['Metrics and models retrieval'])
+async def get_model_names(resolution: int = Form()):
 
     # TODO: make function POST and get resolution to create defaults for input_chunk_length and output_chunk length
-    default_input_chunk = 168
-    default_output_chunk = 24
+    default_input_chunk = 60 // resolution * 168
+    default_output_chunk = 60 // resolution * 24
 
 
     hparams_naive = [ 
@@ -139,7 +139,7 @@ async def get_model_names():
         {"name": "num_layers", "type": "int", "description": "Number of layers", 'min': 1, 'max': 1000, 'default': 1},
         {"name": "layer_widths", "type": "int", "description": "Layer of widths", 'min': 1, 'max': 1000, 'default': 64},
         {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
-        {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 300},
+        {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 1000, 'default': 300},
         {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000, 'default': 42},
         {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
     ]
@@ -152,7 +152,7 @@ async def get_model_names():
         {"name": "num_encoder_layers", "type": "int", "description": "Number of encoder layers", 'min': 1, 'max': 20, 'default': 1},
         {"name": "num_decoder_layers", "type": "int", "description": "Number of decoder layers", 'min': 1, 'max': 20, 'default': 1},
         {"name": "dim_feedforward", "type": "int", "description": "Dimension of the feedforward network model", 'min': 1, 'max': 1024, 'default': 64},
-        {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 1, 'max': 1000},
+        {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 1, 'max': 1000, 'default': 500},
         {"name": "random_state", "type": "int", "description": "Randomness of neural weight initialization", 'min': 0, 'max': 10000},
         {"name": "batch_size", "type": "int", "description": "Batch size", 'min': 1, 'max': 1024, 'default': 16},
     ]
@@ -162,7 +162,7 @@ async def get_model_names():
         {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
         {"name": "model", "type": "str", "description": "Number of recurrent layers", 'range': ['RNN', 'LSTM', 'GRU'], 'default': 'LSTM'},
         {"name": "n_rnn_layers", "type": "int", "description": "Number of recurrent layers", 'min': 1, 'max': 5, 'default': 1},
-        {"name": "hidden_dim", "type": "int", "description": "Hidden dimension size within each RNN layer", 'type':'free-text', 'min': 1, 'max': 512, 'default': 8},
+        {"name": "hidden_dim", "type": "int", "description": "Hidden dimension size within each RNN layer", 'min': 1, 'max': 512, 'default': 8},
         {"name": "learning rate", "type": "float", "description": "Learning rate", 'min': 0.000000001, 'max': 1, 'default': 0.0008},
         # {"name": "training_length", "type": "int", "description": "Training length", 'min': 1, 'max': 1000},
         {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
@@ -200,7 +200,7 @@ async def get_model_names():
         {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
         {"name": "model", "type": "str", "description": "Number of recurrent layers", 'range': ['RNN', 'LSTM', 'GRU'], 'default': 'LSTM'},
         {"name": "n_rnn_layers", "type": "int", "description": "Number of recurrent layers", 'min': 1, 'max': 5, 'default': 1},
-        {"name": "hidden_dim", "type": "int", "description": "Hidden dimension size within each RNN layer", 'type':'free-text', 'min': 1, 'max': 512, 'default': 8},
+        {"name": "hidden_dim", "type": "int", "description": "Hidden dimension size within each RNN layer", 'min': 1, 'max': 512, 'default': 8},
         {"name": "learning rate", "type": "float", "description": "Learning rate", 'min': 0.000000001, 'max': 1, 'default': 0.0008},
         {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
         {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 700},
@@ -236,13 +236,13 @@ async def get_model_names():
     return models
 
 
-@engineer_router.get("/metrics/get_metric_names", tags=['Hardcoded Info'])
+@engineer_router.get("/metrics/get_metric_names", tags=['Metrics and models retrieval'])
 async def get_metric_names():
     return metrics
 
 
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
-async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True)):
+async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True), multiple: bool = Form(default=False)):
     # Loading
     print("Uploading file...")
     try:
@@ -265,7 +265,7 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
         raise HTTPException(
             status_code=415, detail="Unsupported file type provided. Please upload CSV file")
     try:
-        ts, _ = read_and_validate_input(fname, day_first)
+        ts, _ = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple)
     except WrongColumnNames:
         raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with 2 columns with names: 'Datetime', 'Load'")
     except DatetimesNotInOrder:
@@ -334,8 +334,8 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     print(parameters)
     
     params = { 
-        "rmv_outliers": parameters["rmv_outliers"],  
-        "multiple": parameters["multiple"],
+        # "rmv_outliers": parameters["rmv_outliers"],  
+        # "multiple": parameters["multiple"],
         "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
         "resolution": parameters["resolution"], # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
         "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end

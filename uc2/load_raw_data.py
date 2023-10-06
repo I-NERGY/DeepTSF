@@ -165,7 +165,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
     mlflow.set_tag(f'infered_resolution_{covariates}', resolution)
             
-        
+
     return ts, resolution
 
 def make_multiple(ts_covs, series_csv, day_first, inf_resolution):
