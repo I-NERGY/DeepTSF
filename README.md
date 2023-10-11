@@ -31,7 +31,7 @@ with the default values of the servers.
 
 After that, you can set up DeepTSF either using conda or docker
 
-### Set up locally using conda
+### Set up locally using conda (only DeepTSF CLI)
 
 You can use conda.yaml to reproduce the conda environment manually. Simply 
 execute the following command which creates a new conda enviroment called
@@ -65,7 +65,7 @@ Then, you can execute any experiment you want. An example woking command (also d
 
 ### Set up locally using docker
 
-Alternativelly, you can also set up the client system using docker.
+To set can also set up the client system using docker.
 
 You first need to get the client to run
 
@@ -82,7 +82,7 @@ Now you are running bash in the container! You can change to the uc you
 want to run, and after executing the following commands you will be
 able to run mlflow experiments like the one described above:
 
-```cd uc3```
+```cd uc2```
 
 ```conda activate DeepTSF_env```
 
@@ -378,6 +378,9 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 * ```m_mase``` (default 1), the forecast horizon of the naive method used in MASE metric
 
 * ```num_samples``` (default 1), number of samples to use for evaluating/validating a probabilistic model's output
+
+## DeepTSF UI
+The DeepTSF UI runs by default at port 3000. However this can be modified by the user. This interface allows for a completely codeless model training experience, as long as the input files respect the already described input csv file format (otherwise an error will be thrown while uploading the file). Several operations such as downsampling, outlier detection can be performed and then the user can split the dataset and perform model training by selecting the appropriate model and its respective hyperparameters. The results of the execution can be sought to the deployed MLflow server. A quick overview of the results can be also found in the experiment tracking dashboard of the front end application. Note that only purely autoregressive models can be built through the UI (with no external variables) contrary to the above described CLI. For more info, take a look at the whitepaper [1]. 
 
 References: 
 [1]: Pelekis, S., Karakolis, E., Pountridis, T., Kormpakis, G., Lampropoulos, G., Mouzakits, S., & Askounis, D. (2023). DeepTSF: Codeless machine learning operations for time series forecasting. ArXiv. [DOI](https://arxiv.org/abs/2308.00709) 
