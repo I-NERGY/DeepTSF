@@ -8,7 +8,7 @@ import mlflow
 import click
 import sys
 sys.path.append('..')
-
+from pandas.tseries.frequencies import to_offset
 from utils import ConfigParser
 import logging
 import pandas as pd
@@ -22,7 +22,7 @@ import uuid
 from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder
 from utils import truth_checker, none_checker
 import tempfile
-
+from math import ceil
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
@@ -42,7 +42,6 @@ disable_warnings(InsecureRequestWarning)
 def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
                             day_first: bool = True,
                             multiple: bool = False,
-                            resolution: int = 15,
                             from_database: bool = False,
                             covariates: str = "series"):
     """
@@ -97,8 +96,6 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         Whether to read the csv assuming day comes before the month
     multiple
         Whether to train on multiple timeseries
-    resolution
-        The resolution of the dataset
     from_database
         Whether the dataset was from MongoDB
     covariates
@@ -134,11 +131,17 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         #Check that column Datetime is used as index, and that there is only other column in the csv for the covariates csvs
         elif covariates != "series" and not (len(ts.columns) == 1 and ts.index.name == 'Datetime'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', '<Value Column Name>'])
+
+        #Infering resolution for single timeseries
+        #TODO support non int resolutions
+        resolution = ceil(pd.to_timedelta(to_offset(pd.infer_freq(ts.index))).total_seconds() / 60.0)
+
     else:
         #If columns don't exist set defaults
         if "Timeseries ID" not in ts.columns:
             ts["Timeseries ID"] = ts["ID"]
 
+                
         #Infering resolution for multiple timeseries
         times = []
         for elem in list(ts.columns):
@@ -147,7 +150,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             except:
                 pass
         times.sort()
-        resolution = (times[1] - times[0]).seconds // 60
+        resolution = ceil((times[1] - times[0]).seconds // 60)
 
         des_columns = list(map(str, ['Date', 'ID', 'Timeseries ID'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
         #Check that all columns 'Date', 'ID', 'Timeseries ID' and the time columns exist in any order.
@@ -330,7 +333,7 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
 
     with mlflow.start_run(run_name='load_data', nested=True) as mlrun:
 
-        ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, resolution=resolution, from_database=from_database)
+        ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, from_database=from_database)
 
         print(f'Validating timeseries on local file: {series_csv}')
         logging.info(f'Validating timeseries on local file: {series_csv}')
@@ -356,14 +359,12 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
                     ts_past_covs, _ = read_and_validate_input(past_covs_csv,
                                                               day_first,
                                                               multiple=True,
-                                                              resolution=resolution,
                                                               from_database=from_database,
                                                               covariates="past")
                 except:
                     ts_past_covs, inf_resolution = read_and_validate_input(past_covs_csv,
                                                                            day_first,
                                                                            multiple=False,
-                                                                           resolution=resolution,
                                                                            from_database=from_database,
                                                                            covariates="past")
                     ts_past_covs = make_multiple(ts_past_covs,
@@ -375,7 +376,6 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
                 ts_past_covs, _ = read_and_validate_input(past_covs_csv,
                                                        day_first,
                                                        multiple=multiple,
-                                                       resolution=resolution,
                                                        from_database=from_database,
                                                        covariates="past")
                 
@@ -410,14 +410,12 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
                     ts_future_covs, _ = read_and_validate_input(future_covs_csv,
                                                               day_first,
                                                               multiple=True,
-                                                              resolution=resolution,
                                                               from_database=from_database,
                                                               covariates="future")
                 except:
                     ts_future_covs, inf_resolution = read_and_validate_input(future_covs_csv,
                                                                            day_first,
                                                                            multiple=False,
-                                                                           resolution=resolution,
                                                                            from_database=from_database,
                                                                            covariates="future")
                     ts_future_covs = make_multiple(ts_future_covs,
@@ -429,7 +427,6 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
                 ts_future_covs, _ = read_and_validate_input(future_covs_csv,
                                                        day_first,
                                                        multiple=multiple,
-                                                       resolution=resolution,
                                                        from_database=from_database,
                                                        covariates="future")
                 

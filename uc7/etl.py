@@ -18,7 +18,7 @@ import shutil
 import logging
 from darts.dataprocessing.transformers import MissingValuesFiller
 import tempfile
-from exceptions import CountryDoesNotExist
+from exceptions import CountryDoesNotExist, NoUpsamplingException
 import holidays
 from calendar import isleap
 from pytz import timezone
@@ -532,12 +532,20 @@ def save_consecutive_nans(ts, resolution, tmpdir, name):
     return output
 
 def sum_wo_nans(arraylike):
-    if np.isnan(arraylike).any():
+    if np.isnan(arraylike).all():
         return np.nan
     else:
         return np.sum(arraylike)
 
-def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resolution, type, multiple, year_min, year_max):
+def resample(series, new_resolution, method):
+    if method == "averaging":
+        return pd.DataFrame(series["Load"].resample(new_resolution+'min').mean(), columns=["Load"])
+    elif method == "summation":
+        return pd.DataFrame(series["Load"].resample(new_resolution+'min').apply(sum_wo_nans), columns=["Load"])
+    else:
+        return pd.DataFrame(series["Load"].resample(new_resolution+'min').first(), columns=["Load"])
+
+def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resolution, type, multiple, year_min, year_max, resampling_agg_method):
     #TODO : More preprocessing
     result = []
     for ts, ts_id in zip(ts_list, id_list):
@@ -547,10 +555,13 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 
         ts_res = ts_res.interpolate(inplace=False)
 
-        if resolution != infered_resolution or not multiple:
-            print(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution, or ts is not multiple")
-            logging.info(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution, or ts is not multiple")
-            ts_res = ts_res.resample(resolution+'min').apply(sum_wo_nans)
+        if int(resolution) < int(infered_resolution):
+            raise NoUpsamplingException()
+                    
+        if int(resolution) != int(infered_resolution):
+            print(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution")
+            logging.info(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution")
+            ts_res = resample(ts_res, resolution, resampling_agg_method)
         
         result.append(ts_res)
     return result
@@ -708,12 +719,21 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
     help="Remote future covariates csv file. If set, it overwrites the local value."
     )
 
+@click.option("--resampling-agg-method",
+    default="averaging",
+    type=click.Choice(['averaging',
+                       'summation',
+                       'downsampling']),
+    multiple=False,
+    help="Method to use for resampling."
+    )
+
 def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, 
         country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, 
         l_interpolation, rmv_outliers, convert_to_local_tz, ts_used_id,
         infered_resolution_series, min_non_nan_interval, cut_date_val,
         infered_resolution_past, past_covs_csv, past_covs_uri, infered_resolution_future,
-        future_covs_csv, future_covs_uri):
+        future_covs_csv, future_covs_uri, resampling_agg_method):
 
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
@@ -903,11 +923,16 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   cut_date_val=cut_date_val,
                                                   min_non_nan_interval=min_non_nan_interval)
                 
-                if resolution != infered_resolution_series or not multiple:
-                    print(f"\nResampling as given frequency different than infered resolution, or ts is not multiple")
-                    logging.info(f"\nResampling as given frequency is different than infered resolution, or ts is not multiple")
-                    comp_res = comp_res.resample(resolution+'min').apply(sum_wo_nans)
+                if int(resolution) < int(infered_resolution_series):
+                    raise NoUpsamplingException()
                 
+                print(comp_res)
+                if int(resolution) != int(infered_resolution_series):
+                    print(f"\nResampling as given frequency different than infered resolution")
+                    logging.info(f"\nResampling as given frequency is different than infered resolution")
+                    comp_res = resample(comp_res, resolution, resampling_agg_method)
+                
+                print(comp_res)
                 if comp_res.isnull().sum().sum() > 0:
                     save_consecutive_nans(comp_res, resolution, impute_dir, id_l[ts_num][comp_num])
                     
@@ -925,7 +950,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
                 # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
 
-
+                #comp_res_darts.to_csv("/new_vol_300/opt/energy-forecasting-theo/model_registry/lgbm_uc6_w6_pos_ac_serving/sample.csv")
                 # ts_res_darts.to_csv(f'{tmpdir}/5_filled_na.csv')
 
                 # time variables creation
@@ -933,9 +958,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 #TODO: Make training happen without outlier detection
                 if comp_num == len(ts) - 1:
                     if past_covs_csv != None:
-                        res_past.append(preprocess_covariates(ts_list_past_covs[ts_num], id_l_past_covs[ts_num], ts_id_l_past_covs[ts_num][0], infered_resolution_past, resolution, "past", multiple, year_min, year_max))
+                        res_past.append(preprocess_covariates(ts_list_past_covs[ts_num], id_l_past_covs[ts_num], ts_id_l_past_covs[ts_num][0], infered_resolution_past, resolution, "past", multiple, year_min, year_max, resampling_agg_method))
                     if future_covs_csv != None:
-                        res_future.append(preprocess_covariates(ts_list_future_covs[ts_num], id_l_future_covs[ts_num], ts_id_l_future_covs[ts_num][0], infered_resolution_future, resolution, "future", multiple, year_min, year_max))
+                        res_future.append(preprocess_covariates(ts_list_future_covs[ts_num], id_l_future_covs[ts_num], ts_id_l_future_covs[ts_num][0], infered_resolution_future, resolution, "future", multiple, year_min, year_max, resampling_agg_method))
                     
                     if time_covs:
                         print("\nCreating time covariates dataset...")
