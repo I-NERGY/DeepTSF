@@ -1,10 +1,10 @@
 # DeepTSF
 
-This is the repository for DeepTSF timeseries forecasting tool.
+This is the repository for DeepTSF timeseries forecasting tool. The whitepaper for this project can be found in [1].
 
 ## Set up mlflow tracking server
 
-To run DeepTSF on your system you first need to install the mlflow tracking and minio server.
+To run DeepTSF on your system you first have to install the mlflow tracking and minio server.
 
 ```git clone https://github.com/I-NERGY/mlflow-tracking-server.git```
 
@@ -14,7 +14,7 @@ After that, you need to get the server to run
 
 ```docker-compose up```
 
-The server and client may run on different computers. In this case, remember to change
+The MLflow server and client may run on different computers. In this case, remember to change
 the addresses on the .env file.
 
 ## Set up DeepTSF
@@ -26,12 +26,11 @@ To set up DeepTSF on your system, you need clone this repository
 ```cd DeepTSF```
 
 Also, in order for the client to communicate with the servers, 
-a .env file is needed. An example (.env.example) is provided,
-with the default values of the servers.
+a .env file is needed. An example (.env) is provided, with the default values of the servers.
 
-After that, you can set up DeepTSF either using conda or docker
+After that, you can set up DeepTSF either using conda (CLI for data scientists) or docker (full deployment).
 
-### Set up locally using conda (only DeepTSF CLI)
+### Set up the DeepTSF backend (CLI functionality) locally using conda.
 
 You can use conda.yaml to reproduce the conda environment manually. Simply 
 execute the following command which creates a new conda enviroment called
@@ -63,9 +62,9 @@ Then, you can execute any experiment you want. An example woking command (also d
 
 ```mlflow run --experiment-name example --entry-point exp_pipeline . -P series_csv=Italy.csv -P convert_to_local_tz=false -P day_first=false -P from_database=false -P multiple=false -P l_interpolation=false -P resolution=60 -P rmv_outliers=true -P country=IT -P year_range=2015-2022 -P cut_date_val=20200101 -P cut_date_test=20210101 -P test_end_date=20211231 -P scale=true -P darts_model=NBEATS -P hyperparams_entrypoint=NBEATS_example -P loss_function=mape -P opt_test=true -P grid_search=false -P n_trials=100 -P device=gpu -P ignore_previous_runs=t -P forecast_horizon=24 -P m_mase=24 -P analyze_with_shap=False --env-manager=local```
 
-### Set up locally using docker
+### Set up locally using docker (full DeepTSF app: CLI + UI + Dagster)
 
-To set can also set up the client system using docker.
+To set can also set up the client system using docker-compose.
 
 You first need to get the client to run
 
@@ -93,9 +92,9 @@ able to run mlflow experiments like the one described above:
 Don't forget to change series_csv to match the file's location in the container (it
 is located in the parent directory).
 
-## Pipeline stages and parameters
+## Forecasting pipeline documentation
 
-The stages of the pipeline, along with the MLflow parameters that are related to each one are presented below:
+The stages of the pipeline, along with the MLflow parameters that are related to each one are presented below. Note here that this extensive documentation only concerns CLI usage and not the DeepTSF UI whose functionalities are much more limited.
 
 ## Data loading
 
@@ -139,8 +138,8 @@ For all time series:
 - All the dates must be sorted
 
 For non-multiple time series:
-- Column Datetime must be used as an index
-- If the time series is the main dataset, Value must be the only other column in the dataframe
+- Column "Datetime" must be used as an index
+- If the time series is the main dataset, "Value" must be the only other column in the dataframe
 - If the time series is a covariates time series, there must be only one column in the dataframe named arbitrarily
 
 For multiple timeseries:
@@ -380,7 +379,10 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 * ```num_samples``` (default 1), number of samples to use for evaluating/validating a probabilistic model's output
 
 ## DeepTSF UI
-The DeepTSF UI runs by default at port 3000. However this can be modified by the user. This interface allows for a completely codeless model training experience, as long as the input files respect the already described input csv file format (otherwise an error will be thrown while uploading the file). Several operations such as downsampling, outlier detection can be performed and then the user can split the dataset and perform model training by selecting the appropriate model and its respective hyperparameters. The results of the execution can be sought to the deployed MLflow server. A quick overview of the results can be also found in the experiment tracking dashboard of the front end application. Note that only purely autoregressive models can be built through the UI (with no external variables) contrary to the above described CLI. For more info, take a look at the whitepaper [1]. 
+The DeepTSF UI runs by default at port 3000. However this can be modified by the user. This interface allows for a completely codeless model training experience, as long as the input files respect the already described input csv file format (otherwise an error will be thrown while uploading the file). Several operations such as downsampling, outlier detection can be performed and then the user can split the dataset and perform model training by selecting the appropriate model and its respective hyperparameters. The results of the execution can be sought to the deployed MLflow server. A quick overview of the results can be also found in the experiment tracking dashboard of the front end application. Note that only purely autoregressive models can be built through the UI (with no external variables) contrary to the above described CLI. For more info, please have a look at the whitepaper [1]. 
 
-References: 
-[1]: Pelekis, S., Karakolis, E., Pountridis, T., Kormpakis, G., Lampropoulos, G., Mouzakits, S., & Askounis, D. (2023). DeepTSF: Codeless machine learning operations for time series forecasting. ArXiv. [DOI](https://arxiv.org/abs/2308.00709) 
+## DeepTSF advanced workflow orchestration (Dagster)
+Dagster acts as a workflow orchestration engine, where data processing and ML model training pipelines, are defined as jobs. Therefore, the execution of these jobs can be scheduled in fixed intervals, serving the needs of periodic training. More information on the usage of this component can be found in the whitepaper [1]. Note here that this component is still at an experimental stage and therefore has limited features.
+
+## References
+[1]: Pelekis, S., Karakolis, E., Pountridis, T., Kormpakis, G., Lampropoulos, G., Mouzakits, S., & Askounis, D. (2023). DeepTSF: Codeless machine learning operations for time series forecasting. ArXiv https://arxiv.org/abs/2308.00709

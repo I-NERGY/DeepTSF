@@ -56,7 +56,7 @@ nodeLanguageServer.*/**
 .*
 !/.gitignore
 !/.gitattributes
-!.env.example
+!.env_example
 
 # optuna storage
 *.db
