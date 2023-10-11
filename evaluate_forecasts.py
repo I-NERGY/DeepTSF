@@ -397,7 +397,7 @@ def predict(x: darts.TimeSeries,
         index_future = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
         sample = np.array(sample, dtype=np.float32)
         data = sample[:shap_input_length]
-        ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Load"]))
+        ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Value"]))
     #    print(ts.dtype)
         if scale:
             ts = scaler_list[0].transform(ts)

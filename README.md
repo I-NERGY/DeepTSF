@@ -53,9 +53,9 @@ Please do not omit this step as this environment variable will not get inherited
 ```export MLFLOW_TRACKING_URI=https://localhost:5000```
 
 Now you are ready to go! Choose the file which best corresponds to your 
-problem, and switch to that:
+problem, and switch to that: <br>
     - uc2 for general problems. The app will execute a national load forecasting
-    use case if from_database is set to true. So preferrably avoid this step unless you create your own database connection.
+    use case if from_database is set to true. So preferrably avoid this step unless you create your own database connection.<br>
     - uc6 and uc7 are related to other use cases and are still under development.
 ```cd uc2```
 
@@ -140,7 +140,7 @@ For all time series:
 
 For non-multiple time series:
 - Column Datetime must be used as an index
-- If the time series is the main dataset, Load must be the only other column in the dataframe
+- If the time series is the main dataset, Value must be the only other column in the dataframe
 - If the time series is a covariates time series, there must be only one column in the dataframe named arbitrarily
 
 For multiple timeseries:
