@@ -253,33 +253,33 @@ def remove_outliers(ts: pd.DataFrame,
     #Datetimes with NaN values are removed from the dataframe
     ts = ts.dropna()
     #Removing all zero values if no negative values are present
-    if min(ts["Load"]) >= 0:
-        a = ts.loc[ts["Load"] <= 0]
+    if min(ts["Value"]) >= 0:
+        a = ts.loc[ts["Value"] <= 0]
     else:
     #TODO Change that to empty dataframe
-        a = ts.loc[ts["Load"] < min(ts["Load"])]
+        a = ts.loc[ts["Value"] < min(ts["Value"])]
     #Calculating monthly mean and standard deviation and removing values
     #that are more than std_dev standard deviations away from the mean
     mean_per_month = ts.groupby(lambda x: x.month).mean().to_numpy()
     mean = ts.index.to_series().apply(lambda x: mean_per_month[x.month - 1])
     std_per_month = ts.groupby(lambda x: x.month).std().to_numpy()
     std = ts.index.to_series().apply(lambda x: std_per_month[x.month - 1])
-    a = pd.concat([a, ts.loc[-std_dev * std + mean > ts['Load']]])
-    a = pd.concat([a, ts.loc[ts['Load'] > std_dev * std + mean]])
+    a = pd.concat([a, ts.loc[-std_dev * std + mean > ts["Value"]]])
+    a = pd.concat([a, ts.loc[ts["Value"] > std_dev * std + mean]])
 
     #Plotting Removed values and new series
     a = a.sort_values(by='Datetime')
     a = a[~a.index.duplicated(keep='first')]
     if print_removed: print(f"Removed from {name}", a)
     fig, ax = plt.subplots(figsize=(8,5))
-    ax.plot(ts.index, ts['Load'], color='black', label = f'Load of {name}')
-    ax.scatter(a.index, a['Load'], color='blue', label = 'Removed Outliers')
+    ax.plot(ts.index, ts["Value"], color='black', label = f'Load of {name}')
+    ax.scatter(a.index, a["Value"], color='blue', label = 'Removed Outliers')
     plt.legend()
     mlflow.log_figure(fig, f'outlier_detection_results/removed_outliers_{name}.png')
 
     res = ts.drop(index=a.index)
     fig, ax = plt.subplots(figsize=(8,5))
-    ax.plot(res.index, res['Load'], color='black', label = f'Load of {name} after Outlier Detection')
+    ax.plot(res.index, res["Value"], color='black', label = f'Load of {name} after Outlier Detection')
     plt.legend()
     mlflow.log_figure(fig, f'outlier_detection_results/outlier_free_series_{name}.png')
 
@@ -351,13 +351,13 @@ def impute(ts: pd.DataFrame,
     if max_thr == -1: max_thr = len(ts)
     if l_interpolation: 
         res = ts.interpolate(inplace=False)
-        imputed_values = res[ts["Load"].isnull()]
+        imputed_values = res[ts["Value"].isnull()]
     else:
         #Returning calendar of the country ts belongs to
         calendar = create_calendar(ts, int(resolution), holidays, timezone("UTC"))
         calendar.index = calendar["datetime"]
 
-        imputed_values = ts[ts["Load"].isnull()]
+        imputed_values = ts[ts["Value"].isnull()]
 
         #null_dates: Series with all null dates to be imputed
         null_dates = imputed_values.index
@@ -368,7 +368,7 @@ def impute(ts: pd.DataFrame,
                 print(date)
 
         #isnull: An array which stores whether each value is null or not
-        isnull = ts["Load"].isnull().values
+        isnull = ts["Value"].isnull().values
 
         #d: List with distances to the nearest non null value
         d = [len(null_dates) for _ in range(len(null_dates))]
@@ -431,17 +431,17 @@ def impute(ts: pd.DataFrame,
             #from dates which are also before cut_date_val
             if null_date < pd.Timestamp(cut_date_val):
                 historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
-                                        (ts["Load"].index < pd.Timestamp(cut_date_val)) &\
+                                        (ts["Value"].index < pd.Timestamp(cut_date_val)) &\
                                         (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
                                         (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
-                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Load"]
+                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Value"]
                 
             #Dates after cut_date_val are not affected by cut_date_val
             else:
                 historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
                                         (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
                                         (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
-                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Load"]
+                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Value"]
 
 
             if debug: print("~~~~~~Date~~~~~~~",null_date, "~~~~~~~Dates summed~~~~~~~~~~",historical,sep="\n")
@@ -458,7 +458,7 @@ def impute(ts: pd.DataFrame,
 
     #If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
     #hours, these intervals are all replaced  by nan values
-    not_nan_values = res[~res["Load"].isnull()]
+    not_nan_values = res[~res["Value"].isnull()]
     not_nan_dates = not_nan_values.index
     prev = not_nan_dates[0]
     start = prev
@@ -477,7 +477,7 @@ def impute(ts: pd.DataFrame,
                 res.loc[date] = pd.NA
 
     fig, ax = plt.subplots(figsize=(8,5))
-    ax.plot(res.index, res['Load'], color='black', label = f'Load of {name} after Imputation')
+    ax.plot(res.index, res["Value"], color='black', label = f'Load of {name} after Imputation')
     plt.legend()
     mlflow.log_figure(fig, f'imputation_results/imputed_series_{name}.png')
     return res, imputed_values
@@ -517,7 +517,7 @@ def utc_to_local(df, country_code):
 def save_consecutive_nans(ts, resolution, tmpdir, name):
     resolution = int(resolution)
     output = "Consecutive nans left in df:\n"
-    null_dates = ts[ts["Load"].isnull()].index
+    null_dates = ts[ts["Value"].isnull()].index
     prev = null_dates[0]
     output = output + str(prev) + " - "
     for null_date in null_dates[1:]:
@@ -539,11 +539,11 @@ def sum_wo_nans(arraylike):
 
 def resample(series, new_resolution, method):
     if method == "averaging":
-        return pd.DataFrame(series["Load"].resample(new_resolution+'min').mean(), columns=["Load"])
+        return pd.DataFrame(series["Value"].resample(new_resolution+'min').mean(), columns=["Value"])
     elif method == "summation":
-        return pd.DataFrame(series["Load"].resample(new_resolution+'min').apply(sum_wo_nans), columns=["Load"])
+        return pd.DataFrame(series["Value"].resample(new_resolution+'min').apply(sum_wo_nans), columns=["Value"])
     else:
-        return pd.DataFrame(series["Load"].resample(new_resolution+'min').first(), columns=["Load"])
+        return pd.DataFrame(series["Value"].resample(new_resolution+'min').first(), columns=["Value"])
     
 def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resolution, type, multiple, year_min, year_max, resampling_agg_method):
     #TODO : More preprocessing

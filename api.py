@@ -268,7 +268,7 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
     try:
         ts, _ = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple)
     except WrongColumnNames:
-        raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with 2 columns with names: 'Datetime', 'Load'")
+        raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with 2 columns with names: 'Datetime', 'Value'")
     except DatetimesNotInOrder:
         raise HTTPException(status_code=415, detail="There was an error validating the file. Datetimes are not in order")
 

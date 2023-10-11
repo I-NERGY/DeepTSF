@@ -395,7 +395,7 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
 def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
                             day_first: bool = True,
                             resolution: str = "15",
-                            value_name="Load"):
+                            value_name="Value"):
     ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,
@@ -418,7 +418,7 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         ts_id_l.append([])
         for id in ids:
             curr_comp = curr_ts[curr_ts["ID"] == id]
-            curr_comp = pd.melt(curr_comp, id_vars=['Date', 'ID', 'Timeseries ID'], var_name='Time', value_name='Load')
+            curr_comp = pd.melt(curr_comp, id_vars=['Date', 'ID', 'Timeseries ID'], var_name='Time', value_name="Value")
             curr_comp["Datetime"] = pd.to_datetime(curr_comp['Date'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
             curr_comp = curr_comp.set_index("Datetime")
             series = curr_comp[value_name].sort_index().dropna().asfreq(resolution+'min')

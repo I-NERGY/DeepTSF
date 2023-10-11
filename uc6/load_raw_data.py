@@ -126,8 +126,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         if not ts.index.sort_values().equals(ts.index):
             raise DatetimesNotInOrder()
         #Check that column Datetime is used as index, and that Load is the only other column in the csv for the series csv
-        elif covariates == "series" and not (len(ts.columns) == 1 and ts.columns[0] == 'Load' and ts.index.name == 'Datetime'):
-            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', 'Load'])
+        elif covariates == "series" and not (len(ts.columns) == 1 and ts.columns[0] == "Value" and ts.index.name == 'Datetime'):
+            raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', "Value"])
         #Check that column Datetime is used as index, and that there is only other column in the csv for the covariates csvs
         elif covariates != "series" and not (len(ts.columns) == 1 and ts.index.name == 'Datetime'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', '<Value Column Name>'])
