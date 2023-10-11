@@ -105,14 +105,11 @@ async def root():
     return {"message": "Congratulations! Your API is working as expected. Now head over to http://localhost:8080/docs"}
 
 
-@scientist_router.post("/models/get_model_names", tags=['Metrics and models retrieval'])
-async def get_model_names(resolution: int = Form(default=60)):
+@scientist_router.get("/models/get_model_names/{resolution}/{multiple}", tags=['Metrics and models retrieval'])
+async def get_model_names(resolution: int, multiple: bool):
 
-
-
-    # TODO: make function POST and get resolution to create defaults for input_chunk_length and output_chunk length
-    default_input_chunk = 60 // resolution * 168
-    default_output_chunk = 60 // resolution * 24
+    default_input_chunk = int(60 / resolution * 168) if int(60 / resolution * 168) > 0 else 1
+    default_output_chunk =  int(60 / resolution * 24) if int(60 / resolution * 24) > 0 else 1
 
     hparams_naive = [ 
         {"name": "days_seasonality", "type": "int", "description": "Period of sNaive model (in days)", 'min': 1, 'max': 366, 'default': 1}   
@@ -164,7 +161,7 @@ async def get_model_names(resolution: int = Form(default=60)):
         {"name": "model", "type": "str", "description": "Number of recurrent layers", 'range': ['RNN', 'LSTM', 'GRU'], 'default': 'LSTM'},
         {"name": "n_rnn_layers", "type": "int", "description": "Number of recurrent layers", 'min': 1, 'max': 5, 'default': 1},
         {"name": "hidden_dim", "type": "int", "description": "Hidden dimension size within each RNN layer", 'min': 1, 'max': 512, 'default': 8},
-        {"name": "learning rate", "type": "float", "description": "Learning rate", 'min': 0.000000001, 'max': 1, 'default': 0.0008},
+        # {"name": "learning rate", "type": "float", "description": "Learning rate", 'min': 0.000000001, 'max': 1, 'default': 0.0008},
         # {"name": "training_length", "type": "int", "description": "Training length", 'min': 1, 'max': 1000},
         {"name": "dropout", "type": "float", "description": "Fraction of neurons affected by dropout", 'min': 0, 'max': 1, 'default': 0.0},
         {"name": "n_epochs", "type": "int", "description": "Epochs threshold", 'min': 0, 'max': 100, 'default': 700},
@@ -234,6 +231,10 @@ async def get_model_names(resolution: int = Form(default=60)):
         {"model_name": "RandomForest", "hparams": hparams_rf},
         ]
     
+    # Multiple does not work with Naive
+    if multiple:
+        del models[0]
+    
     return models
 
 
@@ -266,30 +267,28 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
         raise HTTPException(
             status_code=415, detail="Unsupported file type provided. Please upload CSV file")
     try:
-        ts, _ = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple)
+        ts, resolution_minutes = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple)
     except WrongColumnNames:
         raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with 2 columns with names: 'Datetime', 'Value'")
     except DatetimesNotInOrder:
         raise HTTPException(status_code=415, detail="There was an error validating the file. Datetimes are not in order")
 
-    resolution_minutes = int((ts.index[1] - ts.index[0]).total_seconds() // 60)
-
-    if resolution_minutes < 1 and resolution_minutes > 180:
+    if resolution_minutes < 1 and resolution_minutes > 3600:
        raise HTTPException(status_code=415, detail="Dataset resolution should be between 1 and 180 minutes")
        # return {"message": "Dataset resolution should be between 1 and 180 minutes"}
 
     resolutions = []
-    for m in range(1, 181):
+    for m in range(1, 3601):
         if resolution_minutes == m:
-            resolutions = [{"value": str(resolution_minutes), "display_value": str(resolution_minutes) + "(Current)"}]
-        if resolution_minutes < m and m % 5 == 0: 
-            resolutions.append({k: v for (k,v) in zip(["value", "display_value"],[str(m), str(m)])})
-    
+            resolutions = [{"value": str(resolution_minutes), "default": True}]
+        if resolution_minutes < m and m % resolution_minutes == 0: 
+            resolutions.append({k: v for (k,v) in zip(["value", "default"],[str(m), False])})
+
     return {"message": "Validation successful",
             "fname": fname,
-            "dataset_start": datetime.strftime(ts.index[0], "%Y-%m-%d"),
-            "allowed_validation_start": datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d"),
-            "dataset_end": datetime.strftime(ts.index[-1], "%Y-%m-%d"),
+            "dataset_start": datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
+            "allowed_validation_start": datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
+            "dataset_end": datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
             "allowed_resolutions": resolutions
             }
 
@@ -319,29 +318,20 @@ def mlflow_run(params: dict, experiment_name: str):
 @scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
 async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks):
 
-    # params = {
-    #     "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
-    #     "resolution": parameters["resolution"], # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
-    #     "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
-    #     "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
-    #     "test_end_date": parameters["test_end_date"],  # input: user | type: str | example: "20220101" | Choose from calendar, should be > cut_date_test and <= dataset_end, defaults to dataset_end
-    #     "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
-    #     "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
-    #     "hyperparams_entrypoint": parameters["hyperparams_entrypoint"], # input: user | type: str | example: "nbeats0_2" | get values from config.yml headers
-    #     "ignore_previous_runs": parameters["ignore_previous_runs"], # input: user | type: str | example: "true" | allowed values "true" or "false", defaults to false)
-    #     "time_covs": "None", # can give it as param to the pipeline and insert from front end: Need a list of all country codes to give to the user for selection
-    #  }
     hparam_str = str(parameters["hyperparams_entrypoint"])
     hparam_str = hparam_str.replace('"', '')
     hparam_str = hparam_str.replace("'", "")
     print(hparam_str)
     # parameters["hyperparams_entrypoint"] = { (key.replace('"', '')) : (val.replace('"', '') if isinstance(val, str) else val) for key, val in parameters["hyperparams_entrypoint"].items()}
- 
+    
+    print(parameters["resampling_agg_method"])
+
     params = { 
         "rmv_outliers": parameters["rmv_outliers"],  
         "multiple": parameters["multiple"],
         "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
         "resolution": parameters["resolution"], # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
+        "resampling_agg_method": parameters["resampling_agg_method"],
         "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
         "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
         "test_end_date": parameters["test_end_date"],  # input: user | type: str | example: "20220101" | Choose from calendar, should be > cut_date_test and <= dataset_end, defaults to dataset_end
@@ -349,7 +339,8 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
         "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
         "hyperparams_entrypoint": hparam_str,
         "ignore_previous_runs": parameters["ignore_previous_runs"],
-        "l_interpolation": True,
+        "l_interpolation": True,    
+        "evaluate_all_ts": True,
         # "country": parameters["country"], this should be given if we want to have advanced imputation
      }
     
@@ -361,31 +352,7 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
         background_tasks.add_task(mlflow_run, params, parameters['experiment_name'])
     except Exception as e:
         raise HTTPException(status_code=404, detail="Could not initiate run. Check system logs")
-
-#    try: 
-#        pipeline_run = mlflow.projects.run(
-#            uri=".",
-#            experiment_name=experiment_name,
-#            entry_point="exp_pipeline",
-#            parameters=params,
-#            env_manager="local"
-#            )
-#    except Exception as e:
-#        return {"message": "Experimentation pipeline failed",
-#                "status": "Failed",
-                # "parent_run_id": mlflow.tracking.MlflowClient().get_run(pipeline_run.run_id),
-#                "mlflow_tracking_uri": mlflow.tracking.get_tracking_uri(),
-#                "experiment_name": experiment_name,
-#                "experiment_id": MlflowClient().get_experiment_by_name(experiment_name).experiment_id
-#           }
-    # for now send them to MLflow to check their metrics.
-#    return {"message": "Experimentation pipeline successful",
-#            "status": "Success",
-#            "parent_run_id": mlflow.tracking.MlflowClient().get_run(pipeline_run.run_id),
-#            "mlflow_tracking_uri": mlflow.tracking.get_tracking_uri(),
-#	    "experiment_name": experiment_name,
-#            "experiment_id": MlflowClient().get_experiment_by_name(experiment_name).experiment_id
-#	   }
+    
     return {"message": "Experimentation pipeline initiated. Proceed to MLflow for details..."}
 
 
