@@ -35,34 +35,37 @@ After that, you can set up DeepTSF either using conda or docker
 
 You can use conda.yaml to reproduce the conda environment manually. Simply 
 execute the following command which creates a new conda enviroment called
-DeepTSF_env
+DeepTSF_env:
 
 ```conda env create -f conda.yaml```
 
-Then, after you set MLFLOW_TRACKING_URI to the uri of the
-mlflow tracking server (by default https://localhost:9000) you have to activate the new enviroment
-
-```export MLFLOW_TRACKING_URI=https://localhost:5000```
+Then activate the new environment:
 
 ```conda acitvate DeepTSF_env```
 
 Alternativelly to those 2 commands, you can reproduce the conda environment automatically,
-by runing any 'mlflow run' command *without* the option `--env-manager=local`
+by runing any 'mlflow run' command *without* the option `--env-manager=local`. 
+This option however is not encouraged for every day use as it rebuilds the conda environment from scratch every time.
+
+Then, set the MLFLOW_TRACKING_URI to the uri of the mlflow tracking server (by default https://localhost:5000). 
+Please do not omit this step as this environment variable will not get inherited from the .env file. 
+
+```export MLFLOW_TRACKING_URI=https://localhost:5000```
 
 Now you are ready to go! Choose the file which best corresponds to your 
 problem, and switch to that:
     - uc2 for general problems. The app will execute a national load forecasting
-    use case if from_database is set to true
-    - uc6 and uc7 are related to other use cases and are under construction.
+    use case if from_database is set to true. So preferrably avoid this step unless you create your own database connection.
+    - uc6 and uc7 are related to other use cases and are still under development.
 ```cd uc2```
 
-Then, you can execute any experiment you want. An example command (also shown in the paper), is shown below:
+Then, you can execute any experiment you want. An example woking command (also demonstrated in the whitepaper [1]), is shown below:
 
 ```mlflow run --experiment-name example --entry-point exp_pipeline . -P series_csv=Italy.csv -P convert_to_local_tz=false -P day_first=false -P from_database=false -P multiple=false -P l_interpolation=false -P resolution=60 -P rmv_outliers=true -P country=IT -P year_range=2015-2022 -P cut_date_val=20200101 -P cut_date_test=20210101 -P test_end_date=20211231 -P scale=true -P darts_model=NBEATS -P hyperparams_entrypoint=NBEATS_example -P loss_function=mape -P opt_test=true -P grid_search=false -P n_trials=100 -P device=gpu -P ignore_previous_runs=t -P forecast_horizon=24 -P m_mase=24 -P analyze_with_shap=False --env-manager=local```
 
 ### Set up locally using docker
 
-Alternaativelly, you can also set up the client system using docker. 
+Alternativelly, you can also set up the client system using docker.
 
 You first need to get the client to run
 
@@ -375,3 +378,6 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 * ```m_mase``` (default 1), the forecast horizon of the naive method used in MASE metric
 
 * ```num_samples``` (default 1), number of samples to use for evaluating/validating a probabilistic model's output
+
+References: 
+[1]: Pelekis, S., Karakolis, E., Pountridis, T., Kormpakis, G., Lampropoulos, G., Mouzakits, S., & Askounis, D. (2023). DeepTSF: Codeless machine learning operations for time series forecasting. ArXiv. [DOI](https://arxiv.org/abs/2308.00709) 
