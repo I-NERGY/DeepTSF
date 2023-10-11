@@ -379,8 +379,14 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     type=str,
     default="1",
     help="Number of samples to use for evaluating/validating a probabilistic model's output")
-
-
+@click.option("--resampling-agg-method",
+    default="averaging",
+    type=click.Choice(['averaging',
+                       'summation',
+                       'downsampling']),
+    multiple=False,
+    help="Method to use for resampling."
+    )
 
 def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, year_range, 
              resolution, time_covs, darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
@@ -388,7 +394,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_series, n_trials, opt_test, from_database, database_name, num_workers, eval_method,
              l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, shap_input_length,
-             ts_used_id, m_mase, min_non_nan_interval, num_samples):
+             ts_used_id, m_mase, min_non_nan_interval, num_samples, resampling_agg_method):
 
     disable_warnings(InsecureRequestWarning)
     
@@ -480,7 +486,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                       "future_covs_uri": load_data_future_covs_uri,
                       "infered_resolution_future": infered_resolution_future,
                       "min_non_nan_interval": min_non_nan_interval,
-                      "cut_date_val": cut_date_val}
+                      "cut_date_val": cut_date_val,
+                      "resampling_agg_method": resampling_agg_method}
 
         etl_run = _get_or_run("etl", etl_params, git_commit, ignore_previous_runs)
 
