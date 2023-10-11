@@ -17,13 +17,15 @@ RUN conda --version
 
 WORKDIR /app 
 
-COPY . .
+COPY ./conda.yaml ./conda.yaml
 
 RUN conda update conda
 
 RUN conda env create -f conda.yaml
 
-RUN conda init bash 
+RUN conda init bash
+
+COPY . .
 
 # Make RUN commands use the new environment:
 SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
@@ -40,6 +42,6 @@ SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
 
 # RUN export MLFLOW_TRACKING_URI="http://localhost:5000" # maybe redundant as I use the .env file in docker-compose
 
-RUN pip install python-multipart
+# RUN pip install python-multipart
 
 ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8080"]
