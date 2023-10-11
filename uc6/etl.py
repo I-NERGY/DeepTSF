@@ -18,7 +18,7 @@ import shutil
 import logging
 from darts.dataprocessing.transformers import MissingValuesFiller
 import tempfile
-from exceptions import CountryDoesNotExist
+from exceptions import CountryDoesNotExist, NoUpsamplingException
 import holidays
 from calendar import isleap
 from pytz import timezone
@@ -253,33 +253,33 @@ def remove_outliers(ts: pd.DataFrame,
     #Datetimes with NaN values are removed from the dataframe
     ts = ts.dropna()
     #Removing all zero values if no negative values are present
-    if min(ts["Load"]) >= 0:
-        a = ts.loc[ts["Load"] <= 0]
+    if min(ts["Value"]) >= 0:
+        a = ts.loc[ts["Value"] <= 0]
     else:
     #TODO Change that to empty dataframe
-        a = ts.loc[ts["Load"] < min(ts["Load"])]
+        a = ts.loc[ts["Value"] < min(ts["Value"])]
     #Calculating monthly mean and standard deviation and removing values
     #that are more than std_dev standard deviations away from the mean
     mean_per_month = ts.groupby(lambda x: x.month).mean().to_numpy()
     mean = ts.index.to_series().apply(lambda x: mean_per_month[x.month - 1])
     std_per_month = ts.groupby(lambda x: x.month).std().to_numpy()
     std = ts.index.to_series().apply(lambda x: std_per_month[x.month - 1])
-    a = pd.concat([a, ts.loc[-std_dev * std + mean > ts['Load']]])
-    a = pd.concat([a, ts.loc[ts['Load'] > std_dev * std + mean]])
+    a = pd.concat([a, ts.loc[-std_dev * std + mean > ts["Value"]]])
+    a = pd.concat([a, ts.loc[ts["Value"] > std_dev * std + mean]])
 
     #Plotting Removed values and new series
     a = a.sort_values(by='Datetime')
     a = a[~a.index.duplicated(keep='first')]
     if print_removed: print(f"Removed from {name}", a)
     fig, ax = plt.subplots(figsize=(8,5))
-    ax.plot(ts.index, ts['Load'], color='black', label = f'Load of {name}')
-    ax.scatter(a.index, a['Load'], color='blue', label = 'Removed Outliers')
+    ax.plot(ts.index, ts["Value"], color='black', label = f'Load of {name}')
+    ax.scatter(a.index, a["Value"], color='blue', label = 'Removed Outliers')
     plt.legend()
     mlflow.log_figure(fig, f'outlier_detection_results/removed_outliers_{name}.png')
 
     res = ts.drop(index=a.index)
     fig, ax = plt.subplots(figsize=(8,5))
-    ax.plot(res.index, res['Load'], color='black', label = f'Load of {name} after Outlier Detection')
+    ax.plot(res.index, res["Value"], color='black', label = f'Load of {name} after Outlier Detection')
     plt.legend()
     mlflow.log_figure(fig, f'outlier_detection_results/outlier_free_series_{name}.png')
 
@@ -351,13 +351,13 @@ def impute(ts: pd.DataFrame,
     if max_thr == -1: max_thr = len(ts)
     if l_interpolation: 
         res = ts.interpolate(inplace=False)
-        imputed_values = res[ts["Load"].isnull()]
+        imputed_values = res[ts["Value"].isnull()]
     else:
         #Returning calendar of the country ts belongs to
         calendar = create_calendar(ts, int(resolution), holidays, timezone("UTC"))
         calendar.index = calendar["datetime"]
 
-        imputed_values = ts[ts["Load"].isnull()]
+        imputed_values = ts[ts["Value"].isnull()]
 
         #null_dates: Series with all null dates to be imputed
         null_dates = imputed_values.index
@@ -368,7 +368,7 @@ def impute(ts: pd.DataFrame,
                 print(date)
 
         #isnull: An array which stores whether each value is null or not
-        isnull = ts["Load"].isnull().values
+        isnull = ts["Value"].isnull().values
 
         #d: List with distances to the nearest non null value
         d = [len(null_dates) for _ in range(len(null_dates))]
@@ -431,17 +431,17 @@ def impute(ts: pd.DataFrame,
             #from dates which are also before cut_date_val
             if null_date < pd.Timestamp(cut_date_val):
                 historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
-                                        (ts["Load"].index < pd.Timestamp(cut_date_val)) &\
+                                        (ts["Value"].index < pd.Timestamp(cut_date_val)) &\
                                         (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
                                         (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
-                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Load"]
+                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Value"]
                 
             #Dates after cut_date_val are not affected by cut_date_val
             else:
                 historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
                                         (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
                                         (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
-                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Load"]
+                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Value"]
 
 
             if debug: print("~~~~~~Date~~~~~~~",null_date, "~~~~~~~Dates summed~~~~~~~~~~",historical,sep="\n")
@@ -458,7 +458,7 @@ def impute(ts: pd.DataFrame,
 
     #If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
     #hours, these intervals are all replaced  by nan values
-    not_nan_values = res[~res["Load"].isnull()]
+    not_nan_values = res[~res["Value"].isnull()]
     not_nan_dates = not_nan_values.index
     prev = not_nan_dates[0]
     start = prev
@@ -477,7 +477,7 @@ def impute(ts: pd.DataFrame,
                 res.loc[date] = pd.NA
 
     fig, ax = plt.subplots(figsize=(8,5))
-    ax.plot(res.index, res['Load'], color='black', label = f'Load of {name} after Imputation')
+    ax.plot(res.index, res["Value"], color='black', label = f'Load of {name} after Imputation')
     plt.legend()
     mlflow.log_figure(fig, f'imputation_results/imputed_series_{name}.png')
     return res, imputed_values
@@ -517,7 +517,7 @@ def utc_to_local(df, country_code):
 def save_consecutive_nans(ts, resolution, tmpdir, name):
     resolution = int(resolution)
     output = "Consecutive nans left in df:\n"
-    null_dates = ts[ts["Load"].isnull()].index
+    null_dates = ts[ts["Value"].isnull()].index
     prev = null_dates[0]
     output = output + str(prev) + " - "
     for null_date in null_dates[1:]:
@@ -532,12 +532,20 @@ def save_consecutive_nans(ts, resolution, tmpdir, name):
     return output
 
 def sum_wo_nans(arraylike):
-    if np.isnan(arraylike).any():
+    if np.isnan(arraylike).all():
         return np.nan
     else:
         return np.sum(arraylike)
 
-def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resolution, type, multiple, year_min, year_max):
+def resample(series, new_resolution, method):
+    if method == "averaging":
+        return pd.DataFrame(series["Value"].resample(new_resolution+'min').mean(), columns=["Value"])
+    elif method == "summation":
+        return pd.DataFrame(series["Value"].resample(new_resolution+'min').apply(sum_wo_nans), columns=["Value"])
+    else:
+        return pd.DataFrame(series["Value"].resample(new_resolution+'min').first(), columns=["Value"])
+    
+def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resolution, type, multiple, year_min, year_max, resampling_agg_method):
     #TODO : More preprocessing
     result = []
     for ts, ts_id in zip(ts_list, id_list):
@@ -547,10 +555,13 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 
         ts_res = ts_res.interpolate(inplace=False)
 
-        if resolution != infered_resolution or not multiple:
-            print(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution, or ts is not multiple")
-            logging.info(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution, or ts is not multiple")
-            ts_res = ts_res.resample(resolution+'min').apply(sum_wo_nans)
+        if int(resolution) < int(infered_resolution):
+            raise NoUpsamplingException()
+                    
+        if int(resolution) != int(infered_resolution):
+            print(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution")
+            logging.info(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution")
+            ts_res = resample(ts_res, resolution, resampling_agg_method)
         
         result.append(ts_res)
     return result
@@ -568,7 +579,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 )
 @click.option("--series-uri",
     type=str,
-    default="mlflow_artifact_uri",
+    default="None",
     help="Remote timeseries csv file.  If set, it overwrites the local value."
 )
 @click.option('--year-range',
@@ -577,7 +588,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
     help='The year range to include in the dataset.'
 )
 @click.option("--resolution",
-    default="15",
+    default="None",
     type=str,
     help="The resolution of the dataset in minutes."
 )
@@ -673,7 +684,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 
 @click.option("--cut-date-val",
               type=str,
-              default='20200101',
+              default='None',
               help="Validation set start date [str: 'YYYYMMDD'] \
                   All dates before cut_date_val that have nan values are imputed using historical data \
                   from dates which are also before cut_date_val. Datetimes after cut_date_val are not affected \
@@ -708,12 +719,21 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
     help="Remote future covariates csv file. If set, it overwrites the local value."
     )
 
+@click.option("--resampling-agg-method",
+    default="averaging",
+    type=click.Choice(['averaging',
+                       'summation',
+                       'downsampling']),
+    multiple=False,
+    help="Method to use for resampling."
+    )
+
 def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, 
         country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, 
         l_interpolation, rmv_outliers, convert_to_local_tz, ts_used_id,
         infered_resolution_series, min_non_nan_interval, cut_date_val,
         infered_resolution_past, past_covs_csv, past_covs_uri, infered_resolution_future,
-        future_covs_csv, future_covs_uri):
+        future_covs_csv, future_covs_uri, resampling_agg_method):
 
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
@@ -722,7 +742,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     disable_warnings(InsecureRequestWarning)
 
 
-    if series_uri != "mlflow_artifact_uri":
+    if none_checker(series_uri) != None:
         download_file_path = download_online_file(series_uri, dst_filename="load.csv")
         series_csv = download_file_path
 
@@ -810,7 +830,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
     # Year range handling
     if none_checker(year_range) is None:
-        year_range = f"{ts_list[0].index[0].year}-{ts_list[0].index[-1].year}"
+        year_range = f"{ts_list[0][0].index[0].year}-{ts_list[0][0].index[-1].year}"
     if "-" in year_range:
         year_range = year_range.split("-")
     if isinstance(year_range, list):
@@ -903,10 +923,12 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   cut_date_val=cut_date_val,
                                                   min_non_nan_interval=min_non_nan_interval)
                 
-                if resolution != infered_resolution_series or not multiple:
-                    print(f"\nResampling as given frequency different than infered resolution, or ts is not multiple")
-                    logging.info(f"\nResampling as given frequency is different than infered resolution, or ts is not multiple")
-                    comp_res = comp_res.resample(resolution+'min').apply(sum_wo_nans)
+                if int(resolution) < int(infered_resolution_series):
+                    raise NoUpsamplingException()
+                if int(resolution) != int(infered_resolution_series):
+                    print(f"\nResampling as given frequency different than infered resolution")
+                    logging.info(f"\nResampling as given frequency is different than infered resolution")
+                    comp_res = resample(comp_res, resolution, resampling_agg_method)
                 
                 if comp_res.isnull().sum().sum() > 0:
                     save_consecutive_nans(comp_res, resolution, impute_dir, id_l[ts_num][comp_num])
@@ -921,11 +943,14 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
                 # darts dataset creation
                 comp_res_darts = darts.TimeSeries.from_dataframe(comp_res)
+
+                if id_l[ts_num][comp_num] in ["W6 positive_active"]:
+                    comp_res = -comp_res
                 #print("NULL VALUES", comp_res_darts.pd_dataframe().isnull().sum().sum())
 
                 # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
 
-
+                #comp_res_darts.to_csv("/new_vol_300/opt/energy-forecasting-theo/model_registry/lgbm_uc6_w6_pos_ac_serving/sample.csv")
                 # ts_res_darts.to_csv(f'{tmpdir}/5_filled_na.csv')
 
                 # time variables creation
@@ -933,9 +958,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 #TODO: Make training happen without outlier detection
                 if comp_num == len(ts) - 1:
                     if past_covs_csv != None:
-                        res_past.append(preprocess_covariates(ts_list_past_covs[ts_num], id_l_past_covs[ts_num], ts_id_l_past_covs[ts_num][0], infered_resolution_past, resolution, "past", multiple, year_min, year_max))
+                        res_past.append(preprocess_covariates(ts_list_past_covs[ts_num], id_l_past_covs[ts_num], ts_id_l_past_covs[ts_num][0], infered_resolution_past, resolution, "past", multiple, year_min, year_max, resampling_agg_method))
                     if future_covs_csv != None:
-                        res_future.append(preprocess_covariates(ts_list_future_covs[ts_num], id_l_future_covs[ts_num], ts_id_l_future_covs[ts_num][0], infered_resolution_future, resolution, "future", multiple, year_min, year_max))
+                        res_future.append(preprocess_covariates(ts_list_future_covs[ts_num], id_l_future_covs[ts_num], ts_id_l_future_covs[ts_num][0], infered_resolution_future, resolution, "future", multiple, year_min, year_max, resampling_agg_method))
                     
                     if time_covs:
                         print("\nCreating time covariates dataset...")

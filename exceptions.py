@@ -72,3 +72,18 @@ class MandatoryArgNotSet(Exception):
             self.message = f'Argument {argument_name} is mandatory and set to None / not set.'
         super().__init__(self.message)
 
+class NotValidConfig(Exception):
+    """
+    Exception raised if config is not an entrypoint in config file and not a valid json string.
+    """
+    def __init__(self):
+        self.message = f'config is not an entrypoint in config file or a valid json string'
+        super().__init__(self.message)
+
+class NoUpsamplingException(Exception):
+    """
+    Exception raised if the user tries to convert a series to a lower resolution.
+    """
+    def __init__(self):
+        self.message = f'Upsampling is not allowed. Change the target resolution of the series'
+        super().__init__(self.message)

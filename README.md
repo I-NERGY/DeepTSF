@@ -1,43 +1,100 @@
 # DeepTSF
 
-Repository for DeepTSF timeseries forecasting tool.  
+This is the repository for DeepTSF timeseries forecasting tool. The whitepaper for this project can be found in [1].
 
-## To create conda environment file
+## Set up mlflow tracking server
 
-```conda env export conda.yaml```
+To run DeepTSF on your system you first have to install the mlflow tracking and minio server.
 
-If it is packaged from windows to linux do the following instead:
+```git clone https://github.com/I-NERGY/mlflow-tracking-server.git```
 
-```conda env export --no-builds > conda.yaml```
+```cd mlflow-server```
 
-And remember to remove any windows related dependencies such as:
-- vc
-- wincertstore
-- vs2015_runtime
-- win_inet_pton
-- pywin32
+After that, you need to get the server to run
 
-## Reproduce the conda environment manually
+```docker-compose up```
+
+The MLflow server and client may run on different computers. In this case, remember to change
+the addresses on the .env file.
+
+## Set up DeepTSF
+
+To set up DeepTSF on your system, you need clone this repository
+
+```git clone https://github.com/I-NERGY/DeepTSF.git```
+
+```cd DeepTSF```
+
+Also, in order for the client to communicate with the servers, 
+a .env file is needed. An example (.env) is provided, with the default values of the servers.
+
+After that, you can set up DeepTSF either using conda (CLI for data scientists) or docker (full deployment).
+
+### Set up the DeepTSF backend (CLI functionality) locally using conda.
+
+You can use conda.yaml to reproduce the conda environment manually. Simply 
+execute the following command which creates a new conda enviroment called
+DeepTSF_env:
+
 ```conda env create -f conda.yaml```
 
-## Reproduce the conda environment automatically
-Run any 'mlflow run' command *without* the option `--env-manager=local`
+Then activate the new environment:
 
-## Inference example (replace uris accordingly)
-```mlflow run --experiment-name trash --entry-point inference . --env-manager=local -P series_uri=runs:/bd0c727f76a849b48824daa7147f4b82/artifacts/features/series.csv -P pyfunc_model_folder=runs:/bd0c727f76a849b48824daa7147f4b82/pyfunc_model```  
+```conda acitvate DeepTSF_env```
 
-or  
+Alternativelly to those 2 commands, you can reproduce the conda environment automatically,
+by runing any 'mlflow run' command *without* the option `--env-manager=local`. 
+This option however is not encouraged for every day use as it rebuilds the conda environment from scratch every time.
 
-```python inference.py --pyfunc-model-folder runs:/bd0c727f76a849b48824daa7147f4b82/pyfunc_model --series-uri runs:/bd0c727f76a849b48824daa7147f4b82/artifacts/features/series.csv```  
+Then, set the MLFLOW_TRACKING_URI to the uri of the mlflow tracking server (by default https://localhost:5000). 
+Please do not omit this step as this environment variable will not get inherited from the .env file. 
 
-or  
+```export MLFLOW_TRACKING_URI=https://localhost:5000```
 
-```python inference.py --pyfunc-model-folder s3://mlflow-bucket/2/bd0c727f76a849b48824daa7147f4b82/artifacts/pyfunc_model --series-uri s3://mlflow-bucket/2/bd0c727f76a849b48824daa7147f4b82/artifacts/features/series.csv```
+Now you are ready to go! Choose the file which best corresponds to your 
+problem, and switch to that: <br>
+    - uc2 for general problems. The app will execute a national load forecasting
+    use case if from_database is set to true. So preferrably avoid this step unless you create your own database connection.<br>
+    - uc6 and uc7 are related to other use cases and are still under development.
+```cd uc2```
 
-## Full pipeline example
-```mlflow run --experiment-name 2009-2019 --entry-point exp_pipeline . -P hyperparams_entrypoint=nbeats0_10 -P darts_model=NBEATS -P ignore_previous_runs=t -P cut_date_val=20180101 -P cut_date_test=20190101 -P year_range=2009-2019 -P time_covs=None --env-manager=local```
+Then, you can execute any experiment you want. An example woking command (also demonstrated in the whitepaper [1]), is shown below:
 
-The stages of the pipeline, along with the MLflow parameters that are related to each one are presented below:
+```mlflow run --experiment-name example --entry-point exp_pipeline . -P series_csv=Italy.csv -P convert_to_local_tz=false -P day_first=false -P from_database=false -P multiple=false -P l_interpolation=false -P resolution=60 -P rmv_outliers=true -P country=IT -P year_range=2015-2022 -P cut_date_val=20200101 -P cut_date_test=20210101 -P test_end_date=20211231 -P scale=true -P darts_model=NBEATS -P hyperparams_entrypoint=NBEATS_example -P loss_function=mape -P opt_test=true -P grid_search=false -P n_trials=100 -P device=gpu -P ignore_previous_runs=t -P forecast_horizon=24 -P m_mase=24 -P analyze_with_shap=False --env-manager=local```
+
+### Set up locally using docker (full DeepTSF app: CLI + UI + Dagster)
+
+To set can also set up the client system using docker-compose.
+
+You first need to get the client to run
+
+```docker-compose up```
+
+After that, in a new terminal window, you can copy the timeseries file you
+want to run into the container, and then run bash and have access to the 
+container's file system:
+```docker cp <path_to_file> DeepTSF-backend:/app```
+
+```docker exec -it DeepTSF-backend bash```
+
+Now you are running bash in the container! You can change to the uc you
+want to run, and after executing the following commands you will be
+able to run mlflow experiments like the one described above:
+
+```cd uc2```
+
+```conda activate DeepTSF_env```
+
+```export MLFLOW_TRACKING_URI=https://localhost:5000```
+
+```export GIT_PYTHON_REFRESH=quiet```
+
+Don't forget to change series_csv to match the file's location in the container (it
+is located in the parent directory).
+
+## Forecasting pipeline documentation
+
+The stages of the pipeline, along with the MLflow parameters that are related to each one are presented below. Note here that this extensive documentation only concerns CLI usage and not the DeepTSF UI whose functionalities are much more limited.
 
 ## Data loading
 
@@ -81,8 +138,8 @@ For all time series:
 - All the dates must be sorted
 
 For non-multiple time series:
-- Column Datetime must be used as an index
-- If the time series is the main dataset, Load must be the only other column in the dataframe
+- Column "Datetime" must be used as an index
+- If the time series is the main dataset, "Value" must be the only other column in the dataframe
 - If the time series is a covariates time series, there must be only one column in the dataframe named arbitrarily
 
 For multiple timeseries:
@@ -170,7 +227,7 @@ from dates which are also before cut_date_val.
     * The week of the year
     * Whether its a holiday or not
 
-* ```convert_to_local_tz``` (default false), whether to convert to local time. If we have a multiple time series file, ID column is considered as the country to transform each time series' time to. If this is not a country code, then country argument is used.
+* ```convert_to_local_tz``` (default true), whether to convert to local time. If we have a multiple time series file, ID column is considered as the country to transform each time series' time to. If this is not a country code, then country argument is used.
 
 * ```min_non_nan_interval``` (default 24), if after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval hours, these intervals are all replaced by nan values
 
@@ -252,7 +309,7 @@ scale: ["list", "True", "False"]
 
 * ```cut_date_test``` (mandatory), the test set start date (if cut_date_test=YYYYMMDD, then the test set starts at YYYY-MM-DD 00:00:00). Values between that (non inclusive) and cut_date_val (inclusive) will be the validation series. If cut_date_test = cut_date_test, then the test and validation sets will be the same (from cut_date_test to test_end_date, both inclusive). Format: str, 'YYYYMMDD'
 
-* ```test_end_date``` (default None), the test set ending date (if test_end_date=YYYYMMDD, then the test set ends at YYYY-MM-DD 23:00:00). Values between that and cut_date_test (both inclusive) will be the testing series. All values after that will be ignored. If None, all the timeseries from cut_date_test will be the test set. Format: str, 'YYYYMMDD'
+* ```test_end_date``` (default None), the test set ending date (if test_end_date=YYYYMMDD, then the test set ends at the last datetime of YYYY-MM-DD). Values between that and cut_date_test (both inclusive) will be the testing series. All values after that will be ignored. If None, all the timeseries from cut_date_test will be the test set. Format: str, 'YYYYMMDD'
 
 * ```device``` (default gpu), whether to run the pipeline on the gpu, or just use the cpu. 
 
@@ -320,3 +377,12 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 * ```m_mase``` (default 1), the forecast horizon of the naive method used in MASE metric
 
 * ```num_samples``` (default 1), number of samples to use for evaluating/validating a probabilistic model's output
+
+## DeepTSF UI
+The DeepTSF UI runs by default at port 3000. However this can be modified by the user. This interface allows for a completely codeless model training experience, as long as the input files respect the already described input csv file format (otherwise an error will be thrown while uploading the file). Several operations such as downsampling, outlier detection can be performed and then the user can split the dataset and perform model training by selecting the appropriate model and its respective hyperparameters. The results of the execution can be sought to the deployed MLflow server. A quick overview of the results can be also found in the experiment tracking dashboard of the front end application. Note that only purely autoregressive models can be built through the UI (with no external variables) contrary to the above described CLI. For more info, please have a look at the whitepaper [1]. 
+
+## DeepTSF advanced workflow orchestration (Dagster)
+Dagster acts as a workflow orchestration engine, where data processing and ML model training pipelines, are defined as jobs. Therefore, the execution of these jobs can be scheduled in fixed intervals, serving the needs of periodic training. More information on the usage of this component can be found in the whitepaper [1]. Note here that this component is still at an experimental stage and therefore has limited features.
+
+## References
+[1]: Pelekis, S., Karakolis, E., Pountridis, T., Kormpakis, G., Lampropoulos, G., Mouzakits, S., & Askounis, D. (2023). DeepTSF: Codeless machine learning operations for time series forecasting. ArXiv https://arxiv.org/abs/2308.00709

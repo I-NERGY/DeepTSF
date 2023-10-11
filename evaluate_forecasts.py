@@ -397,7 +397,7 @@ def predict(x: darts.TimeSeries,
         index_future = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
         sample = np.array(sample, dtype=np.float32)
         data = sample[:shap_input_length]
-        ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Load"]))
+        ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Value"]))
     #    print(ts.dtype)
         if scale:
             ts = scaler_list[0].transform(ts)
@@ -549,27 +549,27 @@ def call_shap(n_past_covs: int,
               )
 @click.option("--series-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help='Provide the uri of the series file'
               )
 @click.option("--future-covs-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help='Provide the uri of the future covariates file'
               )
 @click.option("--past-covs-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help='Provide the uri of the past covariates file'
               )
 @click.option("--scaler-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help='Provide the uri of the future covariates file'
               )
 @click.option("--cut-date-test",
               type=str,
-              default='20210101',
+              default='None',
               help="Test set start date [str: 'YYYYMMDD']",
               )
 @click.option("--test-end-date",
@@ -579,7 +579,7 @@ def call_shap(n_past_covs: int,
               )
 @click.option("--model-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help='Remote URI of the model to be evaluated'
               )
 @click.option("--model-type",
@@ -591,7 +591,7 @@ def call_shap(n_past_covs: int,
               )
 @click.option("--forecast-horizon",
               type=str,
-              default="96")
+              default="None")
 @click.option("--stride",
               type=str,
               default="None")
@@ -626,12 +626,12 @@ def call_shap(n_past_covs: int,
 
 @click.option("--eval-series",
     type=str,
-    default="PT",
+    default="None",
     help="On which timeseries to run the backtesting. Only for multiple timeseries")
 
 @click.option("--cut-date-val",
               type=str,
-              default='20210101',
+              default='None',
               help="Val set start date [str: 'YYYYMMDD']",
               )
 @click.option("--day-first",
@@ -640,7 +640,7 @@ def call_shap(n_past_covs: int,
     help="Whether the date has the day before the month")
 
 @click.option("--resolution",
-    default="15",
+    default="None",
     type=str,
     help="The resolution of the dataset in minutes."
 )

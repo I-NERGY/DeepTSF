@@ -12,21 +12,31 @@ import numpy as np
 load_dotenv()
 from tqdm import tqdm
 import logging
-from exceptions import MandatoryArgNotSet
-
+from exceptions import MandatoryArgNotSet, NotValidConfig
+import json
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
 
 class ConfigParser:
-    def __init__(self, config_file_path=f'{cur_dir}/config.yml'):
+    def __init__(self, config_file=f'{cur_dir}/config.yml', config_string=None):
         import yaml
-        with open(config_file_path, "r") as ymlfile:
-            self.config = yaml.safe_load(ymlfile)
-            # self.mlflow_tracking_uri = self.config['mlflow_settings']['mlflow_tracking_uri']
+        try:
+            with open(config_file, "r") as ymlfile:
+                self.config = yaml.safe_load(ymlfile)
+                if config_string != None:
+                    assert config_string in self.config['hyperparameters']
+        except:
+            try:
+                self.config = yaml.safe_load(config_string)
+            except:
+                raise NotValidConfig()
 
-    def read_hyperparameters(self, hyperparams_entrypoint):
-        return self.config['hyperparameters'][hyperparams_entrypoint]
+    def read_hyperparameters(self, hyperparams_entrypoint=""):
+            try:
+                return self.config['hyperparameters'][hyperparams_entrypoint]
+            except:
+                return self.config
 
     def read_entrypoints(self):
         return self.config['hyperparameters']
@@ -348,11 +358,18 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
         print('\nDownloading remote file of recent time series history...')
         series_uri = download_mlflow_file(series_uri)
 
-    history = load_local_csv_as_darts_timeseries(
-        local_path=series_uri,
-        name='series',
-        time_col='Datetime',
-        last_date=None)
+    if "history" not in model_input:
+        history = load_local_csv_as_darts_timeseries(
+            local_path=series_uri,
+            name='series',
+            time_col='Datetime',
+            last_date=None)
+    else:
+            history = darts.TimeSeries.from_dataframe(
+                model_input["history"],
+                fill_missing_dates=True,
+                freq=None)
+            history = [history.astype(np.float32)]
 
     if none_checker(future_covariates_uri) is not None:
         future_covariates = darts.TimeSeries.from_csv(
@@ -378,7 +395,7 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
 def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
                             day_first: bool = True,
                             resolution: str = "15",
-                            value_name="Load"):
+                            value_name="Value"):
     ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,
@@ -401,7 +418,7 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         ts_id_l.append([])
         for id in ids:
             curr_comp = curr_ts[curr_ts["ID"] == id]
-            curr_comp = pd.melt(curr_comp, id_vars=['Date', 'ID', 'Timeseries ID'], var_name='Time', value_name='Load')
+            curr_comp = pd.melt(curr_comp, id_vars=['Date', 'ID', 'Timeseries ID'], var_name='Time', value_name="Value")
             curr_comp["Datetime"] = pd.to_datetime(curr_comp['Date'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
             curr_comp = curr_comp.set_index("Datetime")
             series = curr_comp[value_name].sort_index().dropna().asfreq(resolution+'min')
@@ -443,7 +460,6 @@ def multiple_dfs_to_ts_file(res_l, id_l, ts_id_l, save_dir, save=True):
 def check_mandatory(argument, argument_name, mandatory_prerequisites):
     if none_checker(argument) is None:
         raise MandatoryArgNotSet(argument_name, mandatory_prerequisites)
-
 
 #epestrepse kai IDs
 #prwta psakse ID meta SC

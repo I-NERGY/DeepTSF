@@ -11,7 +11,8 @@ class _MLflowPLDartsModelWrapper:
 
     def __init__(self, darts_model, transformer=None):
         self.model = darts_model
-        self.transformer = transformer
+        #TODO Ask if this is right
+        self.transformer = transformer[0]
 
     def predict(self, model_input):
         """ 
@@ -29,6 +30,7 @@ class _MLflowPLDartsModelWrapper:
             batched = True
         except:
             batched = False
+
         # Parse
         model_input = parse_uri_prediction_input(model_input, self.model)
 

@@ -131,7 +131,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
         mlflow.pyfunc.log_model(mlflow_model_root_dir,
                             loader_module="darts_flavor",
                             data_path=logs_path_new,
-                            code_path=['../utils.py', '../inference.py', '../darts_flavor.py'],
+                            code_path=['../exceptions.py', '../utils.py', '../inference.py', '../darts_flavor.py'],
                             conda_env=mlflow_serve_conda_env)
             
         shutil.rmtree(logs_path_new)
@@ -146,7 +146,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
                 'scaler_uri',
                 f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_series.pkl')
         else:
-            mlflow.set_tag('scaler_uri', 'mlflow_artifact_uri')
+            mlflow.set_tag('scaler_uri', 'None')
 
 
 
@@ -177,7 +177,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
         else:
             mlflow.set_tag(
                 'future_covariates_uri',
-                'mlflow_artifact_uri')
+                'None')
 
         if past_covariates is not None:
             mlflow.set_tag(
@@ -185,7 +185,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
                 f'{mlrun.info.artifact_uri}/features/past_covariates_transformed.csv')
         else:
             mlflow.set_tag('past_covariates_uri',
-                'mlflow_artifact_uri')
+                'None')
 
         print("\nArtifacts uploaded.")
         logging.info("\nArtifacts uploaded.")
@@ -238,7 +238,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
              num_workers, day_first, eval_method, loss_function, opt_all_results,
              evaluate_all_ts, num_samples):
 
-                hyperparameters = ConfigParser('../config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
+                hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
                     if type(value) == list and value and value[0] == "range":
@@ -892,7 +892,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               )
 @click.option("--series-uri",
               type=str,
-              default='mlflow_artifact_uri',
+              default='None',
               help="Remote timeseries csv file. If set, it overwrites the local value."
               )
 @click.option("--future-covs-csv",
@@ -901,7 +901,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               )
 @click.option("--future-covs-uri",
               type=str,
-              default='mlflow_artifact_uri'
+              default='None'
               )
 @click.option("--past-covs-csv",
               type=str,
@@ -909,7 +909,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               )
 @click.option("--past-covs-uri",
               type=str,
-              default='mlflow_artifact_uri'
+              default='None'
               )
 @click.option('--year-range',
     default="None",
@@ -918,7 +918,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 )
 
 @click.option("--resolution",
-    default="15",
+    default="None",
     type=str,
     help="Change the resolution of the dataset (minutes)."
 )
@@ -937,23 +937,23 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                    'Naive',
                    'AutoARIMA']),
               multiple=False,
-              default='RNN',
+              default='None',
               help="The base architecture of the model to be trained"
               )
 @click.option("--hyperparams-entrypoint", "-h",
               type=str,
-              default='LSTM1',
+              default='None',
               help=""" The entry point of config.yml under the 'hyperparams'
               one containing the desired hyperparameters for the selected model"""
               )
 @click.option("--cut-date-val",
               type=str,
-              default='20190101',
+              default='None',
               help="Validation set start date [str: 'YYYYMMDD']"
               )
 @click.option("--cut-date-test",
               type=str,
-              default='20200101',
+              default='None',
               help="Test set start date [str: 'YYYYMMDD']",
               )
 @click.option("--test-end-date",
@@ -971,7 +971,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 # eval
 @click.option("--forecast-horizon",
               type=str,
-              default="96")
+              default="None")
 @click.option("--stride",
               type=str,
               default="None")
@@ -993,7 +993,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
               help="Whether to train on multiple timeseries")
 @click.option("--eval-series",
               type=str,
-              default="PT",
+              default="None",
               help="On which timeseries to run the backtesting. Only for multiple timeseries")
 @click.option("--n-trials",
               type=str,
@@ -1060,7 +1060,7 @@ def optuna_search(series_csv, series_uri, future_covs_csv, future_covs_uri,
         evaluate_all_ts = truth_checker(evaluate_all_ts)
         with mlflow.start_run(run_name=f'optuna_test_{darts_model}', nested=True) as mlrun:
             if grid_search:
-                hyperparameters = ConfigParser('../config_opt.yml').read_hyperparameters(hyperparams_entrypoint)
+                hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
                     if type(value) == list and value and value[0] == "range":
