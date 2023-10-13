@@ -258,12 +258,13 @@ def remove_outliers(ts: pd.DataFrame,
     else:
     #TODO Change that to empty dataframe
         a = ts.loc[ts["Value"] < min(ts["Value"])]
+
     #Calculating monthly mean and standard deviation and removing values
     #that are more than std_dev standard deviations away from the mean
-    mean_per_month = ts.groupby(lambda x: x.month).mean().to_numpy()
-    mean = ts.index.to_series().apply(lambda x: mean_per_month[x.month - 1])
-    std_per_month = ts.groupby(lambda x: x.month).std().to_numpy()
-    std = ts.index.to_series().apply(lambda x: std_per_month[x.month - 1])
+    mean_per_month = ts.groupby(lambda x: x.month).mean().to_dict()["Value"]
+    mean = ts.index.to_series().apply(lambda x: mean_per_month[x.month])
+    std_per_month = ts.groupby(lambda x: x.month).std().to_dict()["Value"]
+    std = ts.index.to_series().apply(lambda x: std_per_month[x.month])
     a = pd.concat([a, ts.loc[-std_dev * std + mean > ts["Value"]]])
     a = pd.concat([a, ts.loc[ts["Value"] > std_dev * std + mean]])
 
@@ -894,19 +895,21 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                         std_dev=std_dev,
                                                         resolution=infered_resolution_series)
                 #holidays_: The holidays of country
-                #TODO check only if l_interpolation
-                try:
-                    code = compile(f"holidays.{id_l[ts_num][comp_num]}()", "<string>", "eval")
-                    country_holidays = eval(code)
-                except:
-                    country_holidays = []
-                    print("\nID column does not specify valid country. Using country argument instead")
-                    logging.info("\nID column does not specify valid country. Using country argument instead")
+                if l_interpolation:
+                    country_holidays = None
+                else:
                     try:
-                        code = compile(f"holidays.{country}()", "<string>", "eval")
+                        code = compile(f"holidays.{id_l[ts_num][comp_num]}()", "<string>", "eval")
                         country_holidays = eval(code)
                     except:
-                        raise CountryDoesNotExist()
+                        country_holidays = []
+                        print("\nID column does not specify valid country. Using country argument instead")
+                        logging.info("\nID column does not specify valid country. Using country argument instead")
+                        try:
+                            code = compile(f"holidays.{country}()", "<string>", "eval")
+                            country_holidays = eval(code)
+                        except:
+                            raise CountryDoesNotExist()
                 print("\nPerfrorming Imputation of the Dataset...")
                 logging.info("\nPerfrorming Imputation of the Dataset...")
                 #print(comp_res)
