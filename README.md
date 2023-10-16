@@ -229,7 +229,7 @@ from dates which are also before cut_date_val.
 
 * ```convert_to_local_tz``` (default true), whether to convert to local time. If we have a multiple time series file, ID column is considered as the country to transform each time series' time to. If this is not a country code, then country argument is used.
 
-* ```min_non_nan_interval``` (default 24), if after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval hours, these intervals are all replaced by nan values
+* ```min_non_nan_interval``` (default 24), If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval time steps, these intervals are all replaced by nan values
 
 * ```country``` (default PT), the country code this dataset belongs to. Used to obtain holidays in case of single time series, or if id is not a valid country in case of multiple time series. Holidays are used in the imputation method, and to produce time covariates.
 

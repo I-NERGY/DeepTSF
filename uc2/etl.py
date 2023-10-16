@@ -222,6 +222,7 @@ def cut_extra_samples(ts_list):
 def remove_outliers(ts: pd.DataFrame,
                     name: str = "Portugal",
                     std_dev: float = 4.5,
+                    resolution: str = "15",
                     print_removed: bool = True):
     """
     Reads the input dataframe and replaces its outliers with NaNs by removing
@@ -285,7 +286,7 @@ def remove_outliers(ts: pd.DataFrame,
     plt.legend()
     mlflow.log_figure(fig, f'outlier_detection_results/outlier_free_series_{name}.png')
 
-    return res, a
+    return res.asfreq(resolution+'min'), a
 
 def impute(ts: pd.DataFrame,
            holidays,
@@ -358,12 +359,10 @@ def impute(ts: pd.DataFrame,
         #Returning calendar of the country ts belongs to
         calendar = create_calendar(ts, int(resolution), holidays, timezone("UTC"))
         calendar.index = calendar["datetime"]
-
         imputed_values = ts[ts["Value"].isnull()]
 
         #null_dates: Series with all null dates to be imputed
         null_dates = imputed_values.index
-
 
         if debug:
             for date in null_dates:
@@ -371,6 +370,7 @@ def impute(ts: pd.DataFrame,
 
         #isnull: An array which stores whether each value is null or not
         isnull = ts["Value"].isnull().values
+
 
         #d: List with distances to the nearest non null value
         d = [len(null_dates) for _ in range(len(null_dates))]
@@ -458,26 +458,25 @@ def impute(ts: pd.DataFrame,
             if debug:
                 print(res.loc[null_date])
 
-    if min_non_nan_interval != -1:
-        #If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
-        #time steps, these intervals are all replaced  by nan values
-        not_nan_values = res[~res["Value"].isnull()]
-        not_nan_dates = not_nan_values.index
-        prev = not_nan_dates[0]
-        start = prev
+        if min_non_nan_interval != -1:
+            #If after imputation there exist continuous intervals of non nan values in the train set that are smaller 
+            #than min_non_nan_interval time steps, these intervals are all replaced by nan values
+            not_nan_values = res[(~res["Value"].isnull()) & (res.index < pd.Timestamp(cut_date_val))]
+            not_nan_dates = not_nan_values.index
+            prev = not_nan_dates[0]
+            start = prev
 
-        #TODO Fix non nan interval when we dont want to do this (-1)
-        for not_nan_day in not_nan_dates[1:]:
-            if (not_nan_day - prev)!= pd.Timedelta(int(resolution), "min"):
-                if prev - start < pd.Timedelta(str(int(resolution) * min_non_nan_interval), "min"):
-                    print(f"Non Nan interval from {start} to {prev} is smaller than {min_non_nan_interval} time steps. Making this also Nan")
-                    for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
-                        res.loc[date] = pd.NA
-                start = not_nan_day
-            prev = not_nan_day
-        if prev - start < pd.Timedelta(str(int(resolution) * min_non_nan_interval), "min"):
-            for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
-                res.loc[date] = pd.NA
+            for not_nan_day in not_nan_dates[1:]:
+                if (not_nan_day - prev)!= pd.Timedelta(int(resolution), "min"):
+                    if prev - start < pd.Timedelta(int(resolution) * min_non_nan_interval, "min"):
+                        print(f"Non Nan interval from {start} to {prev} is smaller than {min_non_nan_interval} time steps. Making this also Nan")
+                        for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+                            res.loc[date] = pd.NA
+                    start = not_nan_day
+                prev = not_nan_day
+            if prev - start < pd.Timedelta(int(resolution) * min_non_nan_interval, "min"):
+                for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+                    res.loc[date] = pd.NA
 
     fig, ax = plt.subplots(figsize=(8,5))
     ax.plot(res.index, res["Value"], color='black', label = f'Load of {name} after Imputation')
@@ -898,7 +897,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                     logging.info("\nPerfrorming Outlier Detection...")
                     comp_res, removed = remove_outliers(ts=comp_res,
                                                         name=id_l[ts_num][comp_num],
+                                                        resolution=infered_resolution_series,
                                                         std_dev=std_dev)
+
                 #holidays_: The holidays of country
                 if l_interpolation:
                     country_holidays = None
