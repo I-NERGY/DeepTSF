@@ -24,6 +24,24 @@ services:
     networks:
        - load-forecasting-net
 
+  dagster:
+    container_name: DeepTSF--dagster-orchestrator
+    hostname: DeepTSF--dagster-orchestrator
+    build:
+      context: .
+      dockerfile: /dagster-deeptsf/config/Dockerfile
+    env_file:
+      - ./dagster-deeptsf/config/.env
+    expose:
+      - 3000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./dagster-deeptsf:/app/dagster-deeptsf
+#      - ./uc2:/app/uc2
+    networks:
+      - load-forecasting-net
+
 #   frontend:
 #     container_name: load-forecasting-dashboard
 #     hostname: load-forecasting-dashboard
@@ -48,5 +66,4 @@ services:
 
 networks: 
   load-forecasting-net:
-    name: load-forecasting-net
     external: true

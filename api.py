@@ -1,13 +1,11 @@
-from distutils.log import error
 from enum import Enum
 import uvicorn
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, BackgroundTasks, Depends
 import pandas as pd
 import mlflow
-from utils import ConfigParser, truth_checker
+from utils import ConfigParser
 import tempfile
-import os
 from uc2.load_raw_data import read_and_validate_input
 from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
@@ -20,7 +18,6 @@ from dotenv import load_dotenv
 from fastapi import APIRouter
 from app.auth import admin_validator, scientist_validator, engineer_validator, common_validator, oauth2_scheme
 from app.config import settings
-import pretty_errors
 
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv

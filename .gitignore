@@ -5,6 +5,7 @@ log.log
 **/node_modules
 *.pyc
 *.vsix
+*.csv
 **/.vscode/.ropeproject/**
 **/testFiles/**/.cache/**
 *.noseids
@@ -54,7 +55,7 @@ nodeLanguageServer.*/**
 
 # ignore dots except gitignore
 .*
-!/.gitignore
+!.gitignore
 !/.gitattributes
 !.env_example
 
