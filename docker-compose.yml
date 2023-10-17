@@ -42,27 +42,25 @@ services:
     networks:
       - load-forecasting-net
 
-#   frontend:
-#     container_name: load-forecasting-dashboard
-#     hostname: load-forecasting-dashboard
-#     image: load-forecasting-dashboard:0.1
-#     restart: always
-#     # build: /new_vol_300/opt/load-forecasting-dashboard/
-#     # build: ./load-forecasting-dashboard
-#       # context: ""
-#     # volumes:
-#     #   # - ./load-forecasting-dashboard/src:/app/src
-#     # - /new_vol_300/opt/load-forecasting-dashboard/src:/app/src
-#     ports:
-#       - '3000:3000'
-#     stdin_open: true
-#     # environment:
-#     #   - CHOKIDAR_USEPOLLING=true
-#     #   - REACT_APP_NAME=Load_Forecasting_Dashboard
-#     env_file:
-#       - .env
-#     networks:
-#       - load-forecasting-net
+  frontend:
+    container_name: load-forecasting-dashboard
+    hostname: load-forecasting-dashboard
+    # image: korbakis/load-forecasting-dashboard:0.1
+    restart: always
+    # build: ./load-forecasting-dashboard
+    build: https://github.com/I-NERGY/DeepTSF.git
+    # volumes: # this bind mount is maybe redundant?
+    #   - ./src:/app/src # check if this works like that. relative paths are inside the build directory or the current directory?
+    ports:
+      - '3000:3000'
+    stdin_open: true
+    env_file:
+      - .env # needs to add all variables of the front-end env_file to the current .env
+    # environment:
+    #   CHOKIDAR_USEPOLLING: true
+    #   REACT_APP_NAME: Load_Forecasting_Dashboard
+    networks:
+      - load-forecasting-net
 
 networks: 
   load-forecasting-net:
