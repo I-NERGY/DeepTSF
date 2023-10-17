@@ -20,7 +20,7 @@ RUN pip install minio
 
 COPY . .
 
-EXPOSE 3000
+EXPOSE 8006
 
 WORKDIR /app/dagster-deeptsf
 # Set the DAGSTER_HOME environment variable

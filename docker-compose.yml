@@ -33,9 +33,9 @@ services:
     env_file:
       - ./dagster-deeptsf/config/.env
     expose:
-      - 3000
+      - 8006
     ports:
-      - "3000:3000"
+      - "8006:8006"
     volumes:
       - ./dagster-deeptsf:/app/dagster-deeptsf
 #      - ./uc2:/app/uc2
