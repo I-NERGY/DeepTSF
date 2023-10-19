@@ -26,4 +26,4 @@ WORKDIR /app/dagster-deeptsf
 # Set the DAGSTER_HOME environment variable
 ENV DAGSTER_HOME /app/dagster-deeptsf
 
-ENTRYPOINT [ "conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "dagster", "dev", "-h", "0.0.0.0", "-p", "3000"]
+ENTRYPOINT [ "conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "dagster", "dev", "-h", "0.0.0.0", "-p", "8006"]
