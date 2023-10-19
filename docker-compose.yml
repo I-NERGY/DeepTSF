@@ -1,5 +1,5 @@
 version: '3.3'
-
+# to run this you need to create a .env file with the contents of .env_local
 services:
 
   s3:
@@ -11,11 +11,11 @@ services:
       - artifact-store:/data
     ports:
       - 9000:9000
-    env_file:
-      - .env_example
-    # environment:
-    #   MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-    #   MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    networks:
+      - load-forecasting-net
     command: server /data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
@@ -27,11 +27,11 @@ services:
     image: minio/mc:RELEASE.2019-07-17T22-13-42Z
     depends_on:
       - s3    
-    env_file:
-      - .env_example
-    # environment:
-    #   MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-    #   MINIO_SECRET__KEY: ${MINIO_SECRET_KEY}
+    environment:
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET__KEY: ${MINIO_SECRET_KEY}
+    networks:
+       - load-forecasting-net
     entrypoint: >
       /bin/sh -c '
       sleep 5;
@@ -41,6 +41,7 @@ services:
       /usr/bin/mc policy set public s3/${BUCKET_NAME};
       exit 0;
       '
+
   pgdb:
     container_name: pgdb
     restart: always
@@ -53,13 +54,13 @@ services:
       - 5432:5432
     expose:
       - '5432'
-    # env_file:
-    #   - env_example
-    # environment:
-    #   POSTGRES_USER: ${POSTGRES_USER}
-    #   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    #   POSTGRES_DATABASE: ${POSTGRES_DATABASE}
-    #   PGDATA: /var/lib/postgresql/data/pgdata
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DATABASE: ${POSTGRES_DATABASE}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    networks:
+      - load-forecasting-net
 
   mlflow_server:
     restart: always
@@ -72,18 +73,18 @@ services:
       - 5000:5000
     expose:
       - 5000
-    # env_file:
-    #   - env_example
-    # environment:
-    #   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    #   POSTGRES_USER: ${POSTGRES_USER}
-    #   POSTGRES_DATABASE: ${POSTGRES_DATABASE}
-    #   MLFLOW_S3_ENDPOINT_URL: http://s3:${MINIO_PORT}
-    #   AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
-    #   AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_DATABASE: ${POSTGRES_DATABASE}
+      MLFLOW_S3_ENDPOINT_URL: http://s3:${MINIO_PORT}
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
     depends_on: 
       - s3
       - pgdb
+    networks:
+      - load-forecasting-net
     command: bash -c 
       "mlflow server --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgdb:5432/${POSTGRES_DATABASE} --host 0.0.0.0 --default-artifact-root s3://${BUCKET_NAME}/"
 
@@ -98,20 +99,20 @@ services:
     expose:
       - '8080'
     stdin_open: true
-    env_file:
-      - .env_example
-    # environment:
-    #   - MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
-    #   - MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
-    #   - AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-    #   - AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
-    #   - USE_KEYCLOAK: ${USE_KEYCLOAK}
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              capabilities: [gpu]
+    # env_file:
+    #   - .env_example
+    environment:
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
+      USE_KEYCLOAK: ${USE_KEYCLOAK}
+    # deploy: # activate this if you want gpu usage
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
     networks:
        - load-forecasting-net
 
@@ -121,13 +122,13 @@ services:
     build:
       context: .
       dockerfile: ./dagster-deeptsf/config/Dockerfile
-    env_file:
-      - .env_example
-    # environment:
-    #   MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
-    #   MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
-    #   AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-    #   AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    # env_file:
+    #   - .env_example
+    environment:
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
     expose:
       - 8006
     ports:
@@ -165,4 +166,3 @@ volumes:
 
 networks: 
   load-forecasting-net:
-    external: true
