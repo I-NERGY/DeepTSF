@@ -177,13 +177,10 @@ Example files are provided for future covariates in the folder example_datasets.
 
 ### Parameters of the pipeline
 
-#DONE change to from_database
 * ```from_database``` (default false), whether to read the dataset from the database (mongodb in our case), or from other sources. If this is true, it overrides all other options (series_csv, series_uri)
 
-#DONE change to database_name
 * ```database_name``` (rdn_load_data), which database file to read
 
-#DONE change default to None
 * ```series_uri``` (default None), the uri of the online time series file to use. If series_uri is not None, and from_database is false, then this is the time series DeepTSF will use.
 
 * ```series_csv``` (mandatory if series_uri is None and from_database is false), the path to the local time series file to use. If series_uri has a non-default value, or if from_database is true, then series_csv has no effect.
@@ -244,7 +241,6 @@ from dates which are also before cut_date_val.
 ### Parameters of the pipeline
 * ```resolution``` (mandatory), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and then afterwards resampling is performed. 
 
-#DONE change default to use start and finish?
 * ```year_range``` (default None), the years to use from the datasets (inclusive). All values outside of those dates will be dropped.
 
 * ```time_covs``` (default false), whether to add time covariates to the time series. If true, then the following time covariates will be added as future covariates:
@@ -387,7 +383,7 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 
 [TODO: SHAP ask if changes are ok]::
 [SHAP with covariates fix]::
-#TODO Change default to 100
+[TODO Change default to 100]::
 * ```shap_data_size``` (default 100), The size of shap dataset in samples. The SHAP coefficients are going to be computed for this number of random samples of the test dataset. If it is a float, it represents the proportion of samples of the test dataset that will be chosen. If it is an int, it represents the absolute number of samples to be produced.
 
 * ```analyze_with_shap``` (default false), whether to do SHAP analysis on the model.
