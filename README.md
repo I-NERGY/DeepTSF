@@ -168,7 +168,7 @@ that in the single time series file format, and then DeepTSF will use this as a 
 the user to follow the limitation of the above paragraph. In this case, the main time series can be in any format (multiple or single), and the number of time series given to the model can be anythin the user wants.
 
 If the user chooses, time covariates can be added internally. Those are considered as future covariates, and they are added
-at the end of each covariate time series provided by the user as extra components. They are computed taking into account 
+at the end of each covariate time series provided by the user as extra components. They are computed by taking into account 
 each time series' calendar. If the user does not provide extra future covariates, then the time covariates that are produced are multiple time series (the same number as the main time series).
 
 Example files are provided for future covariates in the folder example_datasets. For past covariates, the format is the same:
