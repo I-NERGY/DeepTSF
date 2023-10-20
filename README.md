@@ -130,8 +130,7 @@ The columns that can be present in the csv have the following meaning
 - Timeseries ID (Optional): Timeseries ID column is not compulsory, and shows the time series to which each component belongs. If Timeseries ID is not present, it is assumed that each component represents one separate series (the column is set to ID).
 - Time columns: Columns that store the Value of each component. They must be consecutive and separated by resolution minutes. They should start at 00:00:00, and end at 24:00:00 - resolution
 
-
-The checks that are performed when valifating a file are the following:
+The checks that are performed when validating a file are the following:
 
 For all time series:
 - The dataframe can not be empty
@@ -146,6 +145,35 @@ For multiple timeseries:
 - Columns Date, ID, and the time columns exist in any order
 - Only the permitted column names exist in the dataframe (see Multiple timeseries file format bellow)
 - All timeseries in the dataframe have the same number of components
+
+The following example files (for the main time series tested by DeepTSF - covariates are explained further bellow) are provided in the folder example_datasets:
+- single_sample_series.csv is a single time series
+- multiple_sample_series.csv contains multiple time series 
+- multivariate_sample_series.csv contains a multivariate time series
+- multiple_and_multivariate_sample_series.csv contains multiple and multivariate time series.
+
+### Covariates format
+In this section we are going to go into more detail about the format of the covariates that can be 
+provided to DeepTSF. 
+
+More speciffically, darts has a limitation that the number of covariate
+time series (past or future, if present) must be equal to the number of time series fed to the model.
+So, for example, if the user wishes to train a model with 5 time series (the number of components
+of each time series is irrelevant), then both the past and the future covariates must either not be used
+at all or be 5. The number of components of each time series used in the covariates can be anything the user
+wishes. The format that DeepTSF accepts is the same as for multiple time series. 
+
+If the covariate time series provided by the user is one with a single component, then the user has the option to provide
+that in the single time series file format, and then DeepTSF will use this as a covariate for all the main time series provided by
+the user to follow the limitation of the above paragraph. In this case, the main time series can be in any format (multiple or single), and the number of time series given to the model can be anythin the user wants.
+
+If the user chooses, time covariates can be added internally. Those are considered as future covariates, and they are added
+at the end of each covariate time series provided by the user as extra components. They are computed taking into account 
+each time series' calendar. If the user does not provide extra future covariates, then the time covariates that are produced are multiple time series (the same number as the main time series).
+
+Example files are provided for future covariates in the folder example_datasets. For past covariates, the format is the same:
+- future_covs_single.csv contains future covariates suitable for a single (with one or many components) timeseries
+- future_covs_multiple.csv contains future covariates suitable for a problem with 2 timeseries (for multiple_and_multivariate_sample_series.csv).
 
 ### Parameters of the pipeline
 

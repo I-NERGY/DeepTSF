@@ -203,7 +203,7 @@ def get_time_covariates(series, country_code='PT', id_name='0'):
                             "holidays"]
     ts_id_l_covariates = [id_name for _ in range(12)]
 
-    return ts_list_covariates, id_l_covariates, id_l_covariates, id_l_covariates, ts_id_l_covariates
+    return ts_list_covariates, id_l_covariates, ts_id_l_covariates
 
 def cut_extra_samples(ts_list):
     print("\nMaking all components of each ts start and end on the same timestep...")
@@ -521,6 +521,28 @@ def utc_to_local(df, country_code):
     #print(df)
 
 def save_consecutive_nans(ts, resolution, tmpdir, name):
+    """
+    Function that saves the time ranges that are left in the time series with 
+    consecutive nans. A file is saved containing this information named 
+    cons_nans_left_<name}>.txt. All time ranges are inclusive in both sides.
+
+    Parameters
+    ----------
+    ts
+        The pandas.DataFrame to be processed
+    resolution
+        The resolution of the time series
+    tmpdir
+        The folder where to save the file
+    name
+        The name of the time series that is being processed. Also included in the 
+        name of the file to be saved.
+
+    Returns
+    -------
+    str
+        The contents of the saved file in string format.
+    """
     resolution = int(resolution)
     output = "Consecutive nans left in df:\n"
     null_dates = ts[ts["Value"].isnull()].index
@@ -538,12 +560,49 @@ def save_consecutive_nans(ts, resolution, tmpdir, name):
     return output
 
 def sum_wo_nans(arraylike):
+    #function used to ingore nans in
+    #case of summation, and if other
+    #samples exist 
     if np.isnan(arraylike).all():
         return np.nan
     else:
         return np.sum(arraylike)
 
 def resample(series, new_resolution, method):
+    """
+    Undersamples a time series to the desired new resolution using the desired method.
+
+    Parameters
+    ----------
+    series
+        The pandas.DataFrame to be processed
+    new_resolution
+        The resolution of the resampled final time series
+    method
+        The method of the resampling. The possibilities include averaging, summation, 
+        and downsampling. More specifically:
+            - averaging: An new dataframe will be produced with datetimes that are
+            separated by new_resolution minutes. The first datetime of the new dataframe
+            will be the same as that of the old one. Also, all other datetimes (lets call
+            them datetime) will be calculated using the average of the datetimes of the
+            old dataset that belong to the date range [datetime, datetime + new_resolution).
+            NaNs are ignored if non NaN values exist in [datetime, datetime + new_resolution), 
+            otherwise datetime remains NaN in the new dataset.
+            - summation: The same applies here as averaging. The differences are that all other 
+            datetimes (lets call them datetime) will be calculated using the sum of the datetimes of the
+            old dataset that belong to the date range [datetime, datetime + new_resolution).
+            NaNs are considered 0 if non NaN values exist in [datetime, datetime + new_resolution), 
+            otherwise datetime remains NaN in the new dataset.
+            - downsampling: The same applies here as averaging. The differences are that all other 
+            datetimes (lets call them datetime) will be the first available sample of the
+            old dataset that belongs to the date range [datetime, datetime + new_resolution). So,
+            if datetime existed in the old dataset, it will have the same value in the new one.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The resampled dataframe
+    """
     if method == "averaging":
         return pd.DataFrame(series["Value"].resample(new_resolution+'min').mean(), columns=["Value"])
     elif method == "summation":
@@ -552,15 +611,52 @@ def resample(series, new_resolution, method):
         return pd.DataFrame(series["Value"].resample(new_resolution+'min').first(), columns=["Value"])
 
 def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resolution, type, multiple, year_min, year_max, resampling_agg_method):
-    #TODO : More preprocessing
+    """
+    Basic preprocessing of a covariate time series. This function is called for one series of
+    the past or future covariates at a time. The steps are repeated for all componets of this
+    series. More methods / details may be added according to the particular use case / covariate 
+    being processed.
+
+    Parameters
+    ----------
+    ts_list
+        A list of dataframes each of which is a component of the timeseries being processed
+    id_list
+        The list of ids of the components being processed
+    cov_id
+        The id of the covariate time series being processed
+    infered_resolution
+        The current resolution of the covariate time series
+    resolution
+        The intended resolution of the covariate time series (same as the intended resolution 
+        of the main time series)
+    type
+        Wether it's past or future covariates
+    multiple
+        Wether the main time series comes from a multiple file format or not
+    year_min
+        The first year that is kept from the main time series, and also from the covariates   
+    year_max
+        The last year that is kept from the main time series, and also from the covariates
+    resampling_agg_method
+        Method to use for resampling. Choice between averaging, summation and downsampling
+    Returns
+    -------
+    List[pandas.DataFrame]
+        A list containing all preprocessed components of the chosen covariate time series
+    """
+    #One can add more preprocessing here according to the exact caracteristics of the covariates 
     result = []
     for ts, ts_id in zip(ts_list, id_list):
-
+        
+        #Temporal fitting
         ts_res = ts[ts.index >= pd.Timestamp(str(year_min) + '0101 00:00:00')]
         ts_res = ts_res[ts_res.index <= pd.Timestamp(str(year_max) + '1231 23:59:59')]
 
+        #Linear interpolation
         ts_res = ts_res.interpolate(inplace=False)
 
+        #resampling
         if int(resolution) < int(infered_resolution):
             raise NoUpsamplingException()
                     
@@ -939,6 +1035,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                     logging.info(f"\nResampling as given frequency is different than infered resolution")
                     comp_res = resample(comp_res, resolution, resampling_agg_method)
                 
+                #if there are still nans in the component, we save their date ranges in a file
                 if comp_res.isnull().sum().sum() > 0:
                     save_consecutive_nans(comp_res, resolution, impute_dir, id_l[ts_num][comp_num])
                     
@@ -962,8 +1059,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
                 # time variables creation
 
-                #TODO: Make training happen without outlier detection
                 if comp_num == len(ts) - 1:
+                    #We add covariates when the preprocessing of the final component of the series has finished
                     if past_covs_csv != None:
                         res_past.append(preprocess_covariates(ts_list_past_covs[ts_num], id_l_past_covs[ts_num], ts_id_l_past_covs[ts_num][0], infered_resolution_past, resolution, "past", multiple, year_min, year_max, resampling_agg_method))
                     if future_covs_csv != None:
@@ -981,8 +1078,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                 ts_list_covariates, id_l_covariates, ts_id_l_covariates = get_time_covariates(comp_res_darts, country,  ts_id_l[ts_num][0])
                             except:
                                 raise CountryDoesNotExist()
-                        print(ts_list_covariates)
-                        print(id_l_covariates)
+
+                        #Adding time covariates to the rest of the future covariates
                         if future_covs_csv == None:
                             res_future.append(ts_list_covariates) 
                             id_l_future_covs.append(id_l_covariates)
