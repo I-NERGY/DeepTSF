@@ -396,6 +396,39 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                             day_first: bool = True,
                             resolution: str = "15",
                             value_name="Value"):
+    """
+    Reads the input multiple ts file, and returns a tuple containing a list of the time series it consists
+    of, along with their ids and timeseries ids. 
+
+    Parameters
+    ----------
+    series_csv
+        The file name of the csv to be read. It must be in the multiple ts form described in the documentation
+    day_first
+        Wether the day appears before the month in dates
+    resolution
+        The resolution of the dataset
+    value_name
+        The name of the value column of the returned dataframes
+
+    Returns
+    -------
+    Tuple[List[List[pandas.DataFrame]], List[List[str]], List[List[str]]]
+        A tuple with the list of lists of dataframes to be returned, the ids 
+        of their components, and the timeseries ids. For example, if the function
+        reads a file with 2 time series (with ids ts_1 and ts_2), and each one 
+        consists of 3 components (with ids ts_1_1, ts_1_2, ts_1_3, ts_2_1, ts_2_2, ts_2_3),
+        then the function will return:
+        (res, id_l, ts_id_l), where:
+        res = [[ts_1_comp_1, ts_1_comp_2, ts_1_comp_3], [ts_2_comp_1, ts_2_comp_2, ts_2_comp_3]]
+        id_l = [[ts_1_1, ts_1_2, ts_1_3], [ts_2_1, ts_2_2, ts_2_3]]
+        ts_id_l = [[ts_1, ts_1, ts_1], [ts_2, ts_2, ts_2]]
+        All of the above lists of lists have the same number of lists and each sublist the same
+        amount of elements as the sublist of any other list of lists in the corresponding location.
+        This is true because each sublist corresponds to a times eries, and each element of this
+        sublist corresponds to a component of this time series.
+    """
+
     ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,

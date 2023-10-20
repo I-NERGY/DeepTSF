@@ -87,3 +87,11 @@ class NoUpsamplingException(Exception):
     def __init__(self):
         self.message = f'Upsampling is not allowed. Change the target resolution of the series'
         super().__init__(self.message)
+
+class TsUsedIdDoesNotExcist(Exception):
+    """
+    Exception raised if ts_used_id chosen by the user does not exist in the multiple time series file.
+    """
+    def __init__(self):
+        self.message = f'This ts_used_id does not exist in the multiple time series file'
+        super().__init__(self.message)
