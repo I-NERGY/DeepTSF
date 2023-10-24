@@ -130,8 +130,7 @@ The columns that can be present in the csv have the following meaning
 - Timeseries ID (Optional): Timeseries ID column is not compulsory, and shows the time series to which each component belongs. If Timeseries ID is not present, it is assumed that each component represents one separate series (the column is set to ID).
 - Time columns: Columns that store the Value of each component. They must be consecutive and separated by resolution minutes. They should start at 00:00:00, and end at 24:00:00 - resolution
 
-
-The checks that are performed when valifating a file are the following:
+The checks that are performed when validating a file are the following:
 
 For all time series:
 - The dataframe can not be empty
@@ -147,15 +146,41 @@ For multiple timeseries:
 - Only the permitted column names exist in the dataframe (see Multiple timeseries file format bellow)
 - All timeseries in the dataframe have the same number of components
 
+The following example files (for the main time series tested by DeepTSF - covariates are explained further bellow) are provided in the folder example_datasets:
+- single_sample_series.csv is a single time series
+- multiple_sample_series.csv contains multiple time series 
+- multivariate_sample_series.csv contains a multivariate time series
+- multiple_and_multivariate_sample_series.csv contains multiple and multivariate time series.
+
+### Covariates format
+In this section we are going to go into more detail about the format of the covariates that can be 
+provided to DeepTSF. 
+
+More speciffically, darts has a limitation that the number of covariate
+time series (past or future, if present) must be equal to the number of time series fed to the model.
+So, for example, if the user wishes to train a model with 5 time series (the number of components
+of each time series is irrelevant), then both the past and the future covariates must either not be used
+at all or be 5. The number of components of each time series used in the covariates can be anything the user
+wishes. The format that DeepTSF accepts is the same as for multiple time series. 
+
+If the covariate time series provided by the user is one with a single component, then the user has the option to provide
+that in the single time series file format, and then DeepTSF will use this as a covariate for all the main time series provided by
+the user to follow the limitation of the above paragraph. In this case, the main time series can be in any format (multiple or single), and the number of time series given to the model can be anythin the user wants.
+
+If the user chooses, time covariates can be added internally. Those are considered as future covariates, and they are added
+at the end of each covariate time series provided by the user as extra components. They are computed by taking into account 
+each time series' calendar. If the user does not provide extra future covariates, then the time covariates that are produced are multiple time series (the same number as the main time series).
+
+Example files are provided for future covariates in the folder example_datasets. For past covariates, the format is the same:
+- future_covs_single.csv contains future covariates suitable for a single (with one or many components) timeseries
+- future_covs_multiple.csv contains future covariates suitable for a problem with 2 timeseries (for multiple_and_multivariate_sample_series.csv).
+
 ### Parameters of the pipeline
 
-#DONE change to from_database
 * ```from_database``` (default false), whether to read the dataset from the database (mongodb in our case), or from other sources. If this is true, it overrides all other options (series_csv, series_uri)
 
-#DONE change to database_name
 * ```database_name``` (rdn_load_data), which database file to read
 
-#DONE change default to None
 * ```series_uri``` (default None), the uri of the online time series file to use. If series_uri is not None, and from_database is false, then this is the time series DeepTSF will use.
 
 * ```series_csv``` (mandatory if series_uri is None and from_database is false), the path to the local time series file to use. If series_uri has a non-default value, or if from_database is true, then series_csv has no effect.
@@ -216,7 +241,6 @@ from dates which are also before cut_date_val.
 ### Parameters of the pipeline
 * ```resolution``` (mandatory), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and then afterwards resampling is performed. 
 
-#DONE change default to use start and finish?
 * ```year_range``` (default None), the years to use from the datasets (inclusive). All values outside of those dates will be dropped.
 
 * ```time_covs``` (default false), whether to add time covariates to the time series. If true, then the following time covariates will be added as future covariates:
@@ -229,7 +253,7 @@ from dates which are also before cut_date_val.
 
 * ```convert_to_local_tz``` (default true), whether to convert to local time. If we have a multiple time series file, ID column is considered as the country to transform each time series' time to. If this is not a country code, then country argument is used.
 
-* ```min_non_nan_interval``` (default 24), if after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval hours, these intervals are all replaced by nan values
+* ```min_non_nan_interval``` (default 24), If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval time steps, these intervals are all replaced by nan values
 
 * ```country``` (default PT), the country code this dataset belongs to. Used to obtain holidays in case of single time series, or if id is not a valid country in case of multiple time series. Holidays are used in the imputation method, and to produce time covariates.
 
@@ -359,7 +383,7 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 
 [TODO: SHAP ask if changes are ok]::
 [SHAP with covariates fix]::
-#TODO Change default to 100
+[TODO Change default to 100]::
 * ```shap_data_size``` (default 100), The size of shap dataset in samples. The SHAP coefficients are going to be computed for this number of random samples of the test dataset. If it is a float, it represents the proportion of samples of the test dataset that will be chosen. If it is an int, it represents the absolute number of samples to be produced.
 
 * ```analyze_with_shap``` (default false), whether to do SHAP analysis on the model.
