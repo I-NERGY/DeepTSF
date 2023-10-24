@@ -107,6 +107,7 @@ services:
       AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
       AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
       USE_KEYCLOAK: ${USE_KEYCLOAK}
+      GIT_PYTHON_REFRESH: ${GIT_PYTHON_REFRESH}
     # deploy: # activate this if you want gpu usage
     #   resources:
     #     reservations:
