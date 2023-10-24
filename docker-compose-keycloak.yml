@@ -1,5 +1,5 @@
 version: '3.3'
-
+# to run this you need to create a .env file with the contents of .env_keycloak and fill the missing variables.
 services:
 
   backend:
@@ -11,16 +11,16 @@ services:
     ports:
       - '8080:8080'
     expose:
-      - '8080'
+      - 8080
     stdin_open: true
-    env_file:
-      - .env
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               capabilities: [gpu]
+    env_file:
+      - .env
     networks:
        - load-forecasting-net
 
@@ -30,13 +30,11 @@ services:
     build:
       context: .
       dockerfile: ./dagster-deeptsf/config/Dockerfile
-    env_file:
-      - .env
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
       MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
     expose:
       - 8006
     ports:
