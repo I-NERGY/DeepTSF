@@ -44,8 +44,9 @@ services:
 
   pgdb:
     container_name: pgdb
+    hostname: pgdb
     restart: always
-    image: inergy2020iccs/pgdb:0.1
+    image: inergy2020iccs/pgdb:1.0
     # volumes:
     #     - database:/var/lib/postgresql/data
     ports:
@@ -61,9 +62,10 @@ services:
       - load-forecasting-net
 
   mlflow_server:
-    restart: always
-    image: inergy2020iccs/mlflow_server:0.1
     container_name: mlflow_server
+    hostname: mlflow_server
+    restart: always
+    image: inergy2020iccs/mlflow_server:1.0
     ports:
       - 5000:5000
     expose:
@@ -84,8 +86,8 @@ services:
       "mlflow server --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgdb:5432/${POSTGRES_DATABASE} --host 0.0.0.0 --default-artifact-root s3://${BUCKET_NAME}/"
 
   backend:
-    container_name: DeepTSF-backend
-    hostname: DeepTSF-backend
+    container_name: deeptsf_backend
+    hostname: deeptsf_backend
     build: .
     restart: always
     ports:
@@ -110,8 +112,8 @@ services:
        - load-forecasting-net
 
   dagster:
-    container_name: DeepTSF--dagster-orchestrator
-    hostname: DeepTSF--dagster-orchestrator
+    container_name: deeptsf_dagster
+    hostname: deeptsf_dagster
     build:
       context: .
       dockerfile: ./dagster-deeptsf/config/Dockerfile
@@ -129,20 +131,22 @@ services:
     networks:
       - load-forecasting-net
 
-frontend:
-    container_name: DeepTSF-dashboard
-    hostname: DeepTSF-dashboard
-    image: inergy2020iccs/deeptsf-dashboard:1.0
+  frontend:
+    container_name: deeptsf_dashboard
+    hostname: deeptsf_dashboard
+    # image: inergy2020iccs/deeptsf_dashboard:1.0
+    build: https://github.com/I-NERGY/deeptsf-dashboard.git
     restart: always
-    build:
-      context: ""
+    expose:
+      - 3000
     ports:
       - 3000:3000
     stdin_open: true
-    env:
-      REACT_APP_AUTH: false
+    environment:
+      DAGSTER_ENDPOINT_URL: ${DAGSTER_ENDPOINT_URL}
+      REACT_APP_AUTH: "false"
       REACT_APP_MLFLOW: ${MLFLOW_TRACKING_URI}
-      CHOKIDAR_USEPOLLING: true
+      CHOKIDAR_USEPOLLING: "true"
       REACT_APP_NAME: Load_Forecasting_Dashboard
     networks:
       - load-forecasting-net
