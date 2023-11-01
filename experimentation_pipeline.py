@@ -373,7 +373,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     type=str,
     default="24",
     help="If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval \
-        hours, these intervals are all replaced  by nan values")
+        time steps, these intervals are all replaced by nan values")
 
 @click.option("--num-samples",
     type=str,

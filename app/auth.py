@@ -5,7 +5,6 @@ from .config import settings
 from fastapi.security import OAuth2PasswordBearer
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl='/token')
-# oauth2_scheme = OAuth2PasswordBearer(tokenUrl='https://oblachek.eu:8443/realms/inergy/protocol/openid-connect/token')
 
 
 def validate_remotely(token, issuer, client_id, client_secret):
