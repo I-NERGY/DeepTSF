@@ -138,8 +138,15 @@ def backtester(model,
     fig1 = plt.figure(figsize=(15, 8))
     ax1 = fig1.add_subplot(111)
     backtest_series.plot(label='forecast')
-    series \
+    #try except in case of nans before start
+    try:
+        series \
         .drop_before(pd.Timestamp(pd.Timestamp(test_start_date) - datetime.timedelta(days=7))) \
+        .drop_after(backtest_series.time_index[-1]) \
+        .plot(label='actual')
+    except:
+        series \
+        .drop_before(pd.Timestamp(pd.Timestamp(test_start_date) - datetime.timedelta(days=1))) \
         .drop_after(backtest_series.time_index[-1]) \
         .plot(label='actual')
     ax1.legend()
@@ -147,24 +154,26 @@ def backtester(model,
         f'Backtest, starting {test_start_date}, {forecast_horizon}-steps horizon')
     # plt.show()
 
-    # plot one week (better visibility)
-    forecast_start_date = pd.Timestamp(
-        test_start_date + datetime.timedelta(days=7))
+    try:
+        # plot one week (better visibility)
+        forecast_start_date = pd.Timestamp(
+            test_start_date + datetime.timedelta(days=7))
 
-    fig2 = plt.figure(figsize=(15, 8))
-    ax2 = fig2.add_subplot(111)
-    backtest_series \
-        .drop_before(pd.Timestamp(forecast_start_date)) \
-        .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
-        .plot(label='Forecast')
-    series \
-        .drop_before(pd.Timestamp(forecast_start_date)) \
-        .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
-        .plot(label='Actual')
-    ax2.legend()
-    ax2.set_title(
+        fig2 = plt.figure(figsize=(15, 8))
+        ax2 = fig2.add_subplot(111)
+        backtest_series \
+            .drop_before(pd.Timestamp(forecast_start_date)) \
+            .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
+            .plot(label='Forecast')
+        series \
+            .drop_before(pd.Timestamp(forecast_start_date)) \
+            .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
+            .plot(label='Actual')
+        ax2.legend()
+        ax2.set_title(
         f'Weekly forecast, Start date: {forecast_start_date}, Forecast horizon (timesteps): {forecast_horizon}, Forecast extended with backtesting...')
-
+    except:
+        pass
     # Metrix
     test_series = series.drop_before(pd.Timestamp(test_start_date))
     metrics = {
@@ -668,10 +677,10 @@ def call_shap(n_past_covs: int,
 
 
 def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, shap_input_length, shap_output_length, size, analyze_with_shap, multiple, eval_series, cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase, num_samples):
-    # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
     # Argument processing
+    test_end_date = none_checker(test_end_date)
     stride = none_checker(stride)
     forecast_horizon = int(forecast_horizon)
     m_mase = int(m_mase)
@@ -828,8 +837,6 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             backtest_series_transformed = series_transformed_split['all'] if not multiple else series_transformed_split['all'][eval_i]
             print(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
             logging.info(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
-
-            print("")
 
             evaluation_results = backtester(model=model,
                                             series_transformed=backtest_series_transformed,

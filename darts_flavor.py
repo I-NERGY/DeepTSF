@@ -1,5 +1,5 @@
 import os
-from utils import load_model, load_scaler, parse_uri_prediction_input
+from utils import load_model, load_scaler, load_ts_id, parse_uri_prediction_input
 import pretty_errors
 
 from urllib3.exceptions import InsecureRequestWarning
@@ -9,10 +9,11 @@ disable_warnings(InsecureRequestWarning)
 
 class _MLflowPLDartsModelWrapper:
 
-    def __init__(self, darts_model, transformer=None):
+    def __init__(self, darts_model, transformer=None, ts_id_l=[[]]):
         self.model = darts_model
         #TODO Ask if this is right
-        self.transformer = transformer[0]
+        self.transformer = transformer if type(transformer) == list or transformer==None else [transformer]
+        self.ts_id_l=ts_id_l
 
     def predict(self, model_input):
         """ 
@@ -32,14 +33,13 @@ class _MLflowPLDartsModelWrapper:
             batched = False
 
         # Parse
-        model_input = parse_uri_prediction_input(model_input, self.model)
+        model_input = parse_uri_prediction_input(model_input, self.model, self.ts_id_l)
 
         # Transform
         if self.transformer is not None:
             print('\nTransforming...')
-            model_input['history'] = self.transformer.transform(
+            model_input['history'] = self.transformer[model_input["predict_series_idx"]].transform(
                 model_input['history'])
-
         # Predict 
         # TODO: Do that with inference dataset?
         predictions = self.model.predict(
@@ -53,7 +53,7 @@ class _MLflowPLDartsModelWrapper:
         ## Untransform
         if self.transformer is not None:
             print('\nInverse transforming...')
-            predictions = self.transformer.inverse_transform(predictions)
+            predictions = self.transformer[model_input["predict_series_idx"]].inverse_transform(predictions)
 
         # Return as DataFrame
         print(predictions[0].pd_dataframe())
@@ -77,5 +77,5 @@ def _load_pyfunc(model_folder):
     # Different behaviours for pl and pkl models are defined in load_model
     model = load_model(model_root_dir=model_folder, mode="local")
     scaler = load_scaler(scaler_uri=f"{model_folder}/scaler_series.pkl", mode="local")
-
-    return _MLflowPLDartsModelWrapper(model, scaler)
+    ts_id_l = load_ts_id(load_ts_id_uri=f"{model_folder}/ts_id_l.pkl", mode="local")
+    return _MLflowPLDartsModelWrapper(model, scaler, ts_id_l)

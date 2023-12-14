@@ -216,6 +216,11 @@ entry_points:
       future_covariates_uri: {type: str, default: None}
       roll_size: {type: str, default: 96}
       batch_size:  {type: str, default: 1}
+      multiple:  {type: str, default: False}
+      weather_covariates:  {type: str, default: "[]"}
+      resolution:  {type: str, default: 15}
+      ts_id_pred:  {type: str, default: "None"}
+
 
     command: |
-      python ../inference.py --pyfunc-model-folder {pyfunc_model_folder} --forecast-horizon {forecast_horizon} --series-uri {series_uri} --past-covariates-uri {past_covariates_uri} --future-covariates-uri {future_covariates_uri} --roll-size {roll_size} --batch-size {batch_size}
+      python ../inference.py --pyfunc-model-folder {pyfunc_model_folder} --forecast-horizon {forecast_horizon} --series-uri {series_uri} --past-covariates-uri {past_covariates_uri} --future-covariates-uri {future_covariates_uri} --roll-size {roll_size} --batch-size {batch_size} --multiple {multiple} --weather-covariates {weather_covariates} --resolution {resolution} --ts-id-pred {ts_id_pred}

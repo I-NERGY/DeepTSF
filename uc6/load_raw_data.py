@@ -168,7 +168,6 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
     mlflow.set_tag(f'infered_resolution_{covariates}', resolution)
             
-        
     return ts, resolution
 
 def make_multiple(ts_covs, series_csv, day_first, inf_resolution):
@@ -284,7 +283,7 @@ def load_data_to_csv(tmpdir, database_name):
 @click.option("--from-database",
     default="false",
     type=str,
-    help="Whether to read the dataset from the dattabase."
+    help="Whether to read the dataset from the database."
 )
 @click.option("--database-name",
     default="rdn_load_data",
@@ -351,36 +350,22 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
             past_covs_fname = past_covs_csv.split(os.path.sep)[-1]
             local_path_past_covs = past_covs_csv.split(os.path.sep)[:-1]
 
-            if multiple:
-                try:
-                    ts_past_covs, _ = read_and_validate_input(past_covs_csv,
+            try:
+                ts_past_covs, _ = read_and_validate_input(past_covs_csv,
                                                               day_first,
                                                               multiple=True,
                                                               from_database=from_database,
                                                               covariates="past")
-                except:
-                    ts_past_covs, inf_resolution = read_and_validate_input(past_covs_csv,
+            except:
+                ts_past_covs, inf_resolution = read_and_validate_input(past_covs_csv,
                                                                            day_first,
                                                                            multiple=False,
                                                                            from_database=from_database,
                                                                            covariates="past")
-                    ts_past_covs = make_multiple(ts_past_covs,
+                ts_past_covs = make_multiple(ts_past_covs,
                                                  series_csv,
                                                  day_first,
                                                  str(inf_resolution))
-                    
-            else:
-                ts_past_covs, _ = read_and_validate_input(past_covs_csv,
-                                                       day_first,
-                                                       multiple=multiple,
-                                                       from_database=from_database,
-                                                       covariates="past")
-                
-                #TODO Infer resolution on single timeseries also
-                ts_past_covs = make_multiple(ts_past_covs, 
-                                             None, 
-                                             day_first, 
-                                             resolution)
                 
             local_path_past_covs = local_path_past_covs.replace("'", "") if "'" in local_path_past_covs else local_path_past_covs
             past_covs_filename = os.path.join(*local_path_past_covs, past_covs_fname)
@@ -402,36 +387,23 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
             future_covs_fname = future_covs_csv.split(os.path.sep)[-1]
             local_path_future_covs = future_covs_csv.split(os.path.sep)[:-1]
 
-            if multiple:
-                try:
-                    ts_future_covs, _ = read_and_validate_input(future_covs_csv,
+            try:
+                ts_future_covs, _ = read_and_validate_input(future_covs_csv,
                                                               day_first,
                                                               multiple=True,
                                                               from_database=from_database,
                                                               covariates="future")
-                except:
-                    ts_future_covs, inf_resolution = read_and_validate_input(future_covs_csv,
+            except:
+                ts_future_covs, inf_resolution = read_and_validate_input(future_covs_csv,
                                                                            day_first,
                                                                            multiple=False,
                                                                            from_database=from_database,
                                                                            covariates="future")
-                    ts_future_covs = make_multiple(ts_future_covs,
+                ts_future_covs = make_multiple(ts_future_covs,
                                                  series_csv,
                                                  day_first,
                                                  str(inf_resolution))
-                    
-            else:
-                ts_future_covs, _ = read_and_validate_input(future_covs_csv,
-                                                       day_first,
-                                                       multiple=multiple,
-                                                       from_database=from_database,
-                                                       covariates="future")
-                
-                ts_future_covs = make_multiple(ts_future_covs, 
-                                             None, 
-                                             day_first, 
-                                             resolution)
-                
+                                    
             local_path_future_covs = local_path_future_covs.replace("'", "") if "'" in local_path_future_covs else local_path_future_covs
             future_covs_filename = os.path.join(*local_path_future_covs, future_covs_fname)
 

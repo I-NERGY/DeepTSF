@@ -366,3 +366,68 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
+
+  NBEATS_river:
+    input_chunk_length: ["range", 48, 480, 24]
+    output_chunk_length: 12
+    num_stacks: ["range", 1, 10, 1]
+    num_blocks: ["range", 1, 10, 1]
+    num_layers: ["range", 1, 5, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 128
+
+  TCN_river:
+    output_chunk_length: 12
+    weight_norm: True
+    dropout: 0
+    nr_epochs_val_period: 2
+    n_epochs: 300
+    random_state: 0
+    input_chunk_length: ["range", 48, 480, 24]
+    kernel_size: ["range", 2, 6, 1]
+    num_filters: ["range", 2, 12, 1]
+    dilation_base: ["list", 2, 4, 8, 16, 32]
+    batch_size: 128
+  
+  LGBM_river_right:
+    lags: ["range", 48, 420, 24]
+    lags_past_covariates: ["range", 48, 420, 24]
+    random_state: 0
+
+  LGBM_uc7____:
+    lags: ["range", 24, 96, 24]
+    lags_future_covariates: ["range", 24, 96, 24]
+    random_state: 0
+
+  LGBM_UC6_W4_AC_RAD:
+    lags: ["range", 24, 96, 24]
+    lags_future_covariates: ["range", 24, 96, 24]
+    output_chunk_length: 24
+    random_state: 0
+
+  LGBM_UC6_W6_AC_NOW:
+    lags: ["range", 24, 96, 24]
+    output_chunk_length: 24
+    random_state: 0
+
+  LGBM_UC6_W4_AC_W19_:
+    lags: ["range", 24, 96, 24]
+    lags_future_covariates: ["range", 24, 96, 24]
+    output_chunk_length: 24
+    random_state: 0
+
+  LGBM_UC6_W6_RAD_1_3:
+    lags: ["list", 1, 3]
+    lags_future_covariates: ["list", 1, 3, 6, 12, 24, 48, 72]
+    output_chunk_length: 24
+    random_state: 0
+
+  LGBM_UC6_W4_AC_NW_1h:
+    lags: ["range", 24, 96, 24]
+    output_chunk_length: 1
+    random_state: 0

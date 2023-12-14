@@ -148,6 +148,9 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
         else:
             mlflow.set_tag('scaler_uri', 'None')
 
+        mlflow.set_tag(
+            'ts_id_l_uri',
+            f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/ts_id_l.pkl')
 
 
         mlflow.set_tag("run_id", mlrun.info.run_id)
@@ -443,10 +446,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     else:
         past_covariates, id_l_past_covs, ts_id_l_past_covs = None, None, None
 
-    if scale:
-        scalers_dir = tempfile.mkdtemp()
-    else:
-        scalers_dir = None
+    scalers_dir = tempfile.mkdtemp()
     features_dir = tempfile.mkdtemp()
 
     ######################
@@ -508,6 +508,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     if scale:
         pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
         ## scale future covariates
+    pickle.dump(ts_id_l, open(f"{scalers_dir}/ts_id_l.pkl", "wb"))
     future_covariates_transformed = scale_covariates(
             future_covariates_split,
             store_dir=features_dir,
@@ -588,11 +589,14 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         # LightGBM and RandomForest
     elif darts_model in ['LightGBM', 'RandomForest']:
 
-        if "lags_future_covariates" in hyperparameters:
-            if truth_checker(str(hyperparameters["future_covs_as_tuple"])):
-                hyperparameters["lags_future_covariates"] = tuple(
-                    hyperparameters["lags_future_covariates"])
-            hyperparameters.pop("future_covs_as_tuple")
+        try:
+            if "lags_future_covariates" in hyperparameters:
+                if truth_checker(str(hyperparameters["future_covs_as_tuple"])):
+                    hyperparameters["lags_future_covariates"] = tuple(
+                        hyperparameters["lags_future_covariates"])
+                hyperparameters.pop("future_covs_as_tuple")
+        except:
+            pass
 
         if future_covariates is None:
             hyperparameters["lags_future_covariates"] = None
@@ -608,7 +612,10 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
         print(f'\nTraining {darts_model}...')
         logging.info(f'\nTraining {darts_model}...')
-
+        # for elem in series_transformed['train']:
+        #     print(elem)
+        # for elem in future_covariates_transformed['train']:
+        #     print(elem)
         model.fit(
             series=series_transformed['train'],
             # val_series=series_transformed['val'],
@@ -660,7 +667,6 @@ def backtester(model,
     # produce the fewest forecasts possible.
     if stride is None:
         stride = forecast_horizon
-    test_start_date = pd.Timestamp(test_start_date)
 
     #keep last non nan values
     #must be sufficient for historical_forecasts and mase calculation
@@ -752,6 +758,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     retrain = truth_checker(retrain)
     multiple = truth_checker(multiple)
     num_samples = int(num_samples)
+    test_end_date = none_checker(test_end_date)
 
     # Load model / datasets / scalers from Mlflow server
 
@@ -856,9 +863,9 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
         # Evaluate Model
 
         backtest_series = darts.timeseries.concatenate([series_split['train'][eval_i], series_split['val'][eval_i]]) if multiple else \
-                        darts.timeseries.concatenate([series_split['train'], series_split['val']])
+                          darts.timeseries.concatenate([series_split['train'], series_split['val']])
         backtest_series_transformed = darts.timeseries.concatenate([series_transformed_split['train'][eval_i], series_transformed_split['val'][eval_i]]) if multiple else \
-                        darts.timeseries.concatenate([series_transformed_split['train'], series_transformed_split['val']])
+                                      darts.timeseries.concatenate([series_transformed_split['train'], series_transformed_split['val']])
         #print("testing on", eval_i, backtest_series_transformed)
         if multiple:
             print(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}...")

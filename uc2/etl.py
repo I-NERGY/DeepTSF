@@ -461,11 +461,10 @@ def impute(ts: pd.DataFrame,
         if min_non_nan_interval != -1:
             #If after imputation there exist continuous intervals of non nan values in the train set that are smaller 
             #than min_non_nan_interval time steps, these intervals are all replaced by nan values
-            not_nan_values = res[(~res["Value"].isnull()) & (res.index < pd.Timestamp(cut_date_val))]
+            not_nan_values = res[(~res["Value"].isnull())]
             not_nan_dates = not_nan_values.index
             prev = not_nan_dates[0]
             start = prev
-
             for not_nan_day in not_nan_dates[1:]:
                 if (not_nan_day - prev)!= pd.Timedelta(int(resolution), "min"):
                     if prev - start < pd.Timedelta(int(resolution) * min_non_nan_interval, "min"):

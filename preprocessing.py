@@ -128,7 +128,6 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale
     covariates_val = covariates_split['val']
     covariates_test = covariates_split['test']
     covariates = covariates_split['all']
-    #print("SCALEEEEEEE",covariates)
     if covariates is not None:
         if scale:
             if not multiple:
