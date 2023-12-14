@@ -101,7 +101,7 @@ Please do not omit this step as this environment variable will not get inherited
 
 ```export MLFLOW_TRACKING_URI=https://localhost:5000```
 
-## Forecasting pipeline documentation
+## Forecasting pipeline documentation (advanced users)
 
 The stages of the pipeline, along with the MLflow parameters that are related to each one are presented below. Note here that this extensive documentation only concerns CLI usage and not the DeepTSF UI whose functionalities are much more limited.
 
