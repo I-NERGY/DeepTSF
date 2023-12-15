@@ -176,7 +176,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           training_dict, num_workers, day_first, resolution):
 
     num_workers = int(num_workers)
-    #print(num_workers)
     torch.set_num_threads(num_workers)
 
     # Argument preprocessing
@@ -193,10 +192,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
     ## hyperparameters
     hyperparameters = ConfigParser(config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
-    print(hyperparameters)
 
     ## device
-    #print("param", hyperparameters)
     if device == 'gpu' and torch.cuda.is_available():
         device = 'gpu'
         print("\nGPU is available")
@@ -291,13 +288,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 resolution=resolution)
         else:
             past_covariates, id_l_past_covs, ts_id_l_past_covs = None, None, None
-        #print("NUM NULL", series[0].pd_dataframe().isnull().sum().sum())
 
         print("\nCreating local folders...")
         logging.info("\nCreating local folders...")
 
-        if scale:
-            scalers_dir = tempfile.mkdtemp()
+        scalers_dir = tempfile.mkdtemp()
         features_dir = tempfile.mkdtemp()
 
         ######################
@@ -342,7 +337,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             id_l=id_l_past_covs,
             ts_id_l=ts_id_l_past_covs)
         
-        #print("NUM NULL", series_split["train"][0].pd_dataframe().isnull().sum().sum())
 
         #################
         # Scaling
@@ -361,6 +355,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             )
         if scale:
             pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
+        pickle.dump(ts_id_l, open(f"{scalers_dir}/ts_id_l.pkl", "wb"))
         ## scale future covariates
         future_covariates_transformed = scale_covariates(
             future_covariates_split,
@@ -401,9 +396,19 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             print(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
             logging.info(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
         print("")
+
+        print("\Validating on series:\n")
+        logging.info("\Validating on series:\n")
+        if multiple:
+            for i, series in enumerate(series_transformed['val']):
+                print(f"Timeseries ID: {ts_id_l[i][0]} starting at {series.time_index[0]} and ending at {series.time_index[-1]}")
+                logging.info(f"Timeseries ID: {ts_id_l[i][0]} starting at {series.time_index[0]} and ending at {series.time_index[-1]}")
+        else:
+            print(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
+            logging.info(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
+
         #TODO maybe modify print to include split train based on nans
         #TODO make more efficient by also spliting covariates where the nans are split 
-        print("TRAIN,,,,,", series_transformed['train'])
         series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
             split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
         ## choose architecture
@@ -424,10 +429,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 pl_trainer_kwargs=pl_trainer_kwargs,
                 **hyperparameters
             )
-            ## fit model
-            # try:
-            #print("NUM NULL", series_transformed['train'][0].pd_dataframe().isnull().sum().sum())
-            #print("VAL", series_transformed['val'])
             model.fit(series_transformed['train'],
                 future_covariates=future_covariates_transformed['train'],
                 past_covariates=past_covariates_transformed['train'],
@@ -457,11 +458,14 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         elif darts_model in ['LightGBM', 'RandomForest']:
             print(f'\nTrained Model: {darts_model}') 
 
-            if "lags_future_covariates" in hyperparameters:
-                if truth_checker(str(hyperparameters["future_covs_as_tuple"])):
-                    hyperparameters["lags_future_covariates"] = tuple(
-                        hyperparameters["lags_future_covariates"])
-                hyperparameters.pop("future_covs_as_tuple")
+            try:
+                if "lags_future_covariates" in hyperparameters:
+                    if truth_checker(str(hyperparameters["future_covs_as_tuple"])):
+                        hyperparameters["lags_future_covariates"] = tuple(
+                            hyperparameters["lags_future_covariates"])
+                    hyperparameters.pop("future_covs_as_tuple")
+            except:
+                pass
 
             if future_covariates is None:
                 hyperparameters["lags_future_covariates"] = None
@@ -478,8 +482,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             print(f'\nTraining {darts_model}...')
             logging.info(f'\nTraining {darts_model}...')
-
-            #print("NULL VALUES", series_transformed['train'][0].pd_dataframe().isnull().sum().sum())
 
             model.fit(
                 series=series_transformed['train'],
@@ -564,7 +566,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/scaler_series.pkl')
         else:
             mlflow.set_tag('scaler_uri', 'None')
-
+        mlflow.set_tag(
+            'ts_id_l_uri',
+            f'{mlrun.info.artifact_uri}/{mlflow_model_root_dir}/data/{mlrun.info.run_id}/ts_id_l.pkl')
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "training")
         mlflow.set_tag("model_type", model_type)

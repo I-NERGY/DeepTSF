@@ -17,6 +17,8 @@ import json
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
+import requests
+from datetime import date
 
 class ConfigParser:
     def __init__(self, config_file=f'{cur_dir}/config.yml', config_string=None):
@@ -28,6 +30,7 @@ class ConfigParser:
                     assert config_string in self.config['hyperparameters']
         except:
             try:
+                assert "{" in config_string
                 self.config = yaml.safe_load(config_string)
             except:
                 raise NotValidConfig()
@@ -234,6 +237,33 @@ def load_scaler(scaler_uri=None, mode="remote"):
         scaler = load_local_pkl_as_object(scaler_uri)
     return scaler
 
+def load_ts_id(load_ts_id_uri=None, mode="remote"):
+
+    import tempfile
+
+    if load_ts_id_uri is None:
+        print("\nNo ts id list loaded.")
+        return None
+
+    if mode == "remote":
+        run_id = load_ts_id_uri.split("/")[-2]
+        mlflow_filepath = load_ts_id_uri.split("/artifacts/")[1]
+
+        client = mlflow.tracking.MlflowClient()
+        local_dir = tempfile.mkdtemp()
+        print("ts id list: ", load_ts_id_uri)
+        print("Run: ", run_id)
+        client.download_artifacts(
+            run_id=run_id,
+            path=mlflow_filepath,
+            dst_path=local_dir
+        )
+        ts_id_l = load_local_pkl_as_object(
+            os.path.join(local_dir, mlflow_filepath))
+    else:
+        ts_id_l = load_local_pkl_as_object(load_ts_id_uri)
+    return ts_id_l
+
 
 def truth_checker(argument):
     """ Returns True if string has specific truth values else False"""
@@ -271,6 +301,80 @@ def load_local_model_as_torch(local_path):
     model.device = device
     return model
 
+def get_weather_covariates(start, end, fields=["shortwave_radiation"], name="W6 positive_active", inference=False):
+    if type(fields) == str:
+        fields = [fields]
+    req_fields = ",".join(fields)
+    if inference:
+        result = requests.get(
+            f"https://api.open-meteo.com/v1/forecast?latitude=42.564&longitude=12.643&hourly={req_fields}&forecast_days=10&timezone=auto"
+        ).text
+        result = json.loads(result)
+        df_list = []
+        for field in fields:
+            data = result['hourly'][field]
+            index = pd.to_datetime(result['hourly']['time'])
+            assert len(data) == len(index)
+            df = pd.DataFrame(data=data, index=index, columns=[field]).asfreq("60min")
+            df.index.name = "Datetime"
+            df_list.append(df)
+        if name in ["W6 positive_active", "W6 positive_reactive"]:
+            result_db = requests.get(
+            f"http://38.242.137.200:8000/api/v1/query?source=hourly_forecast&coordinates=(42.569,%2012.608)&start_date={start}&end_date={end}&fields={req_fields}"
+            ).text
+        elif name in ["W4 positive_active", "W4 positive_reactive"]:
+            result_db = requests.get(
+                f"http://38.242.137.200:8000/api/v1/query?source=hourly_forecast&coordinates=(42.567,%2012.607)&start_date={start}&end_date={end}&fields={req_fields}"
+            ).text
+        else:
+            result_db = requests.get(
+                f"http://38.242.137.200:8000/api/v1/query?source=hourly_forecast&coordinates=(42.564,%2012.643)&start_date={start}&end_date={end}&fields={req_fields}"
+            ).text
+        result_db = json.loads(result_db)
+        df_list_db = []
+        for field in fields:
+            data = result_db['results'][field]['value']
+            index = pd.to_datetime(result_db['time'])
+            assert len(data) == len(index)
+            df = pd.DataFrame(data=data, index=index, columns=[field]).asfreq("60min")
+            df.index.name = "Datetime"
+            df_list_db.append(df)
+        result = []
+        for ts, ts_db in zip(df_list, df_list_db):
+            ts = ts[ts.index > ts_db.index[-1]]
+            result_df = pd.concat([ts_db, ts])
+            result_df.to_csv("test_.csv")
+            result.append(result_df)
+
+        return result
+    else:
+        start = start.strftime("%Y-%m-%d")
+        end = end.strftime("%Y-%m-%d")
+        if name in ["W6 positive_active", "W6 positive_reactive"]:
+            result = requests.get(
+            f"http://38.242.137.200:8000/api/v1/query?source=hourly_forecast&coordinates=(42.569,%2012.608)&start_date={start}&end_date={end}&fields={req_fields}"
+            ).text
+        elif name in ["W4 positive_active", "W4 positive_reactive"]:
+            result = requests.get(
+                f"http://38.242.137.200:8000/api/v1/query?source=hourly_forecast&coordinates=(42.567,%2012.607)&start_date={start}&end_date={end}&fields={req_fields}"
+            ).text
+        else:
+            result = requests.get(
+                f"http://38.242.137.200:8000/api/v1/query?source=hourly_forecast&coordinates=(42.564,%2012.643)&start_date={start}&end_date={end}&fields={req_fields}"
+            ).text
+        result = json.loads(result)
+        df_list = []
+        for field in fields:
+            data = result['results'][field]['value']
+            index = pd.to_datetime(result['time'])
+            assert len(data) == len(index)
+            df = pd.DataFrame(data=data, index=index, columns=[field]).asfreq("60min")
+            df.index.name = "Datetime"
+            df_list.append(df)
+        return df_list
+
+
+
 def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Datetime', last_date=None, multiple = False, day_first=True, resolution="15"):
 
     import logging
@@ -283,8 +387,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             #TODO Fix this too
             ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=True, resolution=resolution)
             covariate_l  = []
-            #print("liiiist", local_path)
-            #print(ts_list[0])
+
             print("\nTurning dataframes to timeseries...")
             logging.info("\nTurning dataframes to timeseries...")
             for comps in tqdm(ts_list):
@@ -296,8 +399,10 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
                                 freq=None)
                     covariates = covariates.astype(np.float32)
                     if last_date is not None:
-                        #print(last_date)
-                        covariates.drop_after(pd.Timestamp(last_date))
+                        try:
+                            covariates.drop_after(pd.Timestamp(last_date))
+                        except:
+                            pass
                     if first:
                         first = False
                         covariate_l.append(covariates)
@@ -312,7 +417,10 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
                 freq=None)
             covariates = covariates.astype(np.float32)
             if last_date is not None:
-                covariates.drop_after(pd.Timestamp(last_date))
+                try:
+                    covariates.drop_after(pd.Timestamp(last_date))
+                except:
+                    pass
 #=======
 #        covariates = darts.TimeSeries.from_csv(
 #            local_path, time_col=time_col,
@@ -328,11 +436,10 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
         logging.info(
             f"\nBad {name} file. The model won't include {name}...")
         covariates = None
-    print("NUM NULL AFTER APPEND", covariates[-1].pd_dataframe().isnull().sum().sum())
     return covariates, id_l, ts_id_l
 
 
-def parse_uri_prediction_input(model_input: dict, model) -> dict:
+def parse_uri_prediction_input(model_input: dict, model, ts_id_l) -> dict:
 
     series_uri = model_input['series_uri']
 
@@ -340,6 +447,12 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
     batch_size = int(model_input["batch_size"])
     roll_size = int(model_input["roll_size"])
     forecast_horizon = int(model_input["n"])
+
+    multiple = truth_checker(model_input["multiple"])
+    weather_covariates = model_input["weather_covariates"]
+    resolution = model_input["resolution"]
+    ts_id_pred = model_input["ts_id_pred"]
+    #multiple, resolution and weather_covariates now compulsory
 
     ## Horizon
     n = int(
@@ -358,12 +471,27 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
         print('\nDownloading remote file of recent time series history...')
         series_uri = download_mlflow_file(series_uri)
 
+    if multiple:
+        predict_series_idx = [elem[0] for elem in ts_id_l].index(ts_id_pred)
+    else: 
+        predict_series_idx = 0
+
     if "history" not in model_input:
-        history = load_local_csv_as_darts_timeseries(
+        history, id_l, ts_id_l_series = load_local_csv_as_darts_timeseries(
             local_path=series_uri,
             name='series',
             time_col='Datetime',
-            last_date=None)
+            last_date=None,
+            multiple=multiple,
+            resolution=model_input["resolution"] )
+
+        
+        if multiple:
+             idx = [elem[0] for elem in ts_id_l_series].index(ts_id_pred)
+             history = [history[idx]]
+        else:
+            #TODO Fix multivariate
+            history = [history]
     else:
             history = darts.TimeSeries.from_dataframe(
                 model_input["history"],
@@ -372,16 +500,32 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
             history = [history.astype(np.float32)]
 
     if none_checker(future_covariates_uri) is not None:
-        future_covariates = darts.TimeSeries.from_csv(
-            future_covariates_uri, time_col='Datetime')
+        pass
+    #TODO
     else:
         future_covariates = None
 
     if none_checker(past_covariates_uri) is not None:
-        past_covariates = darts.TimeSeries.from_csv(
-            past_covariates_uri, time_col='Datetime')
+        pass
     else:
         past_covariates = None
+
+    if weather_covariates:
+        #TODO Fix that
+        covs_nans = get_weather_covariates(history[0].pd_dataframe().index[0], 
+                                           pd.Timestamp(date.today()).ceil(freq='D') + pd.Timedelta("10D"), 
+                                           weather_covariates,
+                                           inference=True)
+        covs = []
+        for cov in covs_nans:
+            covs.append(cov.asfreq('60min').interpolate(inplace=False, method='time').ffill())
+        future_covariates = darts.TimeSeries.from_dataframe(
+            covs[0])
+        
+        for cov in covs[1:]:
+            future_covariates = future_covariates.stack(darts.TimeSeries.from_dataframe(
+                cov))
+        future_covariates = [future_covariates]
 
     return {
         "n": n,
@@ -390,6 +534,7 @@ def parse_uri_prediction_input(model_input: dict, model) -> dict:
         "future_covariates": future_covariates,
         "past_covariates": past_covariates,
         "batch_size": batch_size,
+        "predict_series_idx": predict_series_idx,
     }
 
 def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
@@ -436,7 +581,6 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      parse_dates=True,
                      dayfirst=day_first,
                      engine='python')
-    #print("ts", ts, sep="\n")
     res = []
     id_l = []
     ts_id_l = []
@@ -462,18 +606,12 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
 def multiple_dfs_to_ts_file(res_l, id_l, ts_id_l, save_dir, save=True):
     ts_list = []
-    print(res_l)
-    print(ts_id_l)
     print("\nTurning dataframe list to multiple ts file...")
     logging.info("\nTurning dataframe list to multiple ts file...")
     for ts_num, (ts, id_ts, ts_id_ts) in tqdm(list(enumerate(zip(res_l, id_l, ts_id_l)))):
-#        print("ts_num", ts)
-        print(type(ts))
-        print(ts)
         if type(ts) == darts.timeseries.TimeSeries:
             ts = [ts.univariate_component(i).pd_dataframe() for i in range(ts.n_components)]
         for comp_num, (comp, id, ts_id) in enumerate(zip(ts, id_ts, ts_id_ts)):
- #           print(comp)
             load_col = comp.columns[0]
             comp["Date"] = comp.index.date
             comp["Time"] = comp.index.time
