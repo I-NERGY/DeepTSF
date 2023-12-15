@@ -253,7 +253,6 @@ def remove_outliers(ts: pd.DataFrame,
 
     #Datetimes with NaN values are removed from the dataframe
     ts = ts.dropna()
-    print(ts)
     #Removing all zero values if no negative values are present
     if min(ts["Value"]) >= 0:
         a = ts.loc[ts["Value"] <= 0]
@@ -497,7 +496,6 @@ def utc_to_local(df, country_code):
 
 
     # convert dates to given timezone, get timezone info
-    #print(df.index.to_series().tz_localize("UTC"))
     df['Local Datetime'] = df.index.to_series().dt.tz_localize("UTC").dt.tz_convert(local_timezone)
 
     # remove timezone information-naive, because next localize() recquires it 
@@ -517,7 +515,6 @@ def utc_to_local(df, country_code):
 
     df.index.name = "Datetime"
 
-    #print(df)
 
 def save_consecutive_nans(ts, resolution, tmpdir, name):
     """
@@ -1013,7 +1010,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                             raise CountryDoesNotExist()
                 print("\nPerfrorming Imputation of the Dataset...")
                 logging.info("\nPerfrorming Imputation of the Dataset...")
-                #print(comp_res)
                 comp_res, imputed_values = impute(ts=comp_res,
                                                   holidays=country_holidays,
                                                   max_thr=max_thr,
@@ -1049,7 +1045,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 # darts dataset creation
                 comp_res_darts = darts.TimeSeries.from_dataframe(comp_res)
 
-                #print("NULL VALUES", comp_res_darts.pd_dataframe().isnull().sum().sum())
 
                 # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
 

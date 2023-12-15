@@ -2,7 +2,7 @@ import pretty_errors
 from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file
 from preprocessing import scale_covariates, split_dataset, split_nans
 from darts.utils.missing_values import extract_subseries
-
+import string
 from functools import reduce
 from darts.metrics import mape as mape_darts
 from darts.metrics import mase as mase_darts
@@ -355,7 +355,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     hyperparameters = training_dict
 
     ## device
-    #print("param", hyperparameters)
     if device == 'gpu' and torch.cuda.is_available():
         device = 'gpu'
         print("\nGPU is available")
@@ -552,7 +551,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     #TODO maybe modify print to include split train based on nans
     #TODO make more efficient by also spliting covariates where the nans are split 
-    print("TRAIN,,,,,", series_transformed['train'])
     series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
             split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
 
@@ -565,7 +563,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
         if 'likelihood' in hyperparameters:
             hyperparameters['likelihood'] = eval(hyperparameters['likelihood']+"Likelihood"+"()")
-        print(hyperparameters)
         model = eval(darts_model + 'Model')(
             force_reset=True,
             save_checkpoints=True,
@@ -574,11 +571,6 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             pl_trainer_kwargs=pl_trainer_kwargs,
             **hyperparameters
         )
-        ## fit model
-        # try:
-        # print(series_transformed['train'])
-        # print(series_transformed['val'])
-        #print("SERIES", series_transformed['train'])
         model.fit(series_transformed['train'],
             future_covariates=future_covariates_transformed['train'],
             past_covariates=past_covariates_transformed['train'],
@@ -668,6 +660,7 @@ def backtester(model,
     if stride is None:
         stride = forecast_horizon
 
+    test_start_date = pd.Timestamp(test_start_date)
     #keep last non nan values
     #must be sufficient for historical_forecasts and mase calculation
     #TODO Add check for that in the beggining
@@ -705,7 +698,6 @@ def backtester(model,
 
     # Metrix
     test_series = series.drop_before(pd.Timestamp(test_start_date))
-    #print("SERIES",test_series)
     metrics = {
         "smape": smape_darts(
             test_series,
@@ -808,7 +800,6 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                             darts.timeseries.concatenate([series_split['train'], series_split['val']])
             backtest_series_transformed = darts.timeseries.concatenate([series_transformed_split['train'][eval_i], series_transformed_split['val'][eval_i]]) if multiple else \
                             darts.timeseries.concatenate([series_transformed_split['train'], series_transformed_split['val']])
-            #print("testing on", eval_i, backtest_series_transformed)
             print(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}...")
             logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}...")
             print(f"Validating from {pd.Timestamp(cut_date_val)} to {backtest_series_transformed.time_index[-1]}...")
@@ -843,7 +834,6 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
             all_letters = string.ascii_lowercase
             save_path = save_path.split(".")[0] + ''.join(random.choice(all_letters) for i in range(20)) + ".csv"
         eval_results.to_csv(save_path)
-        print(eval_results.mean(axis=0, numeric_only=True).to_dict())
         return eval_results.mean(axis=0, numeric_only=True).to_dict()
     else:
         if multiple:

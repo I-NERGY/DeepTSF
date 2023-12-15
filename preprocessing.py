@@ -77,7 +77,6 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
                 covariate_val, covariate_test = covariate_val.split_before(
                     pd.Timestamp(test_start_date_str))
             
-            print(covariate_val)
             if covariate_val.pd_dataframe().isnull().sum().sum() > 0:
                 print(f"Validation set can not have any nan values\n")
                 logging.info(f"Validation set can not have any nan values\n")
@@ -92,13 +91,11 @@ def split_dataset(covariates, val_start_date_str, test_start_date_str,
             covariates_return.append(covariate)
 
         if store_dir is not None:
-            #print("covariates", covariates)
             split_info = {
                 "val_start": val_start_date_str,
                 "test_start": test_start_date_str,
                 "test_end": covariates_test[0].time_index[-1].strftime('%Y%m%d')
             }
-            #print(split_info)
             with open(f'{store_dir}/{conf_file_name}', 'w') as outfile:
                 yaml.dump(split_info, outfile, default_flow_style=False)
             if not multiple:
@@ -177,7 +174,6 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale
 
         if store_dir is not None:
             if not multiple:
-                #print(covariates_transformed)
                 covariates_transformed.to_csv(
                     f"{store_dir}/{filename_suffix}")
             else:

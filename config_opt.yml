@@ -353,7 +353,7 @@ hyperparameters:
     nr_epochs_val_period: 2
     batch_size: ["list", 256, 512, 1024, 1280, 1536, 2048]
   
-  NBEATS_example__:
+  NBEATS_example:
     input_chunk_length: ["range", 48, 240, 24]
     output_chunk_length: 24
     num_stacks: ["range", 1, 10, 1]

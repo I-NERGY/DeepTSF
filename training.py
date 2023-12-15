@@ -176,7 +176,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           training_dict, num_workers, day_first, resolution):
 
     num_workers = int(num_workers)
-    #print(num_workers)
     torch.set_num_threads(num_workers)
 
     # Argument preprocessing
@@ -195,7 +194,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
     hyperparameters = ConfigParser(config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
 
     ## device
-    #print("param", hyperparameters)
     if device == 'gpu' and torch.cuda.is_available():
         device = 'gpu'
         print("\nGPU is available")
@@ -290,7 +288,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 resolution=resolution)
         else:
             past_covariates, id_l_past_covs, ts_id_l_past_covs = None, None, None
-        #print("NUM NULL", series[0].pd_dataframe().isnull().sum().sum())
 
         print("\nCreating local folders...")
         logging.info("\nCreating local folders...")
@@ -340,7 +337,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             id_l=id_l_past_covs,
             ts_id_l=ts_id_l_past_covs)
         
-        #print("NUM NULL", series_split["train"][0].pd_dataframe().isnull().sum().sum())
 
         #################
         # Scaling
@@ -433,10 +429,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 pl_trainer_kwargs=pl_trainer_kwargs,
                 **hyperparameters
             )
-            ## fit model
-            # try:
-            #print("NUM NULL", series_transformed['train'][0].pd_dataframe().isnull().sum().sum())
-            #print("VAL", series_transformed['val'])
             model.fit(series_transformed['train'],
                 future_covariates=future_covariates_transformed['train'],
                 past_covariates=past_covariates_transformed['train'],
@@ -490,8 +482,6 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             print(f'\nTraining {darts_model}...')
             logging.info(f'\nTraining {darts_model}...')
-
-            #print("NULL VALUES", series_transformed['train'][0].pd_dataframe().isnull().sum().sum())
 
             model.fit(
                 series=series_transformed['train'],

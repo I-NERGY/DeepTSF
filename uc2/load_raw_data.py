@@ -218,7 +218,6 @@ client = MongoClient(MONGO_URL)
 def unfold_timeseries(lds):
     new_loads = {'Date': [], "Value": []}
     prev_date = ''
-    #print(lds)
     for l in reversed(list(lds)):
         if prev_date != l['date']:
             for key in l:

@@ -554,7 +554,6 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
         for param_name, param_value in train_opt_run.data.params.items():
             try:
                 mlflow.log_param(param_name, param_value)
-                print(param_name, param_value)
             except mlflow.exceptions.RestException:
                 pass
             except mlflow.exceptions.MlflowException:

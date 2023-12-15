@@ -30,6 +30,7 @@ class ConfigParser:
                     assert config_string in self.config['hyperparameters']
         except:
             try:
+                assert "{" in config_string
                 self.config = yaml.safe_load(config_string)
             except:
                 raise NotValidConfig()
@@ -305,7 +306,6 @@ def get_weather_covariates(start, end, fields=["shortwave_radiation"], name="W6 
         fields = [fields]
     req_fields = ",".join(fields)
     if inference:
-        print("here")
         result = requests.get(
             f"https://api.open-meteo.com/v1/forecast?latitude=42.564&longitude=12.643&hourly={req_fields}&forecast_days=10&timezone=auto"
         ).text
@@ -318,7 +318,6 @@ def get_weather_covariates(start, end, fields=["shortwave_radiation"], name="W6 
             df = pd.DataFrame(data=data, index=index, columns=[field]).asfreq("60min")
             df.index.name = "Datetime"
             df_list.append(df)
-        print("END", df_list)
         if name in ["W6 positive_active", "W6 positive_reactive"]:
             result_db = requests.get(
             f"http://38.242.137.200:8000/api/v1/query?source=hourly_forecast&coordinates=(42.569,%2012.608)&start_date={start}&end_date={end}&fields={req_fields}"
@@ -340,14 +339,10 @@ def get_weather_covariates(start, end, fields=["shortwave_radiation"], name="W6 
             df = pd.DataFrame(data=data, index=index, columns=[field]).asfreq("60min")
             df.index.name = "Datetime"
             df_list_db.append(df)
-        print("START", df_list_db)
         result = []
         for ts, ts_db in zip(df_list, df_list_db):
-            print("TS_DB", ts_db)
             ts = ts[ts.index > ts_db.index[-1]]
-            print("TS", ts)
             result_df = pd.concat([ts_db, ts])
-            print(result_df)
             result_df.to_csv("test_.csv")
             result.append(result_df)
 
@@ -392,8 +387,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
             #TODO Fix this too
             ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=True, resolution=resolution)
             covariate_l  = []
-            #print("liiiist", local_path)
-            #print(ts_list[0])
+
             print("\nTurning dataframes to timeseries...")
             logging.info("\nTurning dataframes to timeseries...")
             for comps in tqdm(ts_list):
@@ -405,7 +399,6 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
                                 freq=None)
                     covariates = covariates.astype(np.float32)
                     if last_date is not None:
-                        #print(last_date)
                         try:
                             covariates.drop_after(pd.Timestamp(last_date))
                         except:
@@ -443,7 +436,6 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
         logging.info(
             f"\nBad {name} file. The model won't include {name}...")
         covariates = None
-    print("NUM NULL AFTER APPEND", covariates[-1].pd_dataframe().isnull().sum().sum())
     return covariates, id_l, ts_id_l
 
 
@@ -524,11 +516,9 @@ def parse_uri_prediction_input(model_input: dict, model, ts_id_l) -> dict:
                                            pd.Timestamp(date.today()).ceil(freq='D') + pd.Timedelta("10D"), 
                                            weather_covariates,
                                            inference=True)
-        print(covs_nans)
         covs = []
         for cov in covs_nans:
             covs.append(cov.asfreq('60min').interpolate(inplace=False, method='time').ffill())
-            print(cov)
         future_covariates = darts.TimeSeries.from_dataframe(
             covs[0])
         
@@ -591,7 +581,6 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      parse_dates=True,
                      dayfirst=day_first,
                      engine='python')
-    #print("ts", ts, sep="\n")
     res = []
     id_l = []
     ts_id_l = []
@@ -617,18 +606,12 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
 def multiple_dfs_to_ts_file(res_l, id_l, ts_id_l, save_dir, save=True):
     ts_list = []
-    print(res_l)
-    print(ts_id_l)
     print("\nTurning dataframe list to multiple ts file...")
     logging.info("\nTurning dataframe list to multiple ts file...")
     for ts_num, (ts, id_ts, ts_id_ts) in tqdm(list(enumerate(zip(res_l, id_l, ts_id_l)))):
-#        print("ts_num", ts)
-        print(type(ts))
-        print(ts)
         if type(ts) == darts.timeseries.TimeSeries:
             ts = [ts.univariate_component(i).pd_dataframe() for i in range(ts.n_components)]
         for comp_num, (comp, id, ts_id) in enumerate(zip(ts, id_ts, ts_id_ts)):
- #           print(comp)
             load_col = comp.columns[0]
             comp["Date"] = comp.index.date
             comp["Time"] = comp.index.time
