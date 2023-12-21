@@ -117,7 +117,7 @@ services:
   dagster:
     container_name: deeptsf_dagster
     hostname: deeptsf_dagster
-    image: inergy2020iccs/dagster:1.0
+    image: inergy2020iccs/deeptsf_dagster:1.0
     # build:
     #   context: .
     #   dockerfile: ./dagster-deeptsf/config/Dockerfile
