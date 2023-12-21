@@ -22,7 +22,7 @@ After that, you can set up DeepTSF either using conda (CLI for data scientists) 
 
 ### Set up locally using Docker (Recommended)
 
-To set up locally using docker run the following command in DeepTSF's root directory:
+To set up locally using docker first go to DeepTSF's root directory and rename .env.example to .env. Then run the following command in DeepTSF's root directory:
 
 ```docker-compose up```
 
