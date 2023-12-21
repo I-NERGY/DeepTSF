@@ -60,6 +60,8 @@ nodeLanguageServer.*/**
 !.env.example
 !.env.auth.example
 
-
 # optuna storage
 *.db
+
+# user data set folder
+!uc2/user_datasets/*
