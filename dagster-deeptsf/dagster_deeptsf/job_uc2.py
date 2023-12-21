@@ -9,7 +9,7 @@ from dagster_shell.ops import shell_op
 class CliConfig(Config):
     experiment_name: str = 'uc2_example'
     from_database: str = 'false'
-    series_csv: str = 'Italy.csv'
+    series_csv: str = 'user_datasets/Italy.csv'
     convert_to_local_tz: str = 'false'
     day_first: str = 'false'
     multiple: str = 'false'
@@ -23,7 +23,7 @@ class CliConfig(Config):
     test_end_date: str = '20211231'
     scale: str = 'true'
     darts_model: str = 'NBEATS'
-    hyperparams_entrypoint: str = 'NBEATS_example'
+    hyperparams_entrypoint: str = '"{input_chunk_length: 120, output_chunk_length: 24, num_stacks: 3, num_blocks: 6, num_layers: 1, generic_architecture: True, layer_widths: 64, expansion_coefficient_dim: 5, n_epochs: 5, random_state: 0, nr_epochs_val_period: 2, batch_size: 512}"'
     loss_function: str = 'mape'
     opt_test: str = 'false'
     grid_search: str = 'false'
@@ -39,6 +39,13 @@ class CliConfig(Config):
 def cli_command(config: CliConfig):
     log = get_dagster_logger()
     log.info('Current directory {}'.format(os.getcwd()))
+    # pipeline_run = mlflow.projects.run(
+    #     uri="./uc2/",
+    #     experiment_name=config.experiment_name,
+    #     entry_point="exp_pipeline",
+    #     parameters=params,
+    #     env_manager="local"
+    #     )
     return "cd /app/uc2 && mlflow run " \
            f"--experiment-name {config.experiment_name} " \
            "--entry-point exp_pipeline . " \
