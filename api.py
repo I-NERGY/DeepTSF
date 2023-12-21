@@ -310,6 +310,8 @@ async def get_mlflow_tracking_uri():
 
 def mlflow_run(params: dict, experiment_name: str):
     # TODO: generalize to all use cases
+    # TODO: run through dagster for orchestration and error inspection. enershare?
+    # will need GraphQL client for Dagster as it is in another container...
     pipeline_run = mlflow.projects.run(
             uri="./uc2/",
             experiment_name=experiment_name,
