@@ -4,6 +4,7 @@ import mlflow
 import logging
 import tempfile
 import pretty_errors
+import yaml
 
 # get environment variables
 from dotenv import load_dotenv
@@ -39,13 +40,28 @@ disable_warnings(InsecureRequestWarning)
 @click.option("--batch-size",
               type=str,
               default="1")
-def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, future_covariates_uri, past_covariates_uri, roll_size, batch_size):
+@click.option("--multiple",
+              type=str,
+              default="False")
+@click.option("--weather-covariates",
+              type=str,
+              default="None")
+@click.option("--resolution",
+              type=str,
+              default="15")
+@click.option("--ts-id-pred",
+              type=str,
+              default="None")
+
+def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, future_covariates_uri, past_covariates_uri, roll_size, batch_size, multiple, weather_covariates, resolution, ts_id_pred):
     """This is the main function for predicting MLflow pyfunc models. The inputs are csv file uris (online or local) and integers. 
     The csv files are dowloaded and the converted to darts.TimeSeries and finally given to the loaded models and for prediction according to their 
     specification"""
 
     with mlflow.start_run(run_name='inference') as mlrun:
 
+        weather_covariates = yaml.safe_load(weather_covariates)
+        print(weather_covariates)
         input = {
             "n": forecast_horizon,
             "series_uri": series_uri,
@@ -53,6 +69,10 @@ def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, f
             "future_covariates_uri": future_covariates_uri,
             "past_covariates_uri": past_covariates_uri,
             "batch_size": batch_size,
+            "multiple": multiple,
+            "weather_covariates": weather_covariates,
+            "resolution": resolution,
+            "ts_id_pred": ts_id_pred,
         }
 
         # Load model as a PyFuncModel.
@@ -62,7 +82,6 @@ def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, f
         # Predict on a Pandas DataFrame.
         print("\nPyfunc model prediction...")
         predictions = loaded_model.predict(input)
-        print(predictions)
 
         # Store CSV of predictions: first locally and then to MLflow server
         infertmpdir = tempfile.mkdtemp()

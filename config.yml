@@ -690,13 +690,6 @@ hyperparameters:
     future_covs_as_tuple: true
     random_state: 0
 
-  lgbm_672_covs_1_1:
-    lags: 672
-    lags_past_covariates: null
-    lags_future_covariates: [1, 1]
-    future_covs_as_tuple: true
-    random_state: 0
-
   lgbm_96_covs_1_1:
     lags: 96
     lags_past_covariates: null
@@ -830,6 +823,40 @@ hyperparameters:
   LGBM_uc6:
     lags: 672
 
+  LightGBM_river:
+    lags: [-1, -480]
+    lags_past_covariates: [-1, -480]
+    random_state: 0
+    output_chunk_length: 12
+
+  LightGBM_UC6:
+    lags: 24
+    random_state: 0
+    output_chunk_length: 24
+
+  LightGBM_UC7:
+    lags: 24
+    lags_future_covariates: [24, 24]
+    random_state: 0
+    output_chunk_length: 24
+
+  NBEATS_river:
+    input_chunk_length: 480
+    output_chunk_length: 12
+    num_stacks: 3
+    num_blocks: 6
+    num_layers: 1
+    generic_architecture: True
+    activation: 'ReLU'
+    layer_widths: 64
+    dropout: 0
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 128
+    learning_rate: 0.001
+
   NBEATS:
     input_chunk_length: 120
     output_chunk_length: 24
@@ -938,3 +965,8 @@ hyperparameters:
 
   Naive:
     days_seasonality: 7
+
+  LGBM_uc7:
+    lags: 24
+    lags_future_covariates: [24, 24]
+    random_state: 0

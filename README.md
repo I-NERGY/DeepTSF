@@ -1,3 +1,4 @@
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC_BY--NC_4.0-lightgrey.svg)](https://github.com/I-NERGY/DeepTSF/blob//License.txt)
 # DeepTSF
 
 This is the repository for DeepTSF timeseries forecasting tool. The whitepaper for this project can be found in [1].
@@ -51,7 +52,8 @@ So run the following to set up your working environment:
 
 ```export GIT_PYTHON_REFRESH=quiet```
 
-Then, you can execute any experiment you want. An example woking command (also demonstrated in the whitepaper [1]), is shown below:
+
+Then, you can execute any experiment you want. An example working command (also demonstrated in the whitepaper [1]), is shown below:
 
 ```mlflow run --experiment-name example --entry-point exp_pipeline . -P series_csv=Italy.csv -P convert_to_local_tz=false -P day_first=false -P from_database=false -P multiple=false -P l_interpolation=false -P resolution=60 -P rmv_outliers=true -P country=IT -P year_range=2015-2022 -P cut_date_val=20200101 -P cut_date_test=20210101 -P test_end_date=20211231 -P scale=true -P darts_model=NBEATS -P hyperparams_entrypoint=NBEATS_example -P loss_function=mape -P opt_test=true -P grid_search=false -P n_trials=100 -P device=gpu -P ignore_previous_runs=t -P forecast_horizon=24 -P m_mase=24 -P analyze_with_shap=False --env-manager=local```
 
@@ -120,9 +122,7 @@ The format of the csv files DeepTSF can accept depends on the nature of the prob
 |2015-04-09 02:00:00 | 8572 |
 |... |... | 
 
-
 In this table, the Datetime column simply stores the dates and times of each observation, and the Value column stores the value that has been observed.
-
 
 If we are solving a multiple and / or multivariate time series problem, then the file format (along with example values) is:
 
@@ -165,7 +165,7 @@ The following example files (for the main time series tested by DeepTSF - covari
 In this section we are going to go into more detail about the format of the covariates that can be 
 provided to DeepTSF. 
 
-More speciffically, darts has a limitation that the number of covariate
+More specifically, darts has a limitation that the number of covariate
 time series (past or future, if present) must be equal to the number of time series fed to the model.
 So, for example, if the user wishes to train a model with 5 time series (the number of components
 of each time series is irrelevant), then both the past and the future covariates must either not be used
@@ -174,7 +174,7 @@ wishes. The format that DeepTSF accepts is the same as for multiple time series.
 
 If the covariate time series provided by the user is one with a single component, then the user has the option to provide
 that in the single time series file format, and then DeepTSF will use this as a covariate for all the main time series provided by
-the user to follow the limitation of the above paragraph. In this case, the main time series can be in any format (multiple or single), and the number of time series given to the model can be anythin the user wants.
+the user to follow the limitation of the above paragraph. In this case, the main time series can be in any format (multiple or single), and the number of time series given to the model can be anything the user wants.
 
 If the user chooses, time covariates can be added internally. Those are considered as future covariates, and they are added
 at the end of each covariate time series provided by the user as extra components. They are computed by taking into account 
@@ -214,12 +214,11 @@ For each component of each time series, outlier detection is optionally conducte
 
 ### Imputation method
 This method imputes the timeseries using a weighted average of historical data
-and simple interpolation. The weights of each method are exponentially dependent on the distance to the nearest non NaN value. More specifficaly, with increasing distance, the weight of simple interpolation decreases, and the weight of the historical data increases. The imputation result is calculated based on the following formulas:  
+and simple interpolation. The weights of each method are exponentially dependent on the distance to the nearest non-NaN value. More specifically, with increasing distance, the weight of simple interpolation decreases, and the weight of the historical data increases. The imputation result is calculated based on the following formulas:  
 
 $w = e^{a d_i}$
 
  $result = w L + (1 - w) H$
-
 
  where $L$ is the simple interpolation, $H$ the historical data and $d_i$ the distance. $a$ is a constant that determines how quickly simple interpolation will lose its significance to the result. 
  
@@ -244,13 +243,12 @@ $w = e^{a d_i}$
 * If $current$ is before cut_date_val, it is imputed using historical data
 from dates which are also before cut_date_val.
 
-
  The parameters of the pipeline associated with this method are presented below, along with all parameters of data pre-processing:
 
 ### Parameters of the pipeline
-* ```resolution``` (mandatory), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all prepprocessing is done in this resolution. In other words resampling is done before prosocessing. In case of multiple timeseries however, the resolution is infered from load_raw_data. All preprosessing is done using the infered resolution and then afterwards resampling is performed. 
+* ```resolution``` (mandatory), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all preprocessing is done in this resolution. In other words resampling is done before processing. In case of multiple timeseries however, the resolution is inferred from load_raw_data. All preprocessing is done using the inferred resolution and then afterwards resampling is performed. 
 
-* ```year_range``` (default None), the years to use from the datasets (inclusive). All values outside of those dates will be dropped.
+* ```year_range``` (default None), the years to use from the datasets (inclusive). All values outside of those dates will be dropped. If none, this has no effect on the series.
 
 * ```time_covs``` (default false), whether to add time covariates to the time series. If true, then the following time covariates will be added as future covariates:
     * The month
@@ -271,7 +269,7 @@ from dates which are also before cut_date_val.
 * ```max_thr``` (default -1), argument of the imputation method. If there is a consecutive subseries of NaNs longer than max_thr, then it is not imputed and returned with NaN values. If it is -1, every value will be imputed regardless of how long the consecutive subseries of NaNs it belongs to is.
 
 * ```a``` (default 0.3), argument of the imputation method.
-It is the weight that shows how quickly simple interpolation's weight decreases as the distacne to the nearest non NaN value increases. For more information see the section about our imputation method above.
+It is the weight that shows how quickly simple interpolation's weight decreases as the distance to the nearest non NaN value increases. For more information see the section about our imputation method above.
 
 * ```wncutoff``` (default 0.000694), argument of the imputation method. Historical data will only take into account dates that have at most wncutoff distance from the current null value's WN (Week Number). 
 
@@ -283,13 +281,15 @@ It is the weight that shows how quickly simple interpolation's weight decreases 
 
 * ```rmv_outliers``` (default true), whether to remove outliers or not
 
+* ```resampling_agg_method```(default averaging), Method to use for resampling. Choice between averaging, summation and downsampling
+
 ## Training and validation
 
 ### Description of this step
 
 After the pre-processing stage, the data is scaled using min-max scaling, and is split into training, validation, and testing data sets. Then, the training of the model begins using only the training data set. The currently supported models are N-BEATS , Transformer, NHiTS, temporal convolutional networks, (block) recurrent neural networks, temporal fusion transformers, LightGBM, random forest, and seasonal naive. The latter can serve as an effective baseline depending on the seasonality of the time series.
 
- Hyperparameter optimization can be also triggered using the Optuna library. DeepTSF supports both exhaustive and Tree-Structured Parzen Estimator-based (TPE-based) hyperparameter search. The first method tests all possible combinations of the tested hyperparameters, while the second one uses probabilistic methods to explore the combinations that result to optimal values of the user-defined loss function. Ultimately, a method based on functional analysis of variance (fANOVA) and random forests, is used to calculate the importance of each hyperparameter during optimization.
+ Hyperparameter optimization can be also triggered using the Optuna library. DeepTSF supports both exhaustive and Tree-Structured Parzen Estimator-based (TPE-based) hyperparameter search. The first method tests all possible combinations of the tested hyperparameters, while the second one uses probabilistic methods to explore the combinations that result to optimal values of the user-defined loss function. Ultimately, a method based on functional analysis of variance (fANOVA) and random forests, is used to calculate the importance of each hyperparameter during optimization. It is important to note that all trials of optuna are saved locally. So, if the run of the tool is interrupted, the pipeline can be restarted with the same parameters, and optuna will resume from the last successful trial. 
 
  ### Providing the model's parameters to DeepTSF
 
@@ -302,10 +302,10 @@ In config.yml's case, the entry point will look like this:
         parameter2: value2
         ...
 
-Where parameter and value are each model's hyperparameter, and its desired value respectivelly. All model parameters not specified by the user take their default values according to darts.
+Where parameter and value are each model's hyperparameter, and its desired value respectively. All model parameters not specified by the user take their default values according to darts.
 
 In config_opt.yml's case, the parameters of the model that the user doesn't want to test can be given as in config.yml. The parameters that have to be tested must have their values in a list format as follows:
-* Format ["range", start, end, step]: a list of hyperparameter values are considered ranging from value "start" till "end" with the step being defined by the last value of the list. 
+* Format ["range", start, end, step]: a list of hyperparameter values is considered ranging from value "start" till "end" with the step being defined by the last value of the list. 
 * Format ["list", value\_1, ..., value\_n]: All the listed parameters (\{value\_1, ..., value\_n\}) are considered in the grid. 
 
 ```
@@ -319,7 +319,6 @@ Finally, if the user wants, they can test whether to scale the data or not just 
 ```
 scale: ["list", "True", "False"]
 ``` 
-
 
 ### Parameters of the pipeline
 
@@ -335,20 +334,19 @@ scale: ["list", "True", "False"]
     * RandomForest
     * Naive
 
-* ```hyperparams_entrypoint``` (mandatory), the entry point containing the desired hyperparameters for the selected model. The file that will be searched for the entrypoint will be config.yml if opt_test is false, and config_opt.yml otherwise. More info for the required file format above
+* ```hyperparams_entrypoint``` (mandatory), the entry point containing the desired hyperparameters for the selected model. The file that will be searched for the entrypoint will be config.yml if opt_test is false, and config_opt.yml otherwise. More info for the required file format above. This field can also be a string in a json-like format (smaller than 250 characters). More specifically, the examples described in the example section above, would be in the following format if given as strings:
+ - "{parameter1: value1, parameter2: value2, ...}" if no parameters require hyperparameter tuning (opt_test=false)
+ - "{parameter_not_to_be_tested: value1, parameter_range:  [range, start, end, step], parameter_list: [list, value\_1, ..., value\_n], ...}" if some parameters require hyperparameter tuning (opt_test=true)
 
 * ```cut_date_val``` (mandatory), the validation set start date (if cut_date_val=YYYYMMDD, then the validation set starts at YYYY-MM-DD 00:00:00). All values before that will be the training series. Format: str, 'YYYYMMDD'
 
-
-* ```cut_date_test``` (mandatory), the test set start date (if cut_date_test=YYYYMMDD, then the test set starts at YYYY-MM-DD 00:00:00). Values between that (non inclusive) and cut_date_val (inclusive) will be the validation series. If cut_date_test = cut_date_test, then the test and validation sets will be the same (from cut_date_test to test_end_date, both inclusive). Format: str, 'YYYYMMDD'
+* ```cut_date_test``` (mandatory), the test set start date (if cut_date_test=YYYYMMDD, then the test set starts at YYYY-MM-DD 00:00:00). Values between that (non inclusive) and cut_date_val (inclusive) will be the validation series. If cut_date_test = cut_date_val, then the test and validation sets will be the same (from cut_date_test to test_end_date, both inclusive). Format: str, 'YYYYMMDD'
 
 * ```test_end_date``` (default None), the test set ending date (if test_end_date=YYYYMMDD, then the test set ends at the last datetime of YYYY-MM-DD). Values between that and cut_date_test (both inclusive) will be the testing series. All values after that will be ignored. If None, all the timeseries from cut_date_test will be the test set. Format: str, 'YYYYMMDD'
 
 * ```device``` (default gpu), whether to run the pipeline on the gpu, or just use the cpu. 
 
 * ```retrain``` (default false), whether to retrain model during backtesting.
-
-[TODO: not working ?]::
 
 * ```ignore_previous_runs``` (default true), whether to ignore previous step runs while running the pipeline. If true, all stages of the pipeline will be run again. If false, and there are mlflow runs with exactly the same parameters saved on the tracking server, the pipeline will use these results instead of executing the run again.  
 
@@ -373,12 +371,11 @@ scale: ["list", "True", "False"]
 
 * ```grid_search``` (default false), whether to run an exhaustive grid search (if true) or use the tpe method in optuna.
 
-
 ## Evaluation and explanation
 
 ### Description of this step
 
-Εvaluation is performed through backtesting on the testing data set. Specifically, for each time series given to the function, it consecutively forecasts time series blocks of length equal to the forecast horizon of the model from the beginning until the end of the test set. This operation takes place by default with a stride equal to forecast horizon but can be changed by the user. 
+Evaluation is performed through backtesting on the testing data set. Specifically, for each time series given to the function, it consecutively forecasts time series blocks of length equal to the forecast horizon of the model from the beginning until the end of the test set. This operation takes place by default with a stride equal to forecast horizon but can be changed by the user. 
 
 Then, evaluation metrics are calculated using the resulting forecasted time series. The evaluation metrics that are supported are: mean absolute error (MAE), root mean squared error (RMSE), min-max and mean normalized mean squared error (NRMSE), mean absolute percentage error (MAPE), standardized mean absolute percentage error (sMAPE), and mean absolute scaled error (MASE). In the case of multiple time series, it is possible for all evaluation sub-series to be tested leading to an average value for each one of the metrics. In this case, DeepTSF stores the results for all time series. 
 
@@ -390,16 +387,13 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 
 * ```stride``` (default None), the number of time steps between two consecutive steps of backtesting. If it is None, then stride = forecast_horizon
 
-[TODO: SHAP ask if changes are ok]::
-[SHAP with covariates fix]::
-[TODO Change default to 100]::
 * ```shap_data_size``` (default 100), The size of shap dataset in samples. The SHAP coefficients are going to be computed for this number of random samples of the test dataset. If it is a float, it represents the proportion of samples of the test dataset that will be chosen. If it is an int, it represents the absolute number of samples to be produced.
 
 * ```analyze_with_shap``` (default false), whether to do SHAP analysis on the model.
 
 * ```eval_series``` (mandatory if multiple=True, and evaluate_all_ts=False), on which timeseries to run the backtesting. Only for multiple timeseries. 
 
-* ```eval_method``` (default ts_ID, only possible options are ts_ID and ID), what ID type is speciffied in eval_series: if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at ID column. In this case, all components of the timeseries that has the component with eval_series ID are used in the evaluation step. 
+* ```eval_method``` (default ts_ID, only possible options are ts_ID and ID), what ID type is specified in eval_series: if ts_ID is specified, then we look at Timeseries ID column. Else, we look at ID column. In this case, all components of the timeseries that has the component with eval_series ID are used in the evaluation step. 
 
 * ```evaluate_all_ts``` (default false), whether to validate the models for all timeseries, and return the mean of their metrics as a result. Only applicable for multiple time series. In this case, a file is produced (evaluation_results_all_ts) showing detailed results for all metrics and timeseries.  
 
@@ -412,7 +406,7 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 * ```num_samples``` (default 1), number of samples to use for evaluating/validating a probabilistic model's output
 
 ## DeepTSF UI
-The DeepTSF UI runs by default at port 3000. However this can be modified by the user. This interface allows for a completely codeless model training experience, as long as the input files respect the already described input csv file format (otherwise an error will be thrown while uploading the file). Several operations such as downsampling, outlier detection can be performed and then the user can split the dataset and perform model training by selecting the appropriate model and its respective hyperparameters. The results of the execution can be sought to the deployed MLflow server. A quick overview of the results can be also found in the experiment tracking dashboard of the front end application. Note that only purely autoregressive models can be built through the UI (with no external variables) contrary to the above described CLI. For more info, please have a look at the whitepaper [1]. 
+The DeepTSF UI runs by default at port 3000. However, this can be modified by the user. This interface allows for a completely codeless model training experience, as long as the input files respect the already described input csv file format (otherwise an error will be thrown while uploading the file). Several operations such as downsampling, outlier detection can be performed and then the user can split the dataset and perform model training by selecting the appropriate model and its respective hyperparameters. The results of the execution can be sought to the deployed MLflow server. A quick overview of the results can be also found in the experiment tracking dashboard of the front end application. Note that only purely autoregressive models can be built through the UI (with no external variables) contrary to the above described CLI. For more info, please have a look at the whitepaper [1]. 
 
 ## DeepTSF advanced workflow orchestration (Dagster)
 Dagster acts as a workflow orchestration engine, where data processing and ML model training pipelines, are defined as jobs. Therefore, the execution of these jobs can be scheduled in fixed intervals, serving the needs of periodic training. More information on the usage of this component can be found in the whitepaper [1]. Note here that this component is still at an experimental stage and therefore has limited features.

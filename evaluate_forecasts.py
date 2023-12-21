@@ -104,8 +104,6 @@ def backtester(model,
     series_transformed = extract_subseries(series_transformed, min_gap_size=1)[-1]
 
     # produce list of forecasts
-    #print("backtesting starting at", test_start_date, "series:", series_transformed)
-    #print("EVALUATIING ON SERIES:", series_transformed)
     backtest_series_transformed = model.historical_forecasts(series_transformed,
                                                              future_covariates=future_covariates,
                                                              past_covariates=past_covariates,
@@ -132,14 +130,20 @@ def backtester(model,
         print("\nWarning: Scaler not provided. Ensure model provides normal scale predictions")
         logging.info(
             "\n Warning: Scaler not provided. Ensure model provides normal scale predictions")
-    #print(backtest_series, series)
 
     # plot all test
     fig1 = plt.figure(figsize=(15, 8))
     ax1 = fig1.add_subplot(111)
     backtest_series.plot(label='forecast')
-    series \
+    #try except in case of nans before start
+    try:
+        series \
         .drop_before(pd.Timestamp(pd.Timestamp(test_start_date) - datetime.timedelta(days=7))) \
+        .drop_after(backtest_series.time_index[-1]) \
+        .plot(label='actual')
+    except:
+        series \
+        .drop_before(pd.Timestamp(pd.Timestamp(test_start_date) - datetime.timedelta(days=1))) \
         .drop_after(backtest_series.time_index[-1]) \
         .plot(label='actual')
     ax1.legend()
@@ -147,24 +151,26 @@ def backtester(model,
         f'Backtest, starting {test_start_date}, {forecast_horizon}-steps horizon')
     # plt.show()
 
-    # plot one week (better visibility)
-    forecast_start_date = pd.Timestamp(
-        test_start_date + datetime.timedelta(days=7))
+    try:
+        # plot one week (better visibility)
+        forecast_start_date = pd.Timestamp(
+            test_start_date + datetime.timedelta(days=7))
 
-    fig2 = plt.figure(figsize=(15, 8))
-    ax2 = fig2.add_subplot(111)
-    backtest_series \
-        .drop_before(pd.Timestamp(forecast_start_date)) \
-        .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
-        .plot(label='Forecast')
-    series \
-        .drop_before(pd.Timestamp(forecast_start_date)) \
-        .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
-        .plot(label='Actual')
-    ax2.legend()
-    ax2.set_title(
+        fig2 = plt.figure(figsize=(15, 8))
+        ax2 = fig2.add_subplot(111)
+        backtest_series \
+            .drop_before(pd.Timestamp(forecast_start_date)) \
+            .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
+            .plot(label='Forecast')
+        series \
+            .drop_before(pd.Timestamp(forecast_start_date)) \
+            .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
+            .plot(label='Actual')
+        ax2.legend()
+        ax2.set_title(
         f'Weekly forecast, Start date: {forecast_start_date}, Forecast horizon (timesteps): {forecast_horizon}, Forecast extended with backtesting...')
-
+    except:
+        pass
     # Metrix
     test_series = series.drop_before(pd.Timestamp(test_start_date))
     metrics = {
@@ -201,7 +207,6 @@ def backtester(model,
             backtest_series,
             insample=series.drop_after(pd.Timestamp(test_start_date)),
             m = m_mase)
-        print("BACKTEST", series)
     except:
         print("\nSeries is periodical. Setting mase to NaN...")
         logging.info("\nModel result or testing series not strictly positive. Setting mape to NaN...")
@@ -315,15 +320,10 @@ def build_shap_dataset(size: Union[int, float],
         curr = test[i:i + shap_input_length]
         curr_date = int(curr.time_index[0].timestamp())
         curr_values = curr.random_component_values(copy=False)
-        #if np.isnan(curr_values).any():
-            #print(curr_date, "has NaN values")
-            #continue
         data.append(curr_values.flatten())
-#    print(data[-1].flatten())
         if first_iter:
             columns.extend([str(i) + " timestep" for i in range(shap_input_length)])
             median_of_train = statistics.median(map(lambda x : x.median(axis=0).values()[0,0], train))
-#            print("median of train", median_of_train)
             background.extend([median_of_train for _ in range(shap_input_length)])
         if past_covs != None:
             for ii in range(past_covs.n_components):
@@ -392,20 +392,16 @@ def predict(x: darts.TimeSeries,
     past_covs_list = []
     future_covs_list = []
     for sample in x:
-    #    print(sample)
         index = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length)]
         index_future = [datetime.datetime.utcfromtimestamp(sample[-1]) + pd.offsets.DateOffset(hours=i) for i in range(shap_input_length + shap_output_length)]
         sample = np.array(sample, dtype=np.float32)
         data = sample[:shap_input_length]
         ts = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Value"]))
-    #    print(ts.dtype)
         if scale:
             ts = scaler_list[0].transform(ts)
-    #    print(ts)
         past_covs = None
         future_covs = None
         for i in range(shap_input_length, shap_input_length*(n_past_covs+1), shap_input_length):
-#            print(i, "p")
             data = sample[i:i+shap_input_length]
             if i == shap_input_length:
                 past_covs = TimeSeries.from_dataframe(pd.DataFrame(data=data, index=index, columns=["Covariate"]))
@@ -422,7 +418,6 @@ def predict(x: darts.TimeSeries,
         else:
             past_covs_list.append(past_covs)
         for i in range(shap_input_length*(n_past_covs+1), shap_input_length*(n_past_covs+1) + (shap_input_length + shap_output_length)*n_future_covs, shap_input_length + shap_output_length):
-#            print(i, "f")
             data = sample[i:i+shap_input_length+shap_output_length]
             scale_index = 1 + n_past_covs + (i - shap_input_length*(n_past_covs+1))//(shap_input_length+shap_output_length)
             if i == shap_input_length*(n_past_covs+1):
@@ -440,7 +435,6 @@ def predict(x: darts.TimeSeries,
         else:
             future_covs_list.append(future_covs)
         series_list.append(ts)
-    #    print("asdssd", past_covs, future_covs)
     try:
         res = model.predict(shap_output_length, series_list, past_covariates=past_covs_list, future_covariates=future_covs_list, num_samples=num_samples)
     except:
@@ -449,9 +443,6 @@ def predict(x: darts.TimeSeries,
         res = list(map(lambda elem : scaler_list[0].inverse_transform(elem).univariate_values(), res))
     else:
         res = list(map(lambda elem : elem.univariate_values(), res))
-   #     print("max", np.array(res).max(), np.array(res).min())
-#    print("result 1", np.array(res)[0])
-#    print("sample 1", x[0])
     return np.array(res)
 #lambda x: model_rnn.predict(TimeSeries.from_dataframe(pd.DataFrame(index=(x[-1] + pd.offsets.DateOffset(hours=i) for i in range(96)), data=x[:-1])))
 
@@ -508,17 +499,12 @@ def call_shap(n_past_covs: int,
     """
 
     shap.initjs()
-#    print("background", background)
     explainer = shap.KernelExplainer(lambda x : predict(x, n_past_covs, n_future_covs, shap_input_length, shap_output_length, model, scaler_list, scale), background, num_samples=num_samples)
-#    print("all samples", data)
     shap_values = explainer.shap_values(data, nsamples="auto", normalize=False)
-#    print("values for 0 output", shap_values[0])
     plt.close()
     interprtmpdir = tempfile.mkdtemp()
     sample = random.randint(0, len(data) - 1)
     for out in [0, shap_output_length//2, shap_output_length-1]:
-#        print(len(shap_values))
-#        print(out)
         shap.summary_plot(shap_values[out], data, show=False)
         plt.savefig(f"{interprtmpdir}/summary_plot_all_samples_out_{out}.png")
         plt.close()
@@ -668,10 +654,10 @@ def call_shap(n_past_covs: int,
 
 
 def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, shap_input_length, shap_output_length, size, analyze_with_shap, multiple, eval_series, cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase, num_samples):
-    # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
     # Argument processing
+    test_end_date = none_checker(test_end_date)
     stride = none_checker(stride)
     forecast_horizon = int(forecast_horizon)
     m_mase = int(m_mase)
@@ -783,13 +769,11 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     with mlflow.start_run(run_name='eval', nested=True) as mlrun:
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
-        #print("TESTING ON", eval_i, series_transformed_split['all'][eval_i])
         if evaluate_all_ts and multiple:
             eval_results = {}
             ts_n = len(ts_id_l)
             for eval_i in range(ts_n):
                 backtest_series_transformed = series_transformed_split['all'] if not multiple else series_transformed_split['all'][eval_i]
-                #print("testing on", eval_i, backtest_series_transformed)
                 print(f"Testing timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}...")
                 logging.info(f"Validating timeseries number {eval_i} with Timeseries ID {ts_id_l[eval_i][0]} and ID of first component {id_l[eval_i][0]}...")
                 print(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
@@ -829,8 +813,6 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             print(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
             logging.info(f"Testing from {pd.Timestamp(cut_date_test)} to {backtest_series_transformed.time_index[-1]}...")
 
-            print("")
-
             evaluation_results = backtester(model=model,
                                             series_transformed=backtest_series_transformed,
                                             series=series_split['all'] if not multiple else series_split['all'][eval_i],
@@ -854,7 +836,6 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                                 future_covs=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
                                                 past_covs=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]))
 
-                #print(data, background)
                 #TODO check SHAP with covariates
                 call_shap(n_past_covs=0 if past_covariates == None else past_covariates.n_components,
                     n_future_covs=0 if future_covariates == None else future_covariates.n_components,

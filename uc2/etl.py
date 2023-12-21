@@ -253,7 +253,6 @@ def remove_outliers(ts: pd.DataFrame,
 
     #Datetimes with NaN values are removed from the dataframe
     ts = ts.dropna()
-    print(ts)
     #Removing all zero values if no negative values are present
     if min(ts["Value"]) >= 0:
         a = ts.loc[ts["Value"] <= 0]
@@ -461,11 +460,10 @@ def impute(ts: pd.DataFrame,
         if min_non_nan_interval != -1:
             #If after imputation there exist continuous intervals of non nan values in the train set that are smaller 
             #than min_non_nan_interval time steps, these intervals are all replaced by nan values
-            not_nan_values = res[(~res["Value"].isnull()) & (res.index < pd.Timestamp(cut_date_val))]
+            not_nan_values = res[(~res["Value"].isnull())]
             not_nan_dates = not_nan_values.index
             prev = not_nan_dates[0]
             start = prev
-
             for not_nan_day in not_nan_dates[1:]:
                 if (not_nan_day - prev)!= pd.Timedelta(int(resolution), "min"):
                     if prev - start < pd.Timedelta(int(resolution) * min_non_nan_interval, "min"):
@@ -498,7 +496,6 @@ def utc_to_local(df, country_code):
 
 
     # convert dates to given timezone, get timezone info
-    #print(df.index.to_series().tz_localize("UTC"))
     df['Local Datetime'] = df.index.to_series().dt.tz_localize("UTC").dt.tz_convert(local_timezone)
 
     # remove timezone information-naive, because next localize() recquires it 
@@ -518,7 +515,6 @@ def utc_to_local(df, country_code):
 
     df.index.name = "Datetime"
 
-    #print(df)
 
 def save_consecutive_nans(ts, resolution, tmpdir, name):
     """
@@ -1014,7 +1010,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                             raise CountryDoesNotExist()
                 print("\nPerfrorming Imputation of the Dataset...")
                 logging.info("\nPerfrorming Imputation of the Dataset...")
-                #print(comp_res)
                 comp_res, imputed_values = impute(ts=comp_res,
                                                   holidays=country_holidays,
                                                   max_thr=max_thr,
@@ -1050,7 +1045,6 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 # darts dataset creation
                 comp_res_darts = darts.TimeSeries.from_dataframe(comp_res)
 
-                #print("NULL VALUES", comp_res_darts.pd_dataframe().isnull().sum().sum())
 
                 # ts_res_darts.to_csv(f'{tmpdir}/4_read_as_darts.csv')
 
