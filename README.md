@@ -106,14 +106,12 @@ Please do not omit this step as this environment variable will not get inherited
 ## Forecasting workflow
 
 As abovementioned, the main ML workflow comprises 4 consecutive steps,
-as illustrated in Fig.
-<a href="#fig:Experimentation_pipeline" data-reference-type="ref"
-data-reference="fig:Experimentation_pipeline">1</a>. The executed
+as illustrated below. The executed
 experiments are logged to the MLflow tracking server and can be
 visualized by the user using the MLflow UI.
 
 <figure id="fig:Experimentation_pipeline">
-<img src="figures/Experimentation_pipeline.png" style="width:80.0%" />
+<img src="docs/figures/Experimentation_pipeline.png" style="width:80.0%" />
 </figure>
 
 ### Data loading
