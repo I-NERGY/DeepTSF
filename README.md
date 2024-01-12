@@ -111,7 +111,7 @@ experiments are logged to the MLflow tracking server and can be
 visualized by the user using the MLflow UI.
 
 <figure id="fig:Experimentation_Pipeline">
-<img src="docs/figures/Experimentation_pipeline.png" style="width:80.0%" />
+<img src="docs/figures/Experimentation_Pipeline.png" style="width:80.0%" />
 </figure>
 
 ### Data loading
