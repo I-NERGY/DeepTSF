@@ -103,16 +103,97 @@ Please do not omit this step as this environment variable will not get inherited
 
 ```export MLFLOW_TRACKING_URI=https://localhost:5000```
 
-## Forecasting pipeline documentation (advanced users)
+## Forecasting workflow
 
-The stages of the pipeline, along with the MLflow parameters that are related to each one are presented below. Note here that this extensive documentation only concerns CLI usage and not the DeepTSF UI whose functionalities are much more limited.
+As abovementioned, the main ML workflow comprises 4 consecutive steps,
+as illustrated in Fig.
+<a href="#fig:Experimentation_pipeline" data-reference-type="ref"
+data-reference="fig:Experimentation_pipeline">1</a>. The executed
+experiments are logged to the MLflow tracking server and can be
+visualized by the user using the MLflow UI.
 
-## Data loading
+<figure id="fig:Experimentation_pipeline">
+<img src="figures/Experimentation_pipeline.png" style="width:80.0%" />
+</figure>
 
-### Description of this step
-Firstly, the dataset is loaded from local or online sources. Currently Deep-TSF supports csv files of the schema that is discussed in section File format. In this context, the connectors that enable data ingestion vary depending on the use case and the schema of the respective data source and shall be engineered by the DeepTSF user. We provide an example of this connector, which works with MongoDB (function load_data_to_csv in load_raw_data.py for each use case). After that, validation is performed to ensure that the files provided by the user respect the required schema. The files are saved on the MLflow tracking server so that they are available for the data pre-processing stage.
+### Data loading
 
-### Input file format
+DeepTSF can handle univariate, multivariate, and multiple time series,
+optionally including external variables (covariates). Firstly, the
+dataset is loaded from local or online sources. Currently Deep-TSF
+supports csv files of specific schema. In this context, the connectors
+that enable data ingestion vary depending on the use case and the schema
+of the respective data source and shall be engineered by the DeepTSF
+user. We provide an example of this connector, which works with MongoDB.
+After that, validation is performed to ensure that the files provided by
+the user respect the required schema. The files are saved on the MLflow
+tracking server so that they are available for the data pre-processing
+stage.
+
+### Data pre-processing
+
+Then, data pre-processing is performed. Specifically, for each component
+of each time series, outlier detection is optionally conducted by
+removing values that differ more than an arbitrary number (defined by
+the user) of standard deviations from their monthly average, or that are
+zero in the case of a non-negative time series. Outliers are replaced by
+missing values. Subsequently, missing data may be imputed by using a
+weighted average of historical data and linear interpolation as proposed
+by Peppanen et. al in \[2\].
+
+### Training and validation
+
+After the pre-processing stage, the data is scaled using min-max
+scaling, and is split into training, validation, and testing data sets.
+Then, the training of the model begins using only the training data set.
+The currently supported models are N-BEATS, Transformer , NHiTS,
+temporal convolutional networks, (block) recurrent neural networks,
+temporal fusion transformers, LightGBM, random forest, and seasonal
+naive as from the documentation of Darts forecasting models. The latter
+can serve as an effective baseline depending on the seasonality of the
+time series. Hyperparameter optimization can be also triggered using the
+Optuna library. DeepTSF supports both exhaustive and Tree-Structured
+Parzen Estimator-based \[3\] hyperparameter search. The first method
+tests all possible combinations of the tested hyperparameters, while the
+second one uses probabilistic methods to explore the combinations that
+result to optimal values of the user-defined loss function. Ultimately,
+a method based on functional analysis of variance (fANOVA) and random
+forests, as proposed in \[4\], is used to calculate the importance of
+each hyperparameter during optimization. In this context, a bar graph
+showing the aforementioned results is produced and stored as an artifact
+to MLflow.
+
+### Evaluation and explanation
+
+When model training is complete, evaluation is performed through
+backtesting on the testing data set. Specifically, for each time series
+given to the function, it consecutively forecasts time series blocks of
+length equal to the forecast horizon of the model from the beginning
+until the end of the test set. This operation takes place by default
+with a stride equal to forecast horizon but can be changed by the user.
+Then, evaluation metrics are calculated using the resulting forecasted
+time series. The evaluation metrics that are supported are: mean
+absolute error (MAE), root mean squared error (RMSE), min-max and mean
+normalized mean squared error (NRMSE), mean absolute percentage error
+(MAPE), standardized mean absolute percentage error (sMAPE), and mean
+absolute scaled error (MASE). In the case of multiple time series, it is
+possible for all evaluation sub-series to be tested leading to an
+average value for each one of the metrics. In this case, DeepTSF stores
+the results for all time series. Additionally, it is possible to analyze
+the output of DL and DL models using SHapley Additive exPlanations
+\[5\]. Each SHAP coefficient indicates how much the output of the model
+changes, given the current value of the corresponding feature. In
+DeepTSF’s implementation, the lags after the start of each sample are
+considered as the features of each model. Following that, a beeswarm
+plot is produced. In addition, a minimal bar graph is produced showing
+the average of the absolute value of the SHAP coefficients for each
+attribute. Finally, three force plot charts are produced, showing the
+exact value of its SHAP coefficients for a random sample. The above
+mentioned artifacts are accessible through the MLflow tracking UI.
+
+## Input format
+### Target series format 
+
 The format of the csv files DeepTSF can accept depends on the nature of the problem it is trying to solve. More specifically, in case of a single time series file, its format is:
 
 |Datetime | Value|
@@ -161,7 +242,7 @@ The following example files (for the main time series tested by DeepTSF - covari
 - multivariate_sample_series.csv contains a multivariate time series
 - multiple_and_multivariate_sample_series.csv contains multiple and multivariate time series.
 
-### Covariates format
+### Covariate series format
 In this section we are going to go into more detail about the format of the covariates that can be 
 provided to DeepTSF. 
 
@@ -184,7 +265,115 @@ Example files are provided for future covariates in the folder example_datasets.
 - future_covs_single.csv contains future covariates suitable for a single (with one or many components) timeseries
 - future_covs_multiple.csv contains future covariates suitable for a problem with 2 timeseries (for multiple_and_multivariate_sample_series.csv).
 
-### Parameters of the pipeline
+## DeepTSF main graphical user interface (UI)
+The DeepTSF UI runs by default at port 3000. However, this can be modified by the user. This interface allows for a completely codeless model training experience, as long as the input files respect the already described input csv file format (otherwise an error will be thrown while uploading the file). Several operations such as downsampling, outlier detection can be performed and then the user can split the dataset and perform model training by selecting the appropriate model and its respective hyperparameters. The results of the execution can be sought to the deployed MLflow server. A quick overview of the results can be also found in the experiment tracking dashboard of the front end application. Note that only purely autoregressive models can be built through the UI (with no external variables) contrary to the above described CLI. The following sub-sections describe the main functionalities of the DeepTSF front-end environment. More precisely, each page of the front-end application will be presented, along with a detailed description of the inputs and the outputs, as well as the overall functionalities it offers.
+
+### Sign-In and homepage
+The Sign-In page has been developed to provide the capability of logging into the dashboard, as illustrated below:
+
+<figure id="fig:signin">
+<img src="docs/figures/DeepTSF Sign-In.png" style="width:7cm" />
+</figure>
+
+After signing in, the homepage displays the main capabilities of the dashboard in head titles, as illustrated below:
+<figure id="fig:homepage">
+<img src="docs/figures/DeepTSF Homepage.png" style="width:15cm" />
+</figure>
+
+Visually, the homepage is separated in horizontal sections, one for each one of the UI’s main functionalities.
+
+### Codeless forecast
+
+This page enables the execution of an experiment, after uploading the
+desired dataset in csv format and configuring key parameters of the
+model pre-processing, training and model evaluation steps: 
+
+<figure id="fig:forecast">
+<img src="docs/figures/DeepTSF Forecast.png" style="width:15cm" />
+</figure>
+
+Note that the functionalities provided here are a subset of the operations allowed by the CLI. 
+More specifically, only a small part of the pipeline parameters can be set
+through the UI, while the model training can be executed for purely
+autoregressive setups without the inclusion of external covariates.
+
+In the "Dataset Configuration" section, the users can either upload
+their own files or choose among the already stored ones, before
+selecting the time series resolution and the dataset split that contains
+the start and end dates, which represent the dates defining the
+experiment execution. In the "Model Training Setup" section, the users
+can define the experiment name, choose between the available algorithms
+and choose between a set of hyperparameters that vary depending on the
+chosen algorithm. Finally, the users have to choose a forecast horizon
+for backtesting the model during evaluation. After filling all the
+required fields, the “EXECUTE” button becomes available. Upon clicking
+the button, an experiment with the entered configuration runs and the
+user is given the choice to navigate to the MLflow tracking UI to
+retrieve details about the execution.
+
+### Experiment tracking / evaluation
+
+This page enables a brief evaluation of the experiments’ results, by
+either their name or their id as illustrated below:
+
+<figure id="fig:experiment_forecasting">
+<img src="docs/figures/DeepTSF Experiment Tracking.png" style="width:15cm" />
+</figure>
+
+This page is mainly focused on users with limited modeling expertise and aims to offer them
+a brief high-level overview of the results without visiting the
+dedicated MLflow UI. After specifying the main evaluation metric and a
+number of evaluation samples, the users can press the "DETAILS ON
+MLFLOW" button, which navigates them to the MLflow instance, where they
+can access a number of comprehensive experiment details. Moreover, upon
+clicking the "LOAD METRICS", two charts are displayed on the bottom of
+the page, as demonstrated below:
+
+<figure id="fig:metrics">
+<img src="docs/figures/metrics.png" style="width:15cm" />
+</figure>
+
+<figure id="fig:actualvsforecast">
+<img src="docs/figures/forecastvsactual.png" style="width:15cm" />
+</figure>
+
+The first chart presents the model evaluation metrics of the specified
+experiment, while the second one offers a visual comparison of the
+actual and the forecasted load series. Note here that the actual vs
+forecast plot is only available for experiments / evaluation runs that
+exclusively contain univariate time series models.
+
+### System monitoring
+
+The system monitoring page presents a user interface that showcases
+real-time data pertaining to the overall memory, GPU, and CPU
+utilization of the deployed infrastructure, as illustrated below:
+
+<figure id="fig:system_monitoring">
+<img src="docs/figures/DeepTSF System Monitoring.png" style="width:15cm" />
+</figure>
+
+The displayed data are continually refreshed at a one-second interval. To prevent overloading
+the backend responsible for providing this information, the live
+demonstration is limited to one minute (60 reloads). This configuration
+ensures that extended periods of inactivity, such as leaving the tab
+open, do not strain the backend. As a result, each section includes a
+"Refresh Live Feed" button, enabling users to re-engage with the live
+monitoring if desired.
+
+## DeepTSF CLI (advanced users)
+
+The DeepTSF CLI is a direct way of handling and triggering the workflow stages easily, automating the argument passing process and linking the execution of each script in a sequential order, passing the proper arguments from one to another. The stages of the pipeline, along with the MLflow parameters that are related to each one are presented below. Note here that this extensive documentation only refers to the CLI usage and not the DeepTSF UI whose functionalities are more limited. 
+
+<figure id="fig:Experimentation_pipeline">
+<img src="docs/figures/Experimentation_pipeline.png" style="width:15cm" />
+</figure>
+
+### Data loading
+Firstly, the dataset is loaded from local or online sources. Currently Deep-TSF supports csv files of the schema that is discussed in section File format. In this context, the connectors that enable data ingestion vary depending on the use case and the schema of the respective data source and shall be engineered by the DeepTSF user. We provide an example of this connector, which works with MongoDB (function load_data_to_csv in load_raw_data.py for each use case). After that, validation is performed to ensure that the files provided by the user respect the required schema. The files are saved on the MLflow tracking server so that they are available for the data pre-processing stage.
+
+
+#### Parameters of the pipeline
 
 * ```from_database``` (default false), whether to read the dataset from the database (mongodb in our case), or from other sources. If this is true, it overrides all other options (series_csv, series_uri)
 
@@ -206,13 +395,11 @@ Example files are provided for future covariates in the folder example_datasets.
 
 * ```multiple``` (default false), whether the file used to extract the main series uses multiple file format. If true, the user could use multiple and / or multivariate series. This applies to the main time series. Covariates can be multivariate, but the number of time series must be the same as the main time series. The only exception to this is if we have multiple time series and a single past or future covariate. In this case, we consider this series to be the covariate to all the main time series.
 
-## Data pre-processing
-
-### Description of this step
+### Data pre-processing
 
 For each component of each time series, outlier detection is optionally conducted by removing values that differ more than an arbitrary number (defined by the user) of standard deviations from their monthly average, or that are zero in the case of a non-negative time series. Outliers are replaced by missing values. Subsequently, missing data may be imputed by using a weighted average of historical data and simple interpolation. This imputation method is analyzed below in more detail.
 
-### Imputation method
+#### Imputation method
 This method imputes the timeseries using a weighted average of historical data
 and simple interpolation. The weights of each method are exponentially dependent on the distance to the nearest non-NaN value. More specifically, with increasing distance, the weight of simple interpolation decreases, and the weight of the historical data increases. The imputation result is calculated based on the following formulas:  
 
@@ -245,7 +432,7 @@ from dates which are also before cut_date_val.
 
  The parameters of the pipeline associated with this method are presented below, along with all parameters of data pre-processing:
 
-### Parameters of the pipeline
+#### Parameters of the pipeline
 * ```resolution``` (mandatory), the resolution that all datasets will use. If this is not the resolution of a time series, then it is resampled to use that resolution. In case of single timeseries, all preprocessing is done in this resolution. In other words resampling is done before processing. In case of multiple timeseries however, the resolution is inferred from load_raw_data. All preprocessing is done using the inferred resolution and then afterwards resampling is performed. 
 
 * ```year_range``` (default None), the years to use from the datasets (inclusive). All values outside of those dates will be dropped. If none, this has no effect on the series.
@@ -283,15 +470,13 @@ It is the weight that shows how quickly simple interpolation's weight decreases 
 
 * ```resampling_agg_method```(default averaging), Method to use for resampling. Choice between averaging, summation and downsampling
 
-## Training and validation
-
-### Description of this step
+### Training and validation
 
 After the pre-processing stage, the data is scaled using min-max scaling, and is split into training, validation, and testing data sets. Then, the training of the model begins using only the training data set. The currently supported models are N-BEATS , Transformer, NHiTS, temporal convolutional networks, (block) recurrent neural networks, temporal fusion transformers, LightGBM, random forest, and seasonal naive. The latter can serve as an effective baseline depending on the seasonality of the time series.
 
  Hyperparameter optimization can be also triggered using the Optuna library. DeepTSF supports both exhaustive and Tree-Structured Parzen Estimator-based (TPE-based) hyperparameter search. The first method tests all possible combinations of the tested hyperparameters, while the second one uses probabilistic methods to explore the combinations that result to optimal values of the user-defined loss function. Ultimately, a method based on functional analysis of variance (fANOVA) and random forests, is used to calculate the importance of each hyperparameter during optimization. It is important to note that all trials of optuna are saved locally. So, if the run of the tool is interrupted, the pipeline can be restarted with the same parameters, and optuna will resume from the last successful trial. 
 
- ### Providing the model's parameters to DeepTSF
+ #### Providing the model's hyperparameters to DeepTSF
 
 The user can provide hyperparameters for the model they want to train using the YAML files config.yml if hyperparameter optimization is not performed, and config_opt.yml otherwise. More specifically, the entrypoint DeepTSF will try to find is set as a parameter of the pipeline (hyperparams_entrypoint), and that needs to also exist in the corresponding file. 
 
@@ -302,7 +487,7 @@ In config.yml's case, the entry point will look like this:
         parameter2: value2
         ...
 
-Where parameter and value are each model's hyperparameter, and its desired value respectively. All model parameters not specified by the user take their default values according to darts.
+Where parameter and value are each model's hyperparameter, and its desired value respectively. All model parameters not specified by the user take their default values according to Darts argument specifications.
 
 In config_opt.yml's case, the parameters of the model that the user doesn't want to test can be given as in config.yml. The parameters that have to be tested must have their values in a list format as follows:
 * Format ["range", start, end, step]: a list of hyperparameter values is considered ranging from value "start" till "end" with the step being defined by the last value of the list. 
@@ -315,12 +500,31 @@ hyperparams_entrypoint:
     parameter_list: ["list", value\_1, ..., value\_n]
     ...
  ```
-Finally, if the user wants, they can test whether to scale the data or not just by including the hyperparameter
+A more specific example of this case is the following:
+
+<figure id="fig:hyperparams">
+<div class="sourceCode" id="cb1" data-fontsize="\footnotesize"
+data-linenos="False" data-frame="lines" data-framesep="2mm"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">NBEATS_example</span><span class="kw">:</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">input_chunk_length</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="st">&quot;range&quot;</span><span class="kw">,</span><span class="at"> </span><span class="dv">48</span><span class="kw">,</span><span class="at"> </span><span class="dv">240</span><span class="kw">,</span><span class="at"> </span><span class="dv">24</span><span class="kw">]</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">output_chunk_length</span><span class="kw">:</span><span class="at"> </span><span class="dv">24</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">num_stacks</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="st">&quot;range&quot;</span><span class="kw">,</span><span class="at"> </span><span class="dv">1</span><span class="kw">,</span><span class="at"> </span><span class="dv">10</span><span class="kw">,</span><span class="at"> </span><span class="dv">1</span><span class="kw">]</span></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">num_blocks</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="st">&quot;range&quot;</span><span class="kw">,</span><span class="at"> </span><span class="dv">1</span><span class="kw">,</span><span class="at"> </span><span class="dv">10</span><span class="kw">,</span><span class="at"> </span><span class="dv">1</span><span class="kw">]</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">num_layers</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="st">&quot;range&quot;</span><span class="kw">,</span><span class="at"> </span><span class="dv">1</span><span class="kw">,</span><span class="at"> </span><span class="dv">5</span><span class="kw">,</span><span class="at"> </span><span class="dv">1</span><span class="kw">]</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">generic_architecture</span><span class="kw">:</span><span class="at"> </span><span class="ch">True</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">layer_widths</span><span class="kw">:</span><span class="at"> </span><span class="dv">64</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">expansion_coefficient_dim</span><span class="kw">:</span><span class="at"> </span><span class="dv">5</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">n_epochs</span><span class="kw">:</span><span class="at"> </span><span class="dv">300</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">random_state</span><span class="kw">:</span><span class="at"> </span><span class="dv">0</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">nr_epochs_val_period</span><span class="kw">:</span><span class="at"> </span><span class="dv">2</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a><span class="at">    </span><span class="fu">batch_size</span><span class="kw">:</span><span class="at"> </span><span class="kw">[</span><span class="st">&quot;list&quot;</span><span class="kw">,</span><span class="at"> </span><span class="dv">256</span><span class="kw">,</span><span class="at"> </span><span class="dv">512</span><span class="kw">,</span><span class="at"> </span><span class="dv">1024</span><span class="kw">,</span><span class="at"> </span><span class="dv">1280</span><span class="kw">,</span><span class="at"> </span><span class="dv">1536</span><span class="kw">,</span><span class="at"> </span><span class="dv">2048</span><span class="kw">]</span></span></code></pre></div>
+</figure>
+
+Finally, the user can set whether to scale or not the data by including the hyperparameter
 ```
 scale: ["list", "True", "False"]
 ``` 
-
-### Parameters of the pipeline
+#### Parameters of the pipeline
 
 * ```darts_model``` (mandatory), the base architecture of the model to be trained. The possible options are:
     * NBEATS
@@ -335,8 +539,8 @@ scale: ["list", "True", "False"]
     * Naive
 
 * ```hyperparams_entrypoint``` (mandatory), the entry point containing the desired hyperparameters for the selected model. The file that will be searched for the entrypoint will be config.yml if opt_test is false, and config_opt.yml otherwise. More info for the required file format above. This field can also be a string in a json-like format (smaller than 250 characters). More specifically, the examples described in the example section above, would be in the following format if given as strings:
- - "{parameter1: value1, parameter2: value2, ...}" if no parameters require hyperparameter tuning (opt_test=false)
- - "{parameter_not_to_be_tested: value1, parameter_range:  [range, start, end, step], parameter_list: [list, value\_1, ..., value\_n], ...}" if some parameters require hyperparameter tuning (opt_test=true)
+    * "{parameter1: value1, parameter2: value2, ...}" if no parameters require hyperparameter tuning (opt_test=false)
+    * "{parameter_not_to_be_tested: value1, parameter_range:  [range, start, end, step], parameter_list: [list, value\_1, ..., value\_n], ...}" if some parameters require hyperparameter tuning (opt_test=true)
 
 * ```cut_date_val``` (mandatory), the validation set start date (if cut_date_val=YYYYMMDD, then the validation set starts at YYYY-MM-DD 00:00:00). All values before that will be the training series. Format: str, 'YYYYMMDD'
 
@@ -371,9 +575,7 @@ scale: ["list", "True", "False"]
 
 * ```grid_search``` (default false), whether to run an exhaustive grid search (if true) or use the tpe method in optuna.
 
-## Evaluation and explanation
-
-### Description of this step
+### Evaluation and explanation
 
 Evaluation is performed through backtesting on the testing data set. Specifically, for each time series given to the function, it consecutively forecasts time series blocks of length equal to the forecast horizon of the model from the beginning until the end of the test set. This operation takes place by default with a stride equal to forecast horizon but can be changed by the user. 
 
@@ -381,7 +583,7 @@ Then, evaluation metrics are calculated using the resulting forecasted time seri
 
 Additionally, it is possible to analyze the output of DL and DL models using SHapley Additive exPlanations. Each SHAP coefficient indicates how much the output of the model changes, given the current value of the corresponding feature. In DeepTSF's implementation, the lags after the start of each sample are considered as the features of each model. Following that, a beeswarm plot is produced. In addition, a minimal bar graph is produced showing the average of the absolute value of the SHAP coefficients for each attribute. Finally, three force plot charts are produced, showing the exact value of its SHAP coefficients for a random sample. The above mentioned artifacts are accessible through the MLflow tracking UI.
 
-### Parameters of the pipeline
+#### Parameters of the pipeline
 
 * ```forecast_horizon``` (mandatory) the number of timesteps that the model being evaluated is going to predict in each step of backtesting.
 
@@ -405,11 +607,306 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 
 * ```num_samples``` (default 1), number of samples to use for evaluating/validating a probabilistic model's output
 
-## DeepTSF UI
-The DeepTSF UI runs by default at port 3000. However, this can be modified by the user. This interface allows for a completely codeless model training experience, as long as the input files respect the already described input csv file format (otherwise an error will be thrown while uploading the file). Several operations such as downsampling, outlier detection can be performed and then the user can split the dataset and perform model training by selecting the appropriate model and its respective hyperparameters. The results of the execution can be sought to the deployed MLflow server. A quick overview of the results can be also found in the experiment tracking dashboard of the front end application. Note that only purely autoregressive models can be built through the UI (with no external variables) contrary to the above described CLI. For more info, please have a look at the whitepaper [1]. 
+## DeepTSF workflow orchestrator (Dagster)
+Dagster acts as a workflow orchestration engine, where data processing and ML model training pipelines, are defined as jobs. Therefore, the execution of these jobs can be scheduled in fixed intervals, serving the needs of periodic training. This component interacts with the data source, extracting the data needed for the pipelines, as well as with the model registry, where the models are stored when training is completed. More specifically, the underlying workflow is wrapped within a Dagster job consisting of two ops. The first op includes the trigger mechanism, which is the same as the underlying mechanism of the CLI tool described earlier in this section, while the second op involves a post-execution step aimed at confirming that all previous MLflow runs have been properly logged in the MLflow server. The defined job can be executed with the same configuration options that CLI provides and demonstrated in section \ref{sec:3:CLI}. Configuration can be input by users through the Dagster web server's user interface. In addition, the defined job is accompanied by a schedule which enables the periodic execution of the pipeline in order to be in sync with the periodic update of the MongoDB loading the new smart meters data. Ultimately, Dagster provides a web user interface including, among others, information regarding the defined jobs and their runs, the defined schedules, the produced assets, as well as providing the ability to configure and execute these jobs. Note here that this component is still at an experimental stage and therefore has limited features.
+### Usage example
+In this section, an illustrative example of the usage of the workflow
+orchestrator (Dagster) within DeepTSF is provided. The demonstrated
+scenario is similar to the previous section with respect to workflow
+configuration options and therefore the latter are omitted.
+Instead, the steps that data scientists should follow to run the
+pipeline or set up scheduled executions using Dagster will be outlined.
+At first, to execute the pipeline, the user should navigate as follows:
 
-## DeepTSF advanced workflow orchestration (Dagster)
-Dagster acts as a workflow orchestration engine, where data processing and ML model training pipelines, are defined as jobs. Therefore, the execution of these jobs can be scheduled in fixed intervals, serving the needs of periodic training. More information on the usage of this component can be found in the whitepaper [1]. Note here that this component is still at an experimental stage and therefore has limited features.
+  1.  By selecting "Overview" and "Jobs" tabs yhe user is able to see the
+      defined job as well as its schedule.
+  
+  <figure id="fig:dagster_job">
+  <img src="docs/figures/dagster_execution_locate_job.png" style="width:20cm" />
+  </figure>
+  
+  2.  Enable the schedule, if needed, by using the toggle button or by
+      visiting "Schedule" tab.
+  
+  3.  Select the job from the list.
+  
+  4.  On the job’s page move to Launchpad tab.
+
+  <figure id="fig:dagster_launch">
+  <img src="docs/figures/dagster_launchpad.png" style="width:20cm" />
+  </figure>
+    
+  5.  Pass the appropriate configuration option and select "Launch Run".
+
+<br/><br/>
+To visualize the history of runs and their logs the user needs to:
+
+  1.  Visit "Runs" tab, accessible from the UI’s navigation bar, where users can preview
+    the different runs.
+    
+  <figure id="fig:dagster_runs_history">
+  <img src="docs/figures/dagster_runs_history.png" style="width:20cm" />
+  </figure>
+
+  2.  Use the "View Run" button to see the details of a specific run.
+
+  <figure id="fig:dagster_logs">
+  <img src="docs/figures/dagster_logs.png" style="width:20cm" />
+  </figure>
+
+  3.  Inspect the logs of the execution.
+
+Note here that the Dagster UI, allows the user to trigger experiments
+with more advanced options compared to the DeepTSF UI, providing access
+to most of the functionalities of the CLI. Currently, to feed their
+datasets of preference, users are prompted to add their properly
+formatted files in the directory uc2/user_datasets so that the
+application can have direct access to them, bypassing the uploading
+procedure. Also, the full range of hyperparameters can be given to the
+model as a JSON string.
+
+## Appendix: MLproject file example
+
+The MLproject file describes the way the ML pipeline is executed. It is
+in YAML format, and it defines the name of the MLflow project (in this
+case DeepTSF_workflow), the file to use to build the environment the
+user desires to work with (in this case conda.yaml), and the entry
+points of our project.
+
+Each entry point corresponds to a specific stage of the pipeline
+describing the respective python command alongside its parameters. In
+this case, each entry point runs the main python file for the stage it
+corresponds to, and passes the parameters to the file using the Click
+library . The file is shown below:
+
+``` yaml
+name: DeepTSF_workflow
+
+conda_env: ../conda.yaml
+
+entry_points:
+
+  load_raw_data:
+    parameters:
+      series_csv: {type: str, default: None}
+      series_uri: {type: str, default: None}
+      past_covs_csv: {type: str, default: None}
+      past_covs_uri: {type: str, default: None}
+      future_covs_csv: {type: str, default: None}
+      future_covs_uri: {type: str, default: None}
+      day_first: {type: str, default: "true"}
+      multiple: {type: str, default: "false"}
+      resolution: {type: str, default: None}
+      from_database: {type: str, default: "false"}
+      database_name: {type: str, default: "rdn_load_data"}
+
+    command: |
+      python load_raw_data.py --series-csv {series_csv} --series-uri {series_uri} --day-first {day_first} --multiple {multiple} --resolution {resolution} --from-database {from_database} --database-name {database_name} --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} 
+
+
+  etl:
+    parameters:
+      series_csv: {type: str, default: None}
+      series_uri: {type: str, default: None}
+      resolution: {type: str, default: None}
+      year_range: {type: str, default: None}
+      time_covs: {type: str, default: "false"}
+      day_first: {type: str, default: "true"}
+      country: {type: str, default: "PT"}
+      std_dev: {type: str, default: 4.5}
+      max_thr: {type: str, default: -1}
+      a: {type: str, default: 0.3}
+      wncutoff: {type: str, default: 0.000694}
+      ycutoff: {type: str, default: 3}
+      ydcutoff: {type: str, default: 30}
+      multiple: {type: str, default: "false"}
+      l_interpolation: {type: str, default : "false"}
+      rmv_outliers: {type: str, default: "true"}
+      convert_to_local_tz: {type: str, default: "true"}
+      ts_used_id: {type: str, default: None}
+      infered_resolution_series: {type: str, default: "15"}
+      min_non_nan_interval: {type: str, default: "24"}
+      cut_date_val: {type: str, default: None}
+      infered_resolution_past: {type: str, default: "15"} 
+      past_covs_csv: {type: str, default: None} 
+      past_covs_uri: {type: str, default: None}
+      infered_resolution_future: {type: str, default: "15"} 
+      future_covs_csv: {type: str, default: None} 
+      future_covs_uri: {type: str, default: None}
+      resampling_agg_method: {type: str, default: "averaging"}
+    command: |
+      python etl.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --multiple {multiple} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --convert-to-local-tz {convert_to_local_tz} --ts-used-id {ts_used_id} --infered-resolution-series {infered_resolution_series} --min-non-nan-interval {min_non_nan_interval} --cut-date-val {cut_date_val} --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --infered-resolution-past {infered_resolution_past}  --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --infered-resolution-future {infered_resolution_future} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --resampling-agg-method {resampling_agg_method}
+
+  train:
+    parameters:
+      series_csv: {type: str, default: None}
+      series_uri: {type: str, default: None}
+      future_covs_csv: {type: str, default: None}
+      future_covs_uri: {type: str, default: None}
+      past_covs_csv: {type: str, default: None}
+      past_covs_uri: {type: str, default: None}
+      cut_date_val: {type: str, default: None}
+      cut_date_test: {type: str, default: None}
+      test_end_date: {type: str, default: None}
+      darts_model: {type: str, default: None}
+      device: {type: str, default: gpu}
+      hyperparams_entrypoint: {type: str, default: None}
+      scale: {type: str, default: "true"}
+      scale_covs: {type: str, default: "true"}
+      multiple: {type: str, default: "false"}
+      training_dict: {type: str, default: None}
+      num_workers: {type: str, default: 4}
+      day_first: {type: str, default: "true"}
+      resolution: {type: str, default: None}
+
+    command: |
+      python ../training.py --series-csv {series_csv} --series-uri {series_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --past-covs-csv {past_covs_csv}  --past-covs-uri {past_covs_uri} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --training-dict {training_dict} --cut-date-val {cut_date_val} --num-workers {num_workers} --day-first {day_first} --resolution {resolution}
+
+  eval:
+    parameters:
+      mode: {type: str, default: remote}
+      series_uri: {type: str, default: None}
+      future_covs_uri: {type: str, default: None}
+      past_covs_uri: {type: str, default: None}
+      scaler_uri: {type: str, default: None}
+      cut_date_test: {type: str, default: None}
+      test_end_date: {type: str, default: None}
+      model_uri: {type: str, default: None}
+      model_type: {type: str, default: pl}
+      forecast_horizon: {type: str, default: None}
+      stride: {type: str, default: None}
+      retrain: {type: str, default: "false"}
+      shap_input_length: {type: str, default: None}
+      shap_output_length: {type: str, default: None}
+      size: {type: str, default: 10}
+      analyze_with_shap: {type: str, default: "false"}
+      multiple: {type: str, default: "false"}
+      eval_series: {type: str, default: None}
+      cut_date_val: {type: str, default: None}
+      day_first: {type: str, default: "true"}
+      resolution: {type: str, default: None}
+      eval_method: {type: str, default: "ts_ID"}
+      evaluate_all_ts: {type: str, default: "false"}
+      m_mase: {type: str, default: "1"}
+      num_samples: {type: str, default: "1"}
+
+    command: |
+      python ../evaluate_forecasts.py --mode {mode} --series-uri {series_uri} --future-covs-uri {future_covs_uri} --model-type {model_type} --past-covs-uri {past_covs_uri} --scaler-uri {scaler_uri} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --model-uri {model_uri} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --shap-input-length {shap_input_length} --shap-output-length {shap_output_length} --size {size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-series {eval_series} --cut-date-val {cut_date_val} --day-first {day_first} --resolution {resolution} --eval-method {eval_method} --evaluate-all-ts {evaluate_all_ts} --m-mase {m_mase} --num-samples {num_samples}
+
+
+  optuna_search:
+    parameters:
+      series_csv: {type: str, default: None}
+      series_uri: {type: str, default: None}
+      future_covs_csv: {type: str, default: None}
+      future_covs_uri: {type: str, default: None}
+      past_covs_csv: {type: str, default: None}
+      past_covs_uri: {type: str, default: None}
+      resolution: {type: str, default: None}
+      year_range: {type: str, default: None}
+      darts_model: {type: str, default: None}
+      hyperparams_entrypoint: {type: str, default: None}
+      cut_date_val: {type: str, default: None}
+      cut_date_test: {type: str, default: None}
+      test_end_date: {type: str, default: None}
+      device: {type: str, default: gpu}
+      forecast_horizon: {type: str, default: None}
+      stride: {type: str, default: None}
+      retrain: {type: str, default: false}
+      scale: {type: str, default: "true"}
+      scale_covs: {type: str, default: "true"}
+      multiple: {type: str, default: "false"}
+      eval_series: {type: str, default: None}
+      n_trials: {type: str, default: 100}
+      num_workers: {type: str, default: 4}
+      day_first: {type: str, default: "true"}
+      eval_method: {type: str, default: "ts_ID"}
+      loss_function: {type: str, default: "mape"}
+      evaluate_all_ts: {type: str, default: "false"}
+      grid_search: {type: str, default: "false"}
+      num_samples: {type: str, default: "1"}
+
+    command: |
+      python ../optuna_search.py --series-csv {series_csv} --series-uri {series_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --past-covs-csv {past_covs_csv}  --past-covs-uri {past_covs_uri} --resolution {resolution} --year-range {year_range} --darts-model {darts_model} --hyperparams-entrypoint {hyperparams_entrypoint} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --device {device} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --scale {scale} --scale-covs {scale_covs} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --num-workers {num_workers} --day-first {day_first} --eval-method {eval_method} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --grid-search {grid_search} --num-samples {num_samples}
+
+
+
+  exp_pipeline:
+    parameters:
+      series_csv: {type: str, default: None}
+      series_uri: {type: str, default: None}
+      past_covs_csv: {type: str, default: None}
+      past_covs_uri: {type: str, default: None}
+      future_covs_csv: {type: str, default: None}
+      future_covs_uri: {type: str, default: None}
+      resolution: {type: str, default: None}
+      year_range: {type: str, default: None}
+      time_covs: {type: str, default: "false"}
+      hyperparams_entrypoint: {type: str, default: None}
+      cut_date_val: {type: str, default: None}
+      cut_date_test: {type: str, default: None}
+      test_end_date: {type: str, default: None}
+      darts_model: {type: str, default: None}
+      device: {type: str, default: gpu}
+      forecast_horizon: {type: str, default: None}
+      stride: {type: str, default: None}
+      retrain: {type: str, default: false}
+      ignore_previous_runs: {type: str, default: "true"}
+      scale: {type: str, default: "true"}
+      scale_covs: {type: str, default: "true"}
+      day_first: {type: str, default: "true"}
+      country: {type: str, default: "PT"}
+      std_dev: {type: str, default: 4.5}
+      max_thr: {type: str, default: -1}
+      a: {type: str, default: 0.3}
+      wncutoff: {type: str, default: 0.000694}
+      ycutoff: {type: str, default: 3}
+      ydcutoff: {type: str, default: 30}
+      shap_data_size: {type: str, default: 100}
+      analyze_with_shap: {type: str, default: false}
+      multiple: {type: str, default: "false"}
+      eval_series: {type: str, default: None}
+      n_trials: {type: str, default: 100}
+      opt_test: {type: str, default: "false"}
+      from_database: {type: str, default: "false"}
+      database_name: {type: str, default: "rdn_load_data"}
+      num_workers: {type: str, default: 4}
+      eval_method: {type: str, default: "ts_ID"}
+      l_interpolation: {type: str, default : "false"}
+      rmv_outliers: {type: str, default: "true"}
+      loss_function: {type: str, default: "mape"}
+      evaluate_all_ts: {type: str, default: "false"}
+      convert_to_local_tz: {type: str, default: "true"}
+      grid_search: {type: str, default: "false"}
+      shap_input_length: {type: str, default: None}
+      ts_used_id: {type: str, default: None}
+      m_mase: {type: str, default: "1"}
+      min_non_nan_interval: {type: str, default: "24"}
+      num_samples: {type: str, default: "1"}
+      resampling_agg_method: {type: str, default: "averaging"}
+
+    command: |
+      python ../experimentation_pipeline.py --series-csv {series_csv} --series-uri {series_uri} --resolution {resolution} --year-range {year_range} --time-covs {time_covs} --cut-date-val {cut_date_val} --cut-date-test {cut_date_test} --test-end-date {test_end_date} --darts-model {darts_model} --device {device} --hyperparams-entrypoint {hyperparams_entrypoint} --forecast-horizon {forecast_horizon} --stride {stride} --retrain {retrain} --ignore-previous-runs {ignore_previous_runs} --scale {scale} --scale-covs {scale_covs} --day-first {day_first} --country {country} --std-dev {std_dev} --max-thr {max_thr} --a {a} --wncutoff {wncutoff} --ycutoff {ycutoff} --ydcutoff {ydcutoff} --shap-data-size {shap_data_size} --analyze-with-shap {analyze_with_shap} --multiple {multiple} --eval-series {eval_series} --n-trials {n_trials} --opt-test {opt_test} --from-database {from_database} --database-name {database_name} --num-workers {num_workers} --eval-method {eval_method} --l-interpolation {l_interpolation} --rmv-outliers {rmv_outliers} --loss-function {loss_function} --evaluate-all-ts {evaluate_all_ts} --convert-to-local-tz {convert_to_local_tz} --grid-search {grid_search} --shap-input-length {shap_input_length} --ts-used-id {ts_used_id} --m-mase {m_mase} --min-non-nan-interval {min_non_nan_interval} --past-covs-csv {past_covs_csv} --past-covs-uri {past_covs_uri} --future-covs-csv {future_covs_csv} --future-covs-uri {future_covs_uri} --num-samples {num_samples} --resampling-agg-method {resampling_agg_method}
+
+
+  inference:
+    parameters:
+      pyfunc_model_folder: {type: str, default: s3://mlflow-bucket/2/33d85746285c42a7b3ef403eb2f5c95f/artifacts/pyfunc_model}
+      forecast_horizon:  {type: str, default: None}
+      series_uri: {type: str, default: None}
+      past_covariates_uri: {type: str, default: None}
+      future_covariates_uri: {type: str, default: None}
+      roll_size: {type: str, default: 96}
+      batch_size:  {type: str, default: 1}
+
+    command: |
+      python ../inference.py --pyfunc-model-folder {pyfunc_model_folder} --forecast-horizon {forecast_horizon} --series-uri {series_uri} --past-covariates-uri {past_covariates_uri} --future-covariates-uri {future_covariates_uri} --roll-size {roll_size} --batch-size {batch_size}
+      
+```
 
 ## References
 [1]: Pelekis, S., Karakolis, E., Pountridis, T., Kormpakis, G., Lampropoulos, G., Mouzakits, S., & Askounis, D. (2023). DeepTSF: Codeless machine learning operations for time series forecasting. ArXiv https://arxiv.org/abs/2308.00709
+[2]: Peppanen, J., Zhang, X., Grijalva, S., & Reno, M. J. (2016). Handling bad or missing smart meter data through advanced data imputation. 2016 IEEE Power and Energy Society Innovative Smart Grid Technologies Conference, ISGT 2016. https://doi.org/10.1109/ISGT.2016.7781213
+[3]: Bergstra, J., Bardenet, R., Bengio, Y., & Kégl, B. (2011). Algorithms for Hyper-Parameter Optimization. Advances in Neural Information Processing Systems, 24. https://doi.org/https://dl.acm.org/doi/10.5555/2986459.2986743
+[4]: Hutter, F., Hoos, H., & Leyton-Brown, K. (2014). An Efficient Approach for Assessing Hyperparameter Importance. In E. P. Xing & T. Jebara (Eds.), Proceedings of the 31st International Conference on Machine Learning (Vol. 32, Issue 1, pp. 754–762). PMLR.
+[5]: Lundberg, S. M., & Lee, S.-I. (2017). A Unified Approach to Interpreting Model Predictions. In I. Guyon, U. von Luxburg, S. Bengio, H. Wallach, R. Fergus, S. Vishwanathan, & R. Garnett (Eds.), Advances in Neural Information Processing Systems (Vol. 30). Curran Associates, Inc. https://proceedings.neurips.cc/paper_files/paper/2017/file/8a20a8621978632d76c43dfd28b67767-Paper.pdf
