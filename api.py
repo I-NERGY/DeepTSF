@@ -18,9 +18,24 @@ from dotenv import load_dotenv
 from fastapi import APIRouter
 from app.auth import admin_validator, scientist_validator, engineer_validator, common_validator, oauth2_scheme
 from app.config import settings
+import pymongo
+from pymongo import MongoClient
+import datetime
+from typing import Tuple
+from math import nan
+import bson
 
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
+user = os.environ.get('MONGO_USER')
+password = os.environ.get('MONGO_PASS')
+address = os.environ.get('MONGO_ADDRESS')
+database = os.environ.get('MONGO_DB_NAME')
+mongo_collection_uc7 = os.environ.get('MONGO_COLLECTION_UC7')
+mongo_collection_uc2 = os.environ.get('MONGO_COLLECTION_UC2')
+mongo_collection_uc6 = os.environ.get('MONGO_COLLECTION_UC6')
+mongo_url = f"mongodb://{user}:{password}@{address}"
+
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 
@@ -33,14 +48,9 @@ tags_metadata = [
     {"name": "Experimentation Pipeline", "description": "REST APIs for setting up and running the experimentation pipeline"},
     {"name": "Model Evaluation", "description": "REST APIs for retrieving model evaluation results"},
     {"name": "System Monitoring", "description": "REST APIs for monitoring the host machine of the API"},
+    {"name": "MongoDB integration", "description": "REST APIs for retrieving datastes from the I-NERGY MongoDB"},
 ]
 
-# metrics = [
-#     {"metric_name": "mape", "search_term": "mape"},
-#     {"metric_name": "mase", "search_term": "mase"},
-#     {"metric_name": "mae", "search_term": "mae"},
-#     {"metric_name": "rmse", "search_term": "rmse"},
-#     {"metric_name": "smape", "search_term": "smape"}]
 metrics = [
     {"metric_name": "mape", "search_term": "mape"},
     {"metric_name": "mase", "search_term": "mase"},
@@ -246,9 +256,38 @@ async def get_metric_names():
     return metrics
 
 
+def csv_validator(fname: str, day_first: bool, multiple: bool):
+
+    fileExtension = fname.split(".")[-1].lower() == "csv"
+    if not fileExtension:
+        print("Unsupported file type provided. Please upload CSV file")
+        raise HTTPException(status_code=415, detail="Unsupported file type provided. Please upload CSV file")
+    try:
+        ts, resolution_minutes = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple)
+    except WrongColumnNames:
+        print("There was an error validating the file. Please reupload CSV with correct column names")
+        raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with correct column names")
+    except DatetimesNotInOrder:
+        print("There was an error validating the file. Datetimes are not in order")
+        raise HTTPException(status_code=415, detail="There was an error validating the file. Datetimes are not in order")
+
+    if resolution_minutes < 1 and resolution_minutes > 3600:
+       print("Dataset resolution should be between 1 and 180 minutes")
+       raise HTTPException(status_code=415, detail="Dataset resolution should be between 1 and 180 minutes")
+       # return {"message": "Dataset resolution should be between 1 and 180 minutes"}
+
+    resolutions = []
+    for m in range(1, 3601):
+        if resolution_minutes == m:
+            resolutions = [{"value": str(resolution_minutes), "default": True}]
+        if resolution_minutes < m and m % resolution_minutes == 0: 
+            resolutions.append({k: v for (k,v) in zip(["value", "default"],[str(m), False])})
+    return ts, resolutions
+
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
 async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True), multiple: bool = Form(default=False)):
-    # Loading
+    
+    # Store uploaded dataset to backend
     print("Uploading file...")
     try:
         # write locally
@@ -264,36 +303,361 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
         await file.close()
 
     # Validation
-    print("Validating file...")
-    fileExtension = fname.split(".")[-1].lower() == "csv"
-    if not fileExtension:
-        raise HTTPException(
-            status_code=415, detail="Unsupported file type provided. Please upload CSV file")
-    try:
-        ts, resolution_minutes = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple)
-    except WrongColumnNames:
-        raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with 2 columns with names: 'Datetime', 'Value'")
-    except DatetimesNotInOrder:
-        raise HTTPException(status_code=415, detail="There was an error validating the file. Datetimes are not in order")
-
-    if resolution_minutes < 1 and resolution_minutes > 3600:
-       raise HTTPException(status_code=415, detail="Dataset resolution should be between 1 and 180 minutes")
-       # return {"message": "Dataset resolution should be between 1 and 180 minutes"}
-
-    resolutions = []
-    for m in range(1, 3601):
-        if resolution_minutes == m:
-            resolutions = [{"value": str(resolution_minutes), "default": True}]
-        if resolution_minutes < m and m % resolution_minutes == 0: 
-            resolutions.append({k: v for (k,v) in zip(["value", "default"],[str(m), False])})
+    print("Validating file...") 
+    ts, resolutions = csv_validator(fname, day_first, multiple)
 
     return {"message": "Validation successful",
             "fname": fname,
-            "dataset_start": datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
-            "allowed_validation_start": datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
-            "dataset_end": datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
+            "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
+            "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
+            "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
             "allowed_resolutions": resolutions
             }
+
+def store_df_to_csv(df, csv_name, index):
+    local_dir = tempfile.mkdtemp()
+    fname = f'{local_dir}/{csv_name}'
+    df.to_csv(fname, index=index)
+    return fname
+
+def unfold_timeseries(lds):
+    """
+    Function that turns mongo data to dictionary form
+
+    Parameters
+    ----------
+    lds
+        pymongo.cursor.Cursor object that contaions the timeseries data
+    Returns
+    -------
+    (dict)
+        A dictionary that contaions the timeseries data
+    """
+    new_loads = {'Datetime': [], "Value": []}
+    prev_date = ''
+    for l in reversed(list(lds)):
+        if prev_date != l['date']:
+            for key in l:
+                if key != '_id' and key != 'date':
+                    new_date = l['date'] + ' ' + key
+                    new_loads['Datetime'].append(new_date)
+                    new_loads["Value"].append(l[key])
+        prev_date = l['date']
+    #print("outp", new_loads)
+    return new_loads
+
+@scientist_router.get('/db_integration/retrieve_dataset/uc2', tags=['MongoDB integration'])
+async def retrieve_uc2_dataset():
+    # Connect to DB and get file
+    print("Connecting to DB to retrieve dataset...")
+    # TODO: missing exception here
+    client = MongoClient(mongo_url)
+    db = client[database]
+    # Get collection and store to dataframe
+    collection = db[mongo_collection_uc2]
+    df = unfold_timeseries(collection.find().sort('_id', -1))
+    df = pd.DataFrame.from_dict(df)
+    # Store dataset as csv in backend
+    print("Storing dataset to DeepTSF backend...")
+    fname = store_df_to_csv(df, 'uc2.csv', index=False)
+    print(fname)
+    # Close connection to DB
+    print("Closing connection to DB...")
+    client.close()
+    # Validate_csv
+    multiple = False
+    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple)
+    return {"message": "Validation successful",
+        "fname": fname,
+        "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
+        "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
+        "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
+        "allowed_resolutions": resolutions
+        }
+'''
+run experimentation pipeline body example (series_csv is returned from retrive_dataset/uc2 endpoint):
+{
+        "experiment_name": "uc2",
+        "rmv_outliers": true,
+        "multiple": false,
+        "series_csv": "/tmp/tmpxebh4mdj/uc2.csv", 
+        "resolution": "15",
+        "resampling_agg_method": "averaging",
+        "validation_start_date": "20220101",
+        "test_start_date": "20220201",
+        "test_end_date": "20220301",
+        "model": "LightGBM",
+        "forecast_horizon": "96",
+        "hyperparams_entrypoint": "{lags: 24}",
+        "ts_used_id": "null",
+        "eval_method": "ts_ID",
+        "ignore_previous_runs": true,
+        "l_interpolation": true,
+        "evaluate_all_ts": true
+}
+New handled arguments:
+- series_csv: returned from retrieve_dataset/uc2 endpoint
+- ts_used_id: "null"
+- eval_method: "ts_ID"
+'''
+@scientist_router.get('/db_integration/retrieve_dataset/uc6', tags=['MongoDB integration'])
+async def retrieve_uc6_dataset():
+    # Connect to DB and get file
+    print("Connecting to DB to retrieve dataset...")
+    # TODO: missing exception here
+    client = MongoClient(mongo_url)
+    db = client[database]
+    # Get collection and store to dataframe
+    collection = db[mongo_collection_uc6]
+    df = pd.DataFrame(collection.find()).drop(columns={'_id', ''}, errors='ignore')
+    df["ID"] = df["id"] + " " + df["power_type"]
+    cols_to_drop = {'date', 'id', 'power_type'}
+    df["Date"] = df["date"]
+    df["Timeseries ID"] = df["ID"]
+    df = df.drop_duplicates(subset=["Date", "ID"]).\
+            sort_values(by=["Date", "ID"], ignore_index=True).\
+            drop(columns=cols_to_drop)
+    # Store dataset as csv in backend
+    print("Storing dataset to DeepTSF backend...")
+    fname = store_df_to_csv(df, 'uc6.csv', index=True)
+    print(fname)
+    # Close connection to DB
+    print("Closing connection to DB...")
+    client.close()
+    # Validate_csv
+    multiple = True
+    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple)
+    return {"message": "Validation successful",
+        "fname": fname,
+        "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
+        "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
+        "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
+        "allowed_resolutions": resolutions
+        }
+'''
+run experimentation pipeline body example :
+{
+        "experiment_name": "uc6",
+        "rmv_outliers": true,
+        "multiple": true,
+        "series_csv": "/tmp/tmpsxph8ydb/uc6.csv",
+        "resolution": "5",
+        "resampling_agg_method": "averaging",
+        "validation_start_date": "20220101",
+        "test_start_date": "20220201",
+        "test_end_date": "20220301",
+        "model": "LightGBM",
+        "forecast_horizon": "24",
+        "hyperparams_entrypoint": "{lags: 24}",
+        "ts_used_id": "W6 positive_active",
+        "eval_method": "ts_ID",
+        "ignore_previous_runs": true,
+        "l_interpolation": true,
+        "evaluate_all_ts": true
+}
+New handled arguments:
+- series_csv: returned from retrieve_dataset/uc6 endpoint
+- ts_used_id: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active'
+- eval_method: "ts_ID"
+'''
+
+class SmartMetersProcessor:
+    PRODUCTION_TAG_NAME = '2_8_0'
+    CONSUMPTION_TAG_NAME = '1_8_0'
+    TIME_INTERVALS = {
+        '30': [f"{hour:02d}:{minute:02d}:00" for hour in range(24) for minute in range(0, 60, 30)],
+        '60': [f"{hour:02d}:{minute:02d}:00" for hour in range(24) for minute in range(0, 60, 60)],
+    }
+    RESAMPLING_FREQS = {
+        '30': '30T',
+        '60': '1H',
+    }
+
+    DEEP_TSF_COLUMN_MAPPER = {
+        'device_id': 'Timeseries ID',
+        'tag_name': 'ID',
+        'date': 'Date',
+    }
+
+    def __init__(self, specs_df: pd.DataFrame, resolution: int = 60):
+        self.specs_df = specs_df
+        self.DEFAULT_TIME_INTERVALS = self.TIME_INTERVALS[str(resolution)]
+        self.DEFAULT_RESAMPLING_FREQ = self.RESAMPLING_FREQS[str(resolution)]
+
+    def retrieve_specs(self, device_id: str) -> Tuple[bool, float, bool, float]:
+        try:
+            smart_meter_specs = self.specs_df.loc[(self.specs_df['id'] == device_id)].iloc[0].to_dict()
+            production_max = smart_meter_specs['Production (kW)']
+            consumption_max = smart_meter_specs['Contractual power (kW)']
+            return production_max >= 0, production_max, consumption_max >= 0, consumption_max
+        except IndexError:
+            # iloc[0] index error when smart meter is missing from csv with specs.
+            print(f'Smart meter {device_id} does not exist in contract')
+            return False, nan, False, nan
+
+    @staticmethod
+    def remove_outliers(sm_df: pd.DataFrame, max_value: float, contract_exists: bool) -> None:
+        min_value = 0
+        max_value = max_value if contract_exists else 200
+        if contract_exists and max_value == 0:
+            sm_df['value'] = nan
+        else:
+            sm_df.loc[(sm_df['value'] < min_value) | (sm_df['value'] > max_value), 'value'] = nan
+
+    @staticmethod
+    def apply_naming_convention(smart_meter_name: str) -> str:
+        # Fix missing B in smart meters name
+        if smart_meter_name.startswith('BB'):
+            if not smart_meter_name.startswith('BBB'):
+                smart_meter_name = 'B' + smart_meter_name
+        else:
+            raise Exception(f'Smart meter {smart_meter_name} does not follow the BBB naming convention')
+        return smart_meter_name
+
+    def smart_meters_load_forecasting_processing(self, data_cursor: pymongo.cursor,
+                                                 output_file_path: str) -> bson.objectid.ObjectId:
+        # create time intervals columns
+        columns = [self.DEEP_TSF_COLUMN_MAPPER["device_id"], self.DEEP_TSF_COLUMN_MAPPER["tag_name"],
+                   self.DEEP_TSF_COLUMN_MAPPER["date"]] + self.DEFAULT_TIME_INTERVALS
+
+        if not os.path.exists(output_file_path):
+            headers_df = pd.DataFrame(columns=columns)
+            headers_df.to_csv(output_file_path, mode='a', index=False)
+
+        last_document_id = None
+        for doc in data_cursor:
+            last_document_id = doc['_id']
+            smart_meter = self.apply_naming_convention(doc["device_id"])  # smart meter id
+            # fetch smart meters specs
+            supports_prod, prod_max, supports_cons, cons_max = self.retrieve_specs(device_id=smart_meter)
+            date = doc["date"]  # date of measurements
+            doc_df = pd.DataFrame(doc["meter"])  # time series data
+            doc_df["datetime"] = pd.to_datetime(date + ' ' + doc_df["time"])  # add column datetime
+            # drop time, quality, quality_detail, opc_quality columns
+            doc_df.drop(columns=['time', 'quality', 'quality_detail', 'opc_quality'], axis=1, inplace=True)
+            # group data by tag name to resample properly, remember that data at this point refers to a single smart meter and a single day
+            grouped = doc_df.groupby('tag_name')
+            # initialise empty DataFrame
+            resampled_df = pd.DataFrame()
+
+            for tag_name, group_data in grouped:
+                # resample data within the tag_name group in 30 minutes intervals
+                resampled_group = group_data.resample(self.DEFAULT_RESAMPLING_FREQ, on='datetime', closed='left',
+                                                      label='left').agg({'value': 'mean'})
+
+                # create a full day index
+                full_day_date_range = pd.date_range(start=(date + ' ' + '00:00:00'), end=(date + ' ' + '23:59:59'),
+                                                    freq=self.DEFAULT_RESAMPLING_FREQ)
+                # reindex to expand to full day, even with NaNs
+                resampled_group = resampled_group.reindex(full_day_date_range)
+                resampled_group.reset_index(inplace=True)
+
+                resampled_group["device_id"] = smart_meter  # add smart_meter id to data
+                resampled_group["tag_name"] = tag_name  # add tag_name in data
+                resampled_group["date"] = date  # add date in data
+                resampled_group.rename(columns={'index': 'datetime'}, inplace=True)
+
+                # remove outliers based on contractual power and production
+                # in place operation
+                if self.PRODUCTION_TAG_NAME in tag_name:
+                    self.remove_outliers(sm_df=resampled_group, max_value=prod_max, contract_exists=supports_prod)
+                elif self.CONSUMPTION_TAG_NAME in tag_name:
+                    self.remove_outliers(sm_df=resampled_group, max_value=cons_max, contract_exists=supports_cons)
+                # Pivot the DataFrame
+                pivoted_df = resampled_group.pivot(index=['device_id', 'tag_name', 'date'], columns='datetime',
+                                                   values='value')
+                pivoted_df.columns = pivoted_df.columns.strftime('%H:%M:%S')
+
+                # Concatenate the resampled group with the overall resampled DataFrame
+                resampled_df = pd.concat([resampled_df, pivoted_df])
+
+            # append data to monthly record
+            resampled_df = resampled_df.reset_index()
+            resampled_df.to_csv(output_file_path, mode='a', header=False, index=False)
+        return last_document_id
+    
+@scientist_router.get('/db_integration/retrieve_dataset/uc7/{resolution}/{start_date}_{end_date}', tags=['MongoDB integration'])
+async def retrieve_uc7_dataset(resolution: int, start_date:str, end_date: str):
+
+    collection = os.environ.get('MONGO_COLLECTION_UC7')
+
+    # Connect to DB and get file
+    print("Connecting to DB to retrieve dataset...")
+    # TODO: missing exception here
+    client = MongoClient(mongo_url)
+    db = client[database]
+    # Get collection and store to dataframe
+    collection = db[mongo_collection_uc7]
+
+    sm_specs_df = pd.read_csv(
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs/example_files/smart_meter_description.csv"))
+
+    smart_meters_processor = SmartMetersProcessor(
+        specs_df=sm_specs_df,
+        resolution=resolution
+    )
+
+    # output_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'archive{start_date}_{end_date}.csv')
+    local_dir = tempfile.mkdtemp()
+    output_file_path = os.path.join(local_dir, f'archive_{start_date}_{end_date}.csv')
+    
+    try:
+        start_date = datetime.datetime.strptime(start_date, "%Y%m%d")
+        end_date = datetime.datetime.strptime(end_date, "%Y%m%d")
+
+        query = {"date": {"$gte": start_date.strftime("%Y-%m-%d"), "$lte": end_date.strftime("%Y-%m-%d")}}
+        # batch_size
+        batch_size = 150
+        last_id = None
+        while True:
+            # used as equivalent to skip option
+            if last_id:
+                query["_id"] = {"$gt": last_id}
+
+            # query the collection
+            batch = collection.find(query).limit(batch_size)
+
+            if not batch.alive:
+                break
+            # process batch
+            last_object_id = smart_meters_processor.smart_meters_load_forecasting_processing(
+                data_cursor=batch,
+                output_file_path=output_file_path
+            )
+            if last_object_id is None:
+                break
+
+            # Update last_id for the next iteration
+            last_id = last_object_id
+
+        # drop duplicates and reorder
+        df = pd.read_csv(output_file_path)
+        df.drop_duplicates(inplace=True)
+        df = df.sort_values(by=['Date', 'Timeseries ID'], ascending=[True, True]).reset_index(drop=True)
+        df.to_csv(output_file_path, index=False)
+        print(f'\nOutput csv path: {output_file_path}\n')
+
+
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Error parsing dates. "
+                   "The appropriate date format is: YYYYMMDD. "
+                   "The available date range is: 20210916 - {date.today().strftime('%Y%m%d')}"
+    )
+    finally:
+        client.close()
+
+    # Validate_csv
+    multiple = True
+    ts, resolutions = csv_validator(output_file_path, day_first=False, multiple=multiple)
+    return {"message": "Validation successful",
+        "fname": output_file_path,
+        "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
+        "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
+        "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
+        "allowed_resolutions": resolutions
+        }
 
 @admin_router.get('/experimentation_pipeline/training/hyperparameter_entrypoints', tags=['Experimentation Pipeline'])
 async def get_experimentation_pipeline_hparam_entrypoints():
@@ -329,8 +693,8 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     print(hparam_str)
     # parameters["hyperparams_entrypoint"] = { (key.replace('"', '')) : (val.replace('"', '') if isinstance(val, str) else val) for key, val in parameters["hyperparams_entrypoint"].items()}
     
-    print(parameters["resampling_agg_method"])
-
+    # print(parameters[f"Resolution:{resolution}"])
+    print(parameters)   
     params = { 
         "rmv_outliers": parameters["rmv_outliers"],  
         "multiple": parameters["multiple"],
@@ -343,6 +707,8 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
         "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
         "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
         "hyperparams_entrypoint": hparam_str,
+        "ts_used_id": parameters["ts_used_id"], # uc2: None, uc6: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active', uc7: None 
+        "eval_method": parameters["eval_method"], # same as above
         "ignore_previous_runs": parameters["ignore_previous_runs"],
         "l_interpolation": True,    
         "evaluate_all_ts": True,
