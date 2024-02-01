@@ -114,7 +114,6 @@ visualized by the user using the MLflow UI.
 
 <figure id="fig:Experimentation_pipeline">
 <img src="figures/Experimentation_pipeline.png" style="width:80.0%" />
-<figcaption>DeepTSF backend standard workflow</figcaption>
 </figure>
 
 ### Data loading
@@ -352,7 +351,6 @@ utilization of the deployed infrastructure, as illustrated below:
 
 <figure id="fig:system_monitoring">
 <img src="docs/figures/DeepTSF System Monitoring.png" style="width:15cm" />
-<figcaption>DeepTSF System Monitoring</figcaption>
 </figure>
 
 The displayed data are continually refreshed at a one-second interval. To prevent overloading
@@ -362,9 +360,6 @@ ensures that extended periods of inactivity, such as leaving the tab
 open, do not strain the backend. As a result, each section includes a
 "Refresh Live Feed" button, enabling users to re-engage with the live
 monitoring if desired.
-
-## DeepTSF workflow orchestrator (Dagster)
-Dagster acts as a workflow orchestration engine, where data processing and ML model training pipelines, are defined as jobs. Therefore, the execution of these jobs can be scheduled in fixed intervals, serving the needs of periodic training. This component interacts with the data source, extracting the data needed for the pipelines, as well as with the model registry, where the models are stored when training is completed. More specifically, the underlying workflow is wrapped within a Dagster job consisting of two ops. The first op includes the trigger mechanism, which is the same as the underlying mechanism of the CLI tool described earlier in this section, while the second op involves a post-execution step aimed at confirming that all previous MLflow runs have been properly logged in the MLflow server. The defined job can be executed with the same configuration options that CLI provides and demonstrated in section \ref{sec:3:CLI}. Configuration can be input by users through the Dagster web server's user interface. In addition, the defined job is accompanied by a schedule which enables the periodic execution of the pipeline in order to be in sync with the periodic update of the MongoDB loading the new smart meters data. Ultimately, Dagster provides a web user interface including, among others, information regarding the defined jobs and their runs, the defined schedules, the produced assets, as well as providing the ability to configure and execute these jobs. Note here that this component is still at an experimental stage and therefore has limited features.
 
 ## DeepTSF CLI (advanced users)
 
@@ -611,6 +606,64 @@ Additionally, it is possible to analyze the output of DL and DL models using SHa
 * ```m_mase``` (default 1), the forecast horizon of the naive method used in MASE metric
 
 * ```num_samples``` (default 1), number of samples to use for evaluating/validating a probabilistic model's output
+
+## DeepTSF workflow orchestrator (Dagster)
+Dagster acts as a workflow orchestration engine, where data processing and ML model training pipelines, are defined as jobs. Therefore, the execution of these jobs can be scheduled in fixed intervals, serving the needs of periodic training. This component interacts with the data source, extracting the data needed for the pipelines, as well as with the model registry, where the models are stored when training is completed. More specifically, the underlying workflow is wrapped within a Dagster job consisting of two ops. The first op includes the trigger mechanism, which is the same as the underlying mechanism of the CLI tool described earlier in this section, while the second op involves a post-execution step aimed at confirming that all previous MLflow runs have been properly logged in the MLflow server. The defined job can be executed with the same configuration options that CLI provides and demonstrated in section \ref{sec:3:CLI}. Configuration can be input by users through the Dagster web server's user interface. In addition, the defined job is accompanied by a schedule which enables the periodic execution of the pipeline in order to be in sync with the periodic update of the MongoDB loading the new smart meters data. Ultimately, Dagster provides a web user interface including, among others, information regarding the defined jobs and their runs, the defined schedules, the produced assets, as well as providing the ability to configure and execute these jobs. Note here that this component is still at an experimental stage and therefore has limited features.
+### Usage example
+In this section, an illustrative example of the usage of the workflow
+orchestrator (Dagster) within DeepTSF is provided. The demonstrated
+scenario is similar to the previous section with respect to workflow
+configuration options and therefore the latter are omitted.
+Instead, the steps that data scientists should follow to run the
+pipeline or set up scheduled executions using Dagster will be outlined.
+At first, to execute the pipeline, the user should navigate as follows:
+
+  1.  By selecting "Overview" and "Jobs" tabs yhe user is able to see the
+      defined job as well as its schedule.
+  
+  <figure id="fig:dagster_job">
+  <img src="docs/figures/dagster_execution_locate_job.png" style="width:20cm" />
+  </figure>
+  
+  2.  Enable the schedule, if needed, by using the toggle button or by
+      visiting "Schedule" tab.
+  
+  3.  Select the job from the list.
+  
+  4.  On the job’s page move to Launchpad tab.
+
+  <figure id="fig:dagster_launch">
+  <img src="docs/figures/dagster_launchpad.png" style="width:20cm" />
+  </figure>
+    
+  5.  Pass the appropriate configuration option and select "Launch Run".
+
+<br/><br/>
+To visualize the history of runs and their logs the user needs to:
+
+  1.  Visit "Runs" tab, accessible from the UI’s navigation bar, where users can preview
+    the different runs.
+    
+  <figure id="fig:dagster_runs_history">
+  <img src="docs/figures/dagster_runs_history.png" style="width:20cm" />
+  </figure>
+
+  2.  Use the "View Run" button to see the details of a specific run.
+
+  <figure id="fig:dagster_logs">
+  <img src="docs/figures/dagster_logs.png" style="width:20cm" />
+  </figure>
+
+  3.  Inspect the logs of the execution.
+
+Note here that the Dagster UI, allows the user to trigger experiments
+with more advanced options compared to the DeepTSF UI, providing access
+to most of the functionalities of the CLI. Currently, to feed their
+datasets of preference, users are prompted to add their properly
+formatted files in the directory uc2/user_datasets so that the
+application can have direct access to them, bypassing the uploading
+procedure. Also, the full range of hyperparameters can be given to the
+model as a JSON string.
 
 ## Appendix: MLproject file example
 
