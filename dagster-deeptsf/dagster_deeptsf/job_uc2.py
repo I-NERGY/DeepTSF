@@ -32,7 +32,11 @@ class CliConfig(Config):
     ignore_previous_runs: str = 't'
     forecast_horizon: str = '24'
     m_mase: str = '24'
-    analyze_with_shap: str = 'False'
+    analyze_with_shap: str = 'false'
+    evaluate_all_ts: str = 'false'
+    ts_used_id: str = None
+
+
 
 
 @op
@@ -74,6 +78,9 @@ def cli_command(config: CliConfig):
            f"-P forecast_horizon={config.forecast_horizon} " \
            f"-P m_mase={config.m_mase} " \
            f"-P analyze_with_shap={config.analyze_with_shap} " \
+           f"-P evaluate_all_ts={config.evaluate_all_ts} " \
+           f"-P  ts_used_id={config.ts_used_id} " \
+           f"-P  eval_series={config.ts_used_id} " \
            "--env-manager=local"
 
 
