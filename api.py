@@ -256,14 +256,14 @@ async def get_metric_names():
     return metrics
 
 
-def csv_validator(fname: str, day_first: bool, multiple: bool):
+def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_series=False):
 
     fileExtension = fname.split(".")[-1].lower() == "csv"
     if not fileExtension:
         print("Unsupported file type provided. Please upload CSV file")
         raise HTTPException(status_code=415, detail="Unsupported file type provided. Please upload CSV file")
     try:
-        ts, resolution_minutes = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple)
+        ts, resolution_minutes = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple, allow_empty_series=allow_empty_series)
     except WrongColumnNames:
         print("There was an error validating the file. Please reupload CSV with correct column names")
         raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with correct column names")
@@ -300,6 +300,7 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
         raise HTTPException(status_code=415, detail="There was an error uploading the file")
         #return {"message": "There was an error uploading the file"}
     finally:
+        print(f'\n{fname}\n')
         await file.close()
 
     # Validation
@@ -311,7 +312,9 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
             "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
             "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
             "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
-            "allowed_resolutions": resolutions
+            "allowed_resolutions": resolutions,
+            "ts_used_id": None,
+            "evaluate_all_ts": True if multiple else None
             }
 
 def store_df_to_csv(df, csv_name, index):
@@ -372,10 +375,14 @@ async def retrieve_uc2_dataset():
         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
         "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
         "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
-        "allowed_resolutions": resolutions
+        "allowed_resolutions": resolutions,
+        "ts_used_id": None,
+        "evaluate_all_ts": False,
+        "uc": 2,
+        "multiple": multiple
         }
 '''
-run experimentation pipeline body example (series_csv is returned from retrive_dataset/uc2 endpoint):
+run experimentation pipeline body example (series_csv is returned from retrieve_dataset/uc2 endpoint):
 {
         "experiment_name": "uc2",
         "rmv_outliers": true,
@@ -389,19 +396,23 @@ run experimentation pipeline body example (series_csv is returned from retrive_d
         "model": "LightGBM",
         "forecast_horizon": "96",
         "hyperparams_entrypoint": "{lags: 24}",
-        "ts_used_id": "null",
-        "eval_method": "ts_ID",
         "ignore_previous_runs": true,
         "l_interpolation": true,
-        "evaluate_all_ts": true
+        "ts_used_id": "null",
+	    "evaluate_all_ts": false,
+        "uc": 2
 }
 New handled arguments:
 - series_csv: returned from retrieve_dataset/uc2 endpoint
 - ts_used_id: "null"
-- eval_method: "ts_ID"
+- evaluate_all_ts: false,
+- uc: 2,
 '''
-@scientist_router.get('/db_integration/retrieve_dataset/uc6', tags=['MongoDB integration'])
-async def retrieve_uc6_dataset():
+@scientist_router.get('/db_integration/retrieve_dataset/uc6/', tags=['MongoDB integration'])
+async def retrieve_uc6_dataset(series_name: str):
+    if series_name not in ["W6 positive_active", "W4 positive_active", "W6 positive_reactive", "W4 positive_reactive"]:
+        print('Series name must be one of: "W6 positive_active", "W4 positive_active", "W6 positive_reactive", "W4 positive_reactive"')
+        raise HTTPException(status_code=415, detail='Series name must be one of: "W6 positive_active", "W4 positive_active", "W6 positive_reactive", "W4 positive_reactive"')
     # Connect to DB and get file
     print("Connecting to DB to retrieve dataset...")
     # TODO: missing exception here
@@ -432,7 +443,11 @@ async def retrieve_uc6_dataset():
         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
         "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
         "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
-        "allowed_resolutions": resolutions
+        "allowed_resolutions": resolutions,
+        "ts_used_id": series_name,
+        "evaluate_all_ts": False,
+        "uc": 6,
+        "multiple": multiple
         }
 '''
 run experimentation pipeline body example :
@@ -449,215 +464,46 @@ run experimentation pipeline body example :
         "model": "LightGBM",
         "forecast_horizon": "24",
         "hyperparams_entrypoint": "{lags: 24}",
-        "ts_used_id": "W6 positive_active",
-        "eval_method": "ts_ID",
         "ignore_previous_runs": true,
         "l_interpolation": true,
-        "evaluate_all_ts": true
+	    "ts_used_id": "W6 positive_active",
+	    "evaluate_all_ts": false,
+        "uc": 6
 }
 New handled arguments:
 - series_csv: returned from retrieve_dataset/uc6 endpoint
-- ts_used_id: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active'
-- eval_method: "ts_ID"
+- ts_used_id: "W6 positive_active" or "W4 positive_active" or "W6 positive_reactive" or "W4 positive_reactive"
+- evaluate_all_ts: false,
+- uc: 6
 '''
 
-class SmartMetersProcessor:
-    PRODUCTION_TAG_NAME = '2_8_0'
-    CONSUMPTION_TAG_NAME = '1_8_0'
-    TIME_INTERVALS = {
-        '30': [f"{hour:02d}:{minute:02d}:00" for hour in range(24) for minute in range(0, 60, 30)],
-        '60': [f"{hour:02d}:{minute:02d}:00" for hour in range(24) for minute in range(0, 60, 60)],
-    }
-    RESAMPLING_FREQS = {
-        '30': '30T',
-        '60': '1H',
-    }
-
-    DEEP_TSF_COLUMN_MAPPER = {
-        'device_id': 'Timeseries ID',
-        'tag_name': 'ID',
-        'date': 'Date',
-    }
-
-    def __init__(self, specs_df: pd.DataFrame, resolution: int = 60):
-        self.specs_df = specs_df
-        self.DEFAULT_TIME_INTERVALS = self.TIME_INTERVALS[str(resolution)]
-        self.DEFAULT_RESAMPLING_FREQ = self.RESAMPLING_FREQS[str(resolution)]
-
-    def retrieve_specs(self, device_id: str) -> Tuple[bool, float, bool, float]:
-        try:
-            smart_meter_specs = self.specs_df.loc[(self.specs_df['id'] == device_id)].iloc[0].to_dict()
-            production_max = smart_meter_specs['Production (kW)']
-            consumption_max = smart_meter_specs['Contractual power (kW)']
-            return production_max >= 0, production_max, consumption_max >= 0, consumption_max
-        except IndexError:
-            # iloc[0] index error when smart meter is missing from csv with specs.
-            print(f'Smart meter {device_id} does not exist in contract')
-            return False, nan, False, nan
-
-    @staticmethod
-    def remove_outliers(sm_df: pd.DataFrame, max_value: float, contract_exists: bool) -> None:
-        min_value = 0
-        max_value = max_value if contract_exists else 200
-        if contract_exists and max_value == 0:
-            sm_df['value'] = nan
-        else:
-            sm_df.loc[(sm_df['value'] < min_value) | (sm_df['value'] > max_value), 'value'] = nan
-
-    @staticmethod
-    def apply_naming_convention(smart_meter_name: str) -> str:
-        # Fix missing B in smart meters name
-        if smart_meter_name.startswith('BB'):
-            if not smart_meter_name.startswith('BBB'):
-                smart_meter_name = 'B' + smart_meter_name
-        else:
-            raise Exception(f'Smart meter {smart_meter_name} does not follow the BBB naming convention')
-        return smart_meter_name
-
-    def smart_meters_load_forecasting_processing(self, data_cursor: pymongo.cursor,
-                                                 output_file_path: str) -> bson.objectid.ObjectId:
-        # create time intervals columns
-        columns = [self.DEEP_TSF_COLUMN_MAPPER["device_id"], self.DEEP_TSF_COLUMN_MAPPER["tag_name"],
-                   self.DEEP_TSF_COLUMN_MAPPER["date"]] + self.DEFAULT_TIME_INTERVALS
-
-        if not os.path.exists(output_file_path):
-            headers_df = pd.DataFrame(columns=columns)
-            headers_df.to_csv(output_file_path, mode='a', index=False)
-
-        last_document_id = None
-        for doc in data_cursor:
-            last_document_id = doc['_id']
-            smart_meter = self.apply_naming_convention(doc["device_id"])  # smart meter id
-            # fetch smart meters specs
-            supports_prod, prod_max, supports_cons, cons_max = self.retrieve_specs(device_id=smart_meter)
-            date = doc["date"]  # date of measurements
-            doc_df = pd.DataFrame(doc["meter"])  # time series data
-            doc_df["datetime"] = pd.to_datetime(date + ' ' + doc_df["time"])  # add column datetime
-            # drop time, quality, quality_detail, opc_quality columns
-            doc_df.drop(columns=['time', 'quality', 'quality_detail', 'opc_quality'], axis=1, inplace=True)
-            # group data by tag name to resample properly, remember that data at this point refers to a single smart meter and a single day
-            grouped = doc_df.groupby('tag_name')
-            # initialise empty DataFrame
-            resampled_df = pd.DataFrame()
-
-            for tag_name, group_data in grouped:
-                # resample data within the tag_name group in 30 minutes intervals
-                resampled_group = group_data.resample(self.DEFAULT_RESAMPLING_FREQ, on='datetime', closed='left',
-                                                      label='left').agg({'value': 'mean'})
-
-                # create a full day index
-                full_day_date_range = pd.date_range(start=(date + ' ' + '00:00:00'), end=(date + ' ' + '23:59:59'),
-                                                    freq=self.DEFAULT_RESAMPLING_FREQ)
-                # reindex to expand to full day, even with NaNs
-                resampled_group = resampled_group.reindex(full_day_date_range)
-                resampled_group.reset_index(inplace=True)
-
-                resampled_group["device_id"] = smart_meter  # add smart_meter id to data
-                resampled_group["tag_name"] = tag_name  # add tag_name in data
-                resampled_group["date"] = date  # add date in data
-                resampled_group.rename(columns={'index': 'datetime'}, inplace=True)
-
-                # remove outliers based on contractual power and production
-                # in place operation
-                if self.PRODUCTION_TAG_NAME in tag_name:
-                    self.remove_outliers(sm_df=resampled_group, max_value=prod_max, contract_exists=supports_prod)
-                elif self.CONSUMPTION_TAG_NAME in tag_name:
-                    self.remove_outliers(sm_df=resampled_group, max_value=cons_max, contract_exists=supports_cons)
-                # Pivot the DataFrame
-                pivoted_df = resampled_group.pivot(index=['device_id', 'tag_name', 'date'], columns='datetime',
-                                                   values='value')
-                pivoted_df.columns = pivoted_df.columns.strftime('%H:%M:%S')
-
-                # Concatenate the resampled group with the overall resampled DataFrame
-                resampled_df = pd.concat([resampled_df, pivoted_df])
-
-            # append data to monthly record
-            resampled_df = resampled_df.reset_index()
-            resampled_df.to_csv(output_file_path, mode='a', header=False, index=False)
-        return last_document_id
-    
-@scientist_router.get('/db_integration/retrieve_dataset/uc7/{resolution}/{start_date}_{end_date}', tags=['MongoDB integration'])
-async def retrieve_uc7_dataset(resolution: int, start_date:str, end_date: str):
-
-    collection = os.environ.get('MONGO_COLLECTION_UC7')
-
-    # Connect to DB and get file
-    print("Connecting to DB to retrieve dataset...")
-    # TODO: missing exception here
-    client = MongoClient(mongo_url)
-    db = client[database]
-    # Get collection and store to dataframe
-    collection = db[mongo_collection_uc7]
-
-    sm_specs_df = pd.read_csv(
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs/example_files/smart_meter_description.csv"))
-
-    smart_meters_processor = SmartMetersProcessor(
-        specs_df=sm_specs_df,
-        resolution=resolution
-    )
-
-    # output_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'archive{start_date}_{end_date}.csv')
-    local_dir = tempfile.mkdtemp()
-    output_file_path = os.path.join(local_dir, f'archive_{start_date}_{end_date}.csv')
-    
-    try:
-        start_date = datetime.datetime.strptime(start_date, "%Y%m%d")
-        end_date = datetime.datetime.strptime(end_date, "%Y%m%d")
-
-        query = {"date": {"$gte": start_date.strftime("%Y-%m-%d"), "$lte": end_date.strftime("%Y-%m-%d")}}
-        # batch_size
-        batch_size = 150
-        last_id = None
-        while True:
-            # used as equivalent to skip option
-            if last_id:
-                query["_id"] = {"$gt": last_id}
-
-            # query the collection
-            batch = collection.find(query).limit(batch_size)
-
-            if not batch.alive:
-                break
-            # process batch
-            last_object_id = smart_meters_processor.smart_meters_load_forecasting_processing(
-                data_cursor=batch,
-                output_file_path=output_file_path
-            )
-            if last_object_id is None:
-                break
-
-            # Update last_id for the next iteration
-            last_id = last_object_id
-
-        # drop duplicates and reorder
-        df = pd.read_csv(output_file_path)
-        df.drop_duplicates(inplace=True)
-        df = df.sort_values(by=['Date', 'Timeseries ID'], ascending=[True, True]).reset_index(drop=True)
-        df.to_csv(output_file_path, index=False)
-        print(f'\nOutput csv path: {output_file_path}\n')
-
-
-    except ValueError:
-        raise HTTPException(
-            status_code=400,
-            detail="Error parsing dates. "
-                   "The appropriate date format is: YYYYMMDD. "
-                   "The available date range is: 20210916 - {date.today().strftime('%Y%m%d')}"
-    )
-    finally:
-        client.close()
-
-    # Validate_csv
-    multiple = True
-    ts, resolutions = csv_validator(output_file_path, day_first=False, multiple=multiple)
-    return {"message": "Validation successful",
-        "fname": output_file_path,
-        "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
-        "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
-        "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
-        "allowed_resolutions": resolutions
-        }
+'''
+run experimentation pipeline body example :
+{
+        "experiment_name": "uc7",
+        "rmv_outliers": true,
+        "multiple": true,
+        "series_csv": "/tmp/tmpsxph8ydb/uc7.csv",
+        "resolution": "5",
+        "resampling_agg_method": "averaging",
+        "validation_start_date": "20220101",
+        "test_start_date": "20220201",
+        "test_end_date": "20220301",
+        "model": "LightGBM",
+        "forecast_horizon": "24",
+        "hyperparams_entrypoint": "{lags: 24}",
+        "ignore_previous_runs": true,
+        "l_interpolation": true,
+	    "ts_used_id": "null",
+	    "evaluate_all_ts": true,
+        "uc": 7
+}
+New handled arguments:
+- series_csv: returned from retrieve_dataset/uc7 endpoint
+- ts_used_id: "null"
+- evaluate_all_ts: true
+- uc: 7
+'''
 
 @admin_router.get('/experimentation_pipeline/training/hyperparameter_entrypoints', tags=['Experimentation Pipeline'])
 async def get_experimentation_pipeline_hparam_entrypoints():
@@ -672,12 +518,12 @@ async def get_experimentation_pipeline_hparam_entrypoints():
 async def get_mlflow_tracking_uri():
     return mlflow.tracking.get_tracking_uri()
 
-def mlflow_run(params: dict, experiment_name: str):
+def mlflow_run(params: dict, experiment_name: str, uc: str = "2"):
     # TODO: generalize to all use cases
     # TODO: run through dagster for orchestration and error inspection. enershare?
     # will need GraphQL client for Dagster as it is in another container...
     pipeline_run = mlflow.projects.run(
-            uri="./uc2/",
+            uri=f"./uc{uc}/",
             experiment_name=experiment_name,
             entry_point="exp_pipeline",
             parameters=params,
@@ -686,6 +532,17 @@ def mlflow_run(params: dict, experiment_name: str):
 
 @scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
 async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks):
+    
+    # if this key exists then I am on the "user uploaded dataset" case so I proceed to the changes of the other parameters in the dict
+    try:
+        uc = parameters['uc']  # Trying to access a key that doesn't exist
+    except KeyError:
+        uc = "2" # the default uc
+        if parameters["multiple"]:
+           parameters["ts_used_id"] = None
+           parameters["eval_all_ts"] = True
+           # this is the default use case for all other runs except uc7
+        pass  
 
     hparam_str = str(parameters["hyperparams_entrypoint"])
     hparam_str = hparam_str.replace('"', '')
@@ -707,11 +564,11 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
         "darts_model": parameters["model"], # input: user | type: str | example: "nbeats" | get values from @app.get("/models/get_model_names")
         "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
         "hyperparams_entrypoint": hparam_str,
-        "ts_used_id": parameters["ts_used_id"], # uc2: None, uc6: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active', uc7: None 
-        "eval_method": parameters["eval_method"], # same as above
         "ignore_previous_runs": parameters["ignore_previous_runs"],
         "l_interpolation": True,    
-        "evaluate_all_ts": True,
+	    "ts_used_id": parameters["ts_used_id"], # uc2: None, uc6: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active', uc7: None 
+        "eval_series": parameters["ts_used_id"], # same as above,
+	    "evaluate_all_ts": parameters["evaluate_all_ts"], 	    
         # "country": parameters["country"], this should be given if we want to have advanced imputation
      }
     
@@ -720,7 +577,7 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
     #    params["time_covs"] = "PT"
     
     try:
-        background_tasks.add_task(mlflow_run, params, parameters['experiment_name'])
+        background_tasks.add_task(mlflow_run, params, parameters['experiment_name'], uc)
     except Exception as e:
         raise HTTPException(status_code=404, detail="Could not initiate run. Check system logs")
     
@@ -849,3 +706,220 @@ if os.getenv("USE_KEYCLOAK", 'True') == 'True':
 
 # if __name__ == "__main__":
 #     uvicorn.run('api:app', reload=True)
+
+# UC7 ommited for complexity purposes:
+
+# class SmartMetersProcessor:
+#     PRODUCTION_TAG_NAME = '2_8_0'
+#     CONSUMPTION_TAG_NAME = '1_8_0'
+#     TIME_INTERVALS = {
+#         '30': [f"{hour:02d}:{minute:02d}:00" for hour in range(24) for minute in range(0, 60, 30)],
+#         '60': [f"{hour:02d}:{minute:02d}:00" for hour in range(24) for minute in range(0, 60, 60)],
+#     }
+#     RESAMPLING_FREQS = {
+#         '30': '30T',
+#         '60': '1H',
+#     }
+
+#     DEEP_TSF_COLUMN_MAPPER = {
+#         'device_id': 'Timeseries ID',
+#         'tag_name': 'ID',
+#         'date': 'Date',
+#     }
+
+#     def __init__(self, specs_df: pd.DataFrame, resolution: int = 60):
+#         self.specs_df = specs_df
+#         self.DEFAULT_TIME_INTERVALS = self.TIME_INTERVALS[str(resolution)]
+#         self.DEFAULT_RESAMPLING_FREQ = self.RESAMPLING_FREQS[str(resolution)]
+
+#     def retrieve_specs(self, device_id: str) -> Tuple[bool, float, bool, float]:
+#         try:
+#             smart_meter_specs = self.specs_df.loc[(self.specs_df['id'] == device_id)].iloc[0].to_dict()
+#             production_max = smart_meter_specs['Production (kW)']
+#             consumption_max = smart_meter_specs['Contractual power (kW)']
+#             return production_max >= 0, production_max, consumption_max >= 0, consumption_max
+#         except IndexError:
+#             # iloc[0] index error when smart meter is missing from csv with specs.
+#             print(f'Smart meter {device_id} does not exist in contract')
+#             return False, nan, False, nan
+
+#     @staticmethod
+#     def remove_outliers(sm_df: pd.DataFrame, max_value: float, contract_exists: bool) -> None:
+#         min_value = 0
+#         max_value = max_value if contract_exists else 200
+#         if contract_exists and max_value == 0:
+#             sm_df['value'] = nan
+#         else:
+#             sm_df.loc[(sm_df['value'] < min_value) | (sm_df['value'] > max_value), 'value'] = nan
+
+#     @staticmethod
+#     def apply_naming_convention(smart_meter_name: str) -> str:
+#         # Fix missing B in smart meters name
+#         if smart_meter_name.startswith('BB'):
+#             if not smart_meter_name.startswith('BBB'):
+#                 smart_meter_name = 'B' + smart_meter_name
+#         else:
+#             raise Exception(f'Smart meter {smart_meter_name} does not follow the BBB naming convention')
+#         return smart_meter_name
+
+#     def smart_meters_load_forecasting_processing(self, data_cursor: pymongo.cursor,
+#                                                  output_file_path: str) -> bson.objectid.ObjectId:
+#         # create time intervals columns
+#         columns = [self.DEEP_TSF_COLUMN_MAPPER["device_id"], self.DEEP_TSF_COLUMN_MAPPER["tag_name"],
+#                    self.DEEP_TSF_COLUMN_MAPPER["date"]] + self.DEFAULT_TIME_INTERVALS
+
+#         if not os.path.exists(output_file_path):
+#             headers_df = pd.DataFrame(columns=columns)
+#             headers_df.to_csv(output_file_path, mode='a', index=False)
+
+#         last_document_id = None
+#         for doc in data_cursor:
+#             last_document_id = doc['_id']
+#             smart_meter = self.apply_naming_convention(doc["device_id"])  # smart meter id
+#             # fetch smart meters specs
+#             supports_prod, prod_max, supports_cons, cons_max = self.retrieve_specs(device_id=smart_meter)
+#             date = doc["date"]  # date of measurements
+#             doc_df = pd.DataFrame(doc["meter"])  # time series data
+#             doc_df["datetime"] = pd.to_datetime(date + ' ' + doc_df["time"])  # add column datetime
+#             # drop time, quality, quality_detail, opc_quality columns
+#             doc_df.drop(columns=['time', 'quality', 'quality_detail', 'opc_quality'], axis=1, inplace=True)
+#             # group data by tag name to resample properly, remember that data at this point refers to a single smart meter and a single day
+#             grouped = doc_df.groupby('tag_name')
+#             # initialise empty DataFrame
+#             resampled_df = pd.DataFrame()
+
+#             for tag_name, group_data in grouped:
+#                 # resample data within the tag_name group in 30 minutes intervals
+#                 resampled_group = group_data.resample(self.DEFAULT_RESAMPLING_FREQ, on='datetime', closed='left',
+#                                                       label='left').agg({'value': 'mean'})
+
+#                 # create a full day index
+#                 full_day_date_range = pd.date_range(start=(date + ' ' + '00:00:00'), end=(date + ' ' + '23:59:59'),
+#                                                     freq=self.DEFAULT_RESAMPLING_FREQ)
+#                 # reindex to expand to full day, even with NaNs
+#                 resampled_group = resampled_group.reindex(full_day_date_range)
+#                 resampled_group.reset_index(inplace=True)
+
+#                 resampled_group["device_id"] = smart_meter  # add smart_meter id to data
+#                 resampled_group["tag_name"] = tag_name  # add tag_name in data
+#                 resampled_group["date"] = date  # add date in data
+#                 resampled_group.rename(columns={'index': 'datetime'}, inplace=True)
+
+#                 # remove outliers based on contractual power and production
+#                 # in place operation
+#                 if self.PRODUCTION_TAG_NAME in tag_name:
+#                     self.remove_outliers(sm_df=resampled_group, max_value=prod_max, contract_exists=supports_prod)
+#                 elif self.CONSUMPTION_TAG_NAME in tag_name:
+#                     self.remove_outliers(sm_df=resampled_group, max_value=cons_max, contract_exists=supports_cons)
+#                 # Pivot the DataFrame
+#                 pivoted_df = resampled_group.pivot(index=['device_id', 'tag_name', 'date'], columns='datetime',
+#                                                    values='value')
+#                 pivoted_df.columns = pivoted_df.columns.strftime('%H:%M:%S')
+
+#                 # Concatenate the resampled group with the overall resampled DataFrame
+#                 resampled_df = pd.concat([resampled_df, pivoted_df])
+
+#             # append data to monthly record
+#             resampled_df = resampled_df.reset_index()
+#             resampled_df.to_csv(output_file_path, mode='a', header=False, index=False)
+#         return last_document_id
+    
+# @scientist_router.get('/db_integration/retrieve_dataset/uc7/', tags=['MongoDB integration'])
+# async def retrieve_uc7_dataset(start_date:str, end_date: str):
+#     # default resolution for uc7 initial dataset
+#     resolution = 60
+    
+#     collection = os.environ.get('MONGO_COLLECTION_UC7')
+
+#     # Connect to DB and get file
+#     print("Connecting to DB to retrieve dataset...")
+#     # TODO: missing exception here
+#     client = MongoClient(mongo_url)
+#     db = client[database]
+#     # Get collection and store to dataframe
+#     collection = db[mongo_collection_uc7]
+
+#     sm_specs_df = pd.read_csv(
+#         os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs/example_files/smart_meter_description.csv"))
+
+#     smart_meters_processor = SmartMetersProcessor(
+#         specs_df=sm_specs_df,
+#         resolution=resolution
+#     )
+
+#     # output_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f'archive{start_date}_{end_date}.csv')
+#     local_dir = tempfile.mkdtemp()
+#     output_file_path = os.path.join(local_dir, f'archive_{start_date}_{end_date}.csv')
+    
+#     try:
+#         start_date = datetime.datetime.strptime(start_date, "%Y%m%d")
+#         end_date = datetime.datetime.strptime(end_date, "%Y%m%d")
+
+#         query = {"date": {"$gte": start_date.strftime("%Y-%m-%d"), "$lte": end_date.strftime("%Y-%m-%d")}}
+#         # batch_size
+#         batch_size = 150
+#         last_id = None
+#         while True:
+#             # used as equivalent to skip option
+#             if last_id:
+#                 query["_id"] = {"$gt": last_id}
+
+#             # query the collection
+#             batch = collection.find(query).limit(batch_size)
+
+#             if not batch.alive:
+#                 break
+#             # process batch
+#             last_object_id = smart_meters_processor.smart_meters_load_forecasting_processing(
+#                 data_cursor=batch,
+#                 output_file_path=output_file_path
+#             )
+#             if last_object_id is None:
+#                 break
+
+#             # Update last_id for the next iteration
+#             last_id = last_object_id
+
+#         # drop duplicates and reorder
+#         df = pd.read_csv(output_file_path)
+#         df.drop_duplicates(inplace=True)
+        
+#         # only keep APIU for load forecasting (this is a requirement to avoid DifferentComponentDimensions error in Darts)
+#         df = df[~df['ID'].str.contains("Ameno")].reset_index(drop=True)
+
+#         # TODO: remove series that have been cut on NaNs
+#         ## Look for 'Timeseries ID' that have NaNs on the end date and remove them entirely.
+        
+#         # sort dates
+#         df = df.sort_values(by=['Date', 'Timeseries ID'], ascending=[True, True]).reset_index(drop=True)
+        
+#         # store to csv
+#         df.to_csv(output_file_path, index=True)
+        
+#         print(df.head())
+#         print(f'\nOutput csv path: {output_file_path}\n')
+
+#     except ValueError:
+#         raise HTTPException(
+#             status_code=415,
+#             detail="Error parsing dates. "
+#                    "The appropriate date format is: YYYYMMDD. "
+#                    f"The available date range is: 20210916 - {date.today().strftime('%Y%m%d')}"
+#     )
+#     finally:
+#         client.close()
+
+#     # Validate_csv
+#     multiple = True
+#     ts, resolutions = csv_validator(output_file_path, day_first=False, multiple=multiple, allow_empty_series=True)
+#     return {"message": "Validation successful",
+#         "fname": output_file_path,
+#         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
+#         "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
+#         "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
+#         "allowed_resolutions": resolutions,
+#         "ts_used_id": None,
+#         "evaluate_all_ts": True,
+#         "uc": 7,
+#         "multiple": multiple
+#         }
