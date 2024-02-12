@@ -12,6 +12,12 @@ class EmptyDataframe(Exception):
     def __init__(self, from_database):
         super().__init__("Dataframe provided is empty" + (" or does not exist in mongo database" if from_database else ""))
 
+class EmptySeries(Exception):
+    """
+    Exception raised if dataframe has empty series.
+    """
+    def __init__(self):
+        super().__init__("Dataframe provided has empty series")
 
 class DatetimesNotInOrder(Exception):
     """

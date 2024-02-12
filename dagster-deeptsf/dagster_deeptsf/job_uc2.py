@@ -22,8 +22,8 @@ class CliConfig(Config):
     cut_date_test: str = '20210101'
     test_end_date: str = '20211231'
     scale: str = 'true'
-    darts_model: str = 'NBEATS'
-    hyperparams_entrypoint: str = '"{input_chunk_length: 120, output_chunk_length: 24, num_stacks: 3, num_blocks: 6, num_layers: 1, generic_architecture: True, layer_widths: 64, expansion_coefficient_dim: 5, n_epochs: 5, random_state: 0, nr_epochs_val_period: 2, batch_size: 512}"'
+    darts_model: str = 'LightGBM'
+    hyperparams_entrypoint: str = '"{lags: 120}"'
     loss_function: str = 'mape'
     opt_test: str = 'false'
     grid_search: str = 'false'
@@ -32,7 +32,11 @@ class CliConfig(Config):
     ignore_previous_runs: str = 't'
     forecast_horizon: str = '24'
     m_mase: str = '24'
-    analyze_with_shap: str = 'False'
+    analyze_with_shap: str = 'false'
+    evaluate_all_ts: str = 'false'
+    ts_used_id: str = None
+
+
 
 
 @op
@@ -74,6 +78,9 @@ def cli_command(config: CliConfig):
            f"-P forecast_horizon={config.forecast_horizon} " \
            f"-P m_mase={config.m_mase} " \
            f"-P analyze_with_shap={config.analyze_with_shap} " \
+           f"-P evaluate_all_ts={config.evaluate_all_ts} " \
+           f"-P  ts_used_id={config.ts_used_id} " \
+           f"-P  eval_series={config.ts_used_id} " \
            "--env-manager=local"
 
 

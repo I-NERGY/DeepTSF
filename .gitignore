@@ -65,3 +65,6 @@ nodeLanguageServer.*/**
 
 # user data set folder
 !uc2/user_datasets/*
+
+# uc7_specs csv
+!docs/example_files/**

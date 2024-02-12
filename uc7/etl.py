@@ -1188,12 +1188,12 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
         if multiple:
             res_ = cut_extra_samples(res_)
 
-        res_, res_future, id_l_future_covs, ts_id_l_future_covs = add_weather_covariates(res_,
-                                                                                         res_future, 
-                                                                                         id_l_future_covs,
-                                                                                         ts_id_l_future_covs,
-                                                                                         ts_id_l,
-                                                                                         fields=["temperature","shortwave_radiation","direct_radiation","diffuse_radiation"])
+        # res_, res_future, id_l_future_covs, ts_id_l_future_covs = add_weather_covariates(res_,
+        #                                                                                  res_future, 
+        #                                                                                  id_l_future_covs,
+        #                                                                                  ts_id_l_future_covs,
+        #                                                                                  ts_id_l,
+        #                                                                                  fields=["temperature","shortwave_radiation","direct_radiation","diffuse_radiation"])
 
         print("\nCreating local folder to store the datasets as csv...")
         logging.info("\nCreating local folder to store the datasets as csv...")
