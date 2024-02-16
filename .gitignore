@@ -68,3 +68,7 @@ nodeLanguageServer.*/**
 
 # uc7_specs csv
 !docs/example_files/**
+
+# SSL keys
+privkey3.pem
+cert3.pem
