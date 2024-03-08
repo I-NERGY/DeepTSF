@@ -821,7 +821,7 @@ hyperparameters:
     batch_size: 512
 
   LGBM_uc6:
-    lags: 672
+    lags: 72
 
   LightGBM_river:
     lags: [-1, -480]
@@ -856,6 +856,22 @@ hyperparameters:
     nr_epochs_val_period: 2
     batch_size: 128
     learning_rate: 0.001
+
+  NBEATS_simple:
+    input_chunk_length: 72
+    output_chunk_length: 24
+    num_stacks: 1
+    num_blocks: 1
+    num_layers: 2
+    generic_architecture: True
+    activation: 'ReLU'
+    layer_widths: 8
+    dropout: 0
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 512
 
   NBEATS:
     input_chunk_length: 120
@@ -964,7 +980,7 @@ hyperparameters:
     output_chunk_length: 24
 
   Naive:
-    days_seasonality: 7
+    days_seasonality: 1
 
   LGBM_uc7:
     lags: 24

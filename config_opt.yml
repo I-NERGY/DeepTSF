@@ -431,3 +431,111 @@ hyperparameters:
     lags: ["range", 24, 96, 24]
     output_chunk_length: 1
     random_state: 0
+
+  LightGBM_UC6_W6_plain_ds_:
+    lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    random_state: 0 
+
+  LightGBM_UC6_W4_re_plain_ds:
+    lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    random_state: 0
+
+  LightGBM_UC6_W6_re_plain_ds:
+    lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    random_state: 0  
+  
+
+  LightGBM_UC6_W6_weather_final:
+    lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    lags_future_covariates: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    output_chunk_length: 24
+    random_state: 0
+
+  LightGBM_UC6_W4_plain_ds:
+    lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    random_state: 0 
+
+  LightGBM_uc7_pool_ameno_:
+    lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    random_state: 0 
+
+  LightGBM_UC6_W4_weather_final:
+    lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    lags_future_covariates: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    output_chunk_length: 24
+    random_state: 0
+
+  LightGBM_UC6_W4_pvlib_ensemble_ds:
+    lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    random_state: 0 
+
+  LightGBM_UC7_companies_1:
+    lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    random_state: 0  
+
+  LightGBM_UC7_companies_filtering_optuna_:
+    lags: 240
+    savgol_window_length: ["list", 0, 1, 2, 4, 6, 8, 10, 12, 13, 15, 19, 22]
+    savgol_polyorder: ["list", 1, 2, 3, 4, 5]
+    random_state: 0
+
+  LightGBM_UC7_households_with_nans_:
+    lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    random_state: 0
+  
+  LightGBM_UC7_companies_time_covs_new:
+    lags: ["list", 1, 2, 6, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    lags_future_covariates: ["list", 1, 2, 6, 24, 48, 72]
+    output_chunk_length: 24
+    random_state: 0
+
+  NBEATS_UC7_households:
+    input_chunk_length: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    output_chunk_length: 24
+    num_stacks: ["range", 1, 10, 1]
+    num_blocks: ["range", 1, 10, 1]
+    num_layers: ["range", 1, 5, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 128
+
+  LightGBM_UC7_companies_f_e_:
+    lags: ["list",[-1], [-1,-24], [-24], [-1,-24,-48,-96], [-1,-2,-3,-5], [-1,-2,-3,-5,-21,-22,-23,-24,-25,-26], [-1,-2,-3,-23,-24,-25], [-1,-2,-3,-5,-21,-22,-23,-24,-25,-26], [-1,-2,-3,-5,-21,-22,-23,-24,-25,-26,-46,-47,-48,-49], [-1,-2,-3,-23,-24,-25,-47,-48,-49], [-1,-2,-3,-5,-21,-22,-23,-24,-25,-26,-46,-47,-48,-49,-96], [-1,-2,-3,-23,-24,-25,-47,-48,-49,-96]]
+    random_state: 0
+
+  NBEATS_UC7_companies_0:
+    input_chunk_length: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
+    output_chunk_length: 24
+    num_stacks: ["range", 1, 10, 1]
+    num_blocks: ["range", 1, 10, 1]
+    num_layers: ["range", 1, 5, 1]
+    generic_architecture: True
+    layer_widths: 64
+    expansion_coefficient_dim: 5
+    n_epochs: 300
+    random_state: 0
+    nr_epochs_val_period: 2
+    batch_size: 128
+
+  LGBM_uc_companies_time_covs:
+    lags: ["range", 24, 96, 24]
+    lags_future_covariates: ["range", 24, 96, 24]
+    output_chunk_length: 24
+    random_state: 0
+
+  LGBM_uc_households_no_covs:
+    lags: ["range", 24, 96, 24]
+    random_state: 0
+
+  LGBM_uc_charging_stations_no_covs:
+    lags: ["range", 24, 96, 24]
+    random_state: 0
+
+  LGBM_uc_pools_no_covs:
+    lags: ["range", 24, 96, 24]
+    random_state: 0
+

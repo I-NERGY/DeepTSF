@@ -379,6 +379,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     type=str,
     default="1",
     help="Number of samples to use for evaluating/validating a probabilistic model's output")
+
 @click.option("--resampling-agg-method",
     default="averaging",
     type=click.Choice(['averaging',
@@ -388,13 +389,19 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     help="Method to use for resampling."
     )
 
+@click.option("--pv-ensemble",
+    default="False",
+    type=str,
+    help="Wether to subtract the pv production forecasts from the training series and add it again during testing or not.",
+    )
+
 def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, year_range, 
              resolution, time_covs, darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_series, n_trials, opt_test, from_database, database_name, num_workers, eval_method,
              l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, shap_input_length,
-             ts_used_id, m_mase, min_non_nan_interval, num_samples, resampling_agg_method):
+             ts_used_id, m_mase, min_non_nan_interval, num_samples, resampling_agg_method, pv_ensemble):
 
     disable_warnings(InsecureRequestWarning)
     
@@ -526,6 +533,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "evaluate_all_ts": evaluate_all_ts,
                 "grid_search" : grid_search,
                 "num_samples": num_samples,
+                "pv_ensemble":pv_ensemble,
             }
             train_opt_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
 
@@ -547,6 +555,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "num_workers": num_workers,
                 "day_first": day_first,
                 "resolution": resolution,
+                "pv_ensemble": pv_ensemble,
             }
             train_opt_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 
@@ -598,6 +607,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "evaluate_all_ts": evaluate_all_ts,
                 "m_mase": m_mase,
                 "num_samples": num_samples,
+                "pv_ensemble": pv_ensemble,
             }
 
         if "input_chunk_length" in train_opt_run.data.params:

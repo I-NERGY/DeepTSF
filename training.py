@@ -1,5 +1,5 @@
 import pretty_errors
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict #, log_curves
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict, get_pv_forecast #, log_curves
 from preprocessing import scale_covariates, split_dataset, split_nans
 
 # the following are used through eval(darts_model + 'Model')
@@ -168,12 +168,18 @@ my_stopper = EarlyStopping(
     type=str,
     help="The resolution of the dataset in minutes."
 )
+@click.option("--pv-ensemble",
+    default="False",
+    type=str,
+    help="Wether to subtract the pv production forecasts from the training series and add it again during testing or not."
+    )
 
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          training_dict, num_workers, day_first, resolution):
+          training_dict, num_workers, day_first, resolution,
+          pv_ensemble):
 
     num_workers = int(num_workers)
     torch.set_num_threads(num_workers)
@@ -188,6 +194,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
     scale_covs = truth_checker(scale_covs)
 
     multiple = truth_checker(multiple)
+    pv_ensemble = truth_checker(pv_ensemble)
+
 
 
     ## hyperparameters
@@ -338,6 +346,25 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             ts_id_l=ts_id_l_past_covs)
         
 
+        if pv_ensemble:
+            print("\nSubtracting pv forecast from train and val series")
+            logging.info("\nSubtracting pv forecast from train and val series")
+            for i in range(len(series_split['train'])):
+
+                series_split['train'][i] = series_split['train'][i] + get_pv_forecast(ts_id_l[i], 
+                                                                                  start=series_split['train'][i].pd_dataframe().index[0], 
+                                                                                  end=series_split['train'][i].pd_dataframe().index[-1], 
+                                                                                  inference=False, 
+                                                                                  kW=60, 
+                                                                                  use_saved=True)
+                series_split['val'][i] = series_split['val'][i] + get_pv_forecast(ts_id_l[i], 
+                                                                                  start=series_split['val'][i].pd_dataframe().index[0], 
+                                                                                  end=series_split['val'][i].pd_dataframe().index[-1], 
+                                                                                  inference=False, 
+                                                                                  kW=60, 
+                                                                                  use_saved=True)
+
+
         #################
         # Scaling
         print("\nScaling...")
@@ -429,6 +456,10 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 pl_trainer_kwargs=pl_trainer_kwargs,
                 **hyperparameters
             )
+
+            # for i, series in enumerate(series_transformed['val']):
+            #     series.pd_dataframe().to_csv(f"{i}_val_partial_lgbm_ens")
+
             model.fit(series_transformed['train'],
                 future_covariates=future_covariates_transformed['train'],
                 past_covariates=past_covariates_transformed['train'],
@@ -449,9 +480,10 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             print(f'\nTrained Model: NaiveSeasonal, with seasonality (in timesteps): {seasonality_timesteps}') 
 
             hparams_to_log = hyperparameters
+            # for ts in 
 
             model = NaiveSeasonal(K = seasonality_timesteps)
-            model.fit(series_transformed['train'][0])
+            model.fit(series_transformed['train'][-1])
             model_type = 'pkl'
 
         # LightGBM and RandomForest
@@ -482,6 +514,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             print(f'\nTraining {darts_model}...')
             logging.info(f'\nTraining {darts_model}...')
+
+            # for i, series in enumerate(series_transformed['train']):
+            #     series.pd_dataframe().to_csv(f"{i}_series_partial_lgbm_ens")
 
             model.fit(
                 series=series_transformed['train'],
