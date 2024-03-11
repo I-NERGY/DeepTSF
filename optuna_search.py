@@ -704,7 +704,8 @@ def backtester(model,
                past_covariates=None,
                path_to_save_backtest=None,
                num_samples=1,
-               pv_ensemble=False):
+               pv_ensemble=False,
+               resolution="60"):
                #TODO Add mase
     """ Does the same job with advanced forecast but much more quickly using the darts
     bult-in historical_forecasts method. Use this for evaluation. The other only
@@ -721,7 +722,7 @@ def backtester(model,
     if stride is None:
         stride = forecast_horizon
 
-    test_start_date = pd.Timestamp(test_start_date)
+    test_start_date = pd.Timestamp(test_start_date + " 00:00:00")
     #keep last non nan values
     #must be sufficient for historical_forecasts and mase calculation
     #TODO Add check for that in the beggining
@@ -765,30 +766,27 @@ def backtester(model,
                                                             kW=60, 
                                                             use_saved=True)
     # Metrix
-    test_series = series.drop_before(pd.Timestamp(test_start_date))
+    test_series = series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min"))
     metrics = {
-        "smape": smape_darts(
-            test_series,
-            backtest_series),
         "mase": mase_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series,
             insample=series.drop_after(pd.Timestamp(test_start_date))),
         "mae": mae_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series),
         "rmse": rmse_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series),
         "nrmse_max": rmse_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series) / (
-            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().max()[0]- 
-            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().min()[0]),
+            test_series.pd_dataframe().max()[0]- 
+            test_series.pd_dataframe().min()[0]),
         "nrmse_mean": rmse_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series) / (
-            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().mean()[0])
+            test_series.pd_dataframe().mean()[0])
     }
     if min(test_series.min(axis=1).values()) > 0 and min(backtest_series.min(axis=1).values()) > 0:
         metrics["mape"] = mape_darts(
@@ -798,6 +796,16 @@ def backtester(model,
         print("\nModel result or validation series not strictly positive. Setting mape to NaN...")
         logging.info("\nModel result or validation series not strictly positive. Setting mape to NaN...")
         metrics["mape"] = np.nan
+
+    try:
+        metrics["smape"] = smape_darts(
+            test_series,
+            backtest_series)
+    except:
+        print("\nSeries not strictly positive. Setting smape to NaN...")
+        logging.info("\nSeries not strictly positive. Setting smape to NaN...")
+        metrics["smape"] = np.nan
+
     
     for key, value in metrics.items():
         print(key, ': ', value)
@@ -899,7 +907,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                             future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
                                             past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                             num_samples=num_samples,
-                                            pv_ensemble=pv_ensemble)
+                                            pv_ensemble=pv_ensemble,
+                                            resolution=resolution)
             
             eval_results[eval_i] = list(map(str, ts_id_l[eval_i])) + [validation_results["metrics"]["smape"],
                                                                       validation_results["metrics"]["mase"],
@@ -960,7 +969,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                         future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
                                         past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                         num_samples=num_samples,
-                                        pv_ensemble=pv_ensemble)
+                                        pv_ensemble=pv_ensemble,
+                                        resolution=resolution)
 
         return validation_results["metrics"]
 

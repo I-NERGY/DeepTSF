@@ -469,7 +469,7 @@ hyperparameters:
     lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
     random_state: 0 
 
-  LightGBM_UC7_companies_1:
+  LightGBM_uc7_companies_test:
     lags: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
     random_state: 0  
 
