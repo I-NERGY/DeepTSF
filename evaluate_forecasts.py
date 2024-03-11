@@ -205,9 +205,6 @@ def backtester(model,
     test_series = series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min"))
     #TODO smape not positive sometimes
     metrics = {
-        "smape": smape_darts(
-            test_series,
-            backtest_series),
         "mae": mae_darts(
             test_series,
             backtest_series),
@@ -243,6 +240,17 @@ def backtester(model,
         logging.info("\nModel result or testing series not strictly positive. Setting mape to NaN...")
         metrics["mase"] = np.nan
 
+    try:
+        metrics["smape"] = smape_darts(
+            test_series,
+            backtest_series)
+    except:
+        print("\nSeries not strictly positive. Setting smape to NaN...")
+        logging.info("\nSeries not strictly positive. Setting smape to NaN...")
+        metrics["smape"] = np.nan
+
+    
+
 
     for key, value in metrics.items():
         print(key, ': ', value)
@@ -262,24 +270,24 @@ def backtester(model,
                     save_dir=os.path.join(path_to_save_backtest,
                                         f'Actual_vs_Predicted.html'))
         try:
-            backtest_series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min")) \
+            backtest_series \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions.csv'))
         except:
-            backtest_series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min")).quantile_df() \
+            backtest_series.quantile_df() \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions.csv'))
 
         try:
-            backtest_series_transformed.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min")) \
+            backtest_series_transformed \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions_transformed.csv'))
         except:
-            backtest_series_transformed.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min")).quantile_df() \
+            backtest_series_transformed.quantile_df() \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions_transformed.csv'))
 
         series_transformed.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min")) \
         .to_csv(os.path.join(path_to_save_backtest, 'test_transformed.csv'))
 
         series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min")) \
-        .to_csv(os.path.join(path_to_save_backtest, 'original.csv'))
+        .to_csv(os.path.join(path_to_save_backtest, 'original_series.csv'))
 
     return {"metrics": metrics, "eval_plot": plt, "backtest_series": backtest_series}
 
