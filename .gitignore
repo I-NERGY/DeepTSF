@@ -63,3 +63,6 @@ nodeLanguageServer.*/**
 
 # optuna storage
 *.db
+
+# output files
+*.out
