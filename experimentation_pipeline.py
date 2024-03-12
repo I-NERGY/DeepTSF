@@ -318,11 +318,16 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
          'ID']),
     default="ts_ID",
     help="what ID type is speciffied in eval_series: if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at ID column ")
-@click.option("--l-interpolation",
-    type=str,
-    default="false",
-    help="Whether to only use linear interpolation")
 
+@click.option("--imputation-method",
+    default='linear',
+    type=click.Choice(['linear', 'time', 'pad', 'nearest', 'polynomial', 'spline', 'peppanen']),
+    help="Which imputation method to use")
+
+@click.option("--order",
+    type=str,
+    default='1',
+    help="Order of method. Applicable to polynomial and spline imputation methods only")
 @click.option("--rmv-outliers",
     type=str,
     default="true",
@@ -401,7 +406,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_series, n_trials, opt_test, from_database, database_name, num_workers, eval_method,
-             l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, shap_input_length,
+             imputation_method, order, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, shap_input_length,
              ts_used_id, m_mase, min_non_nan_interval, num_samples, resampling_agg_method, pv_ensemble):
 
     disable_warnings(InsecureRequestWarning)
