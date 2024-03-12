@@ -220,6 +220,13 @@ async def get_model_names(resolution: int, multiple: bool):
         {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
         {"name": "random_state", "type": "int", "description": "Randomness of weight initialization", 'min': 0, 'max': 10000, 'default': 42},
         ]
+    
+    hparams_arima = [    
+        {"name": "p", "type": "int", "description": "Order (number of time lags) of the autoregressive model (AR)", 'min': 0, 'max': 1000, 'default': 12},
+        {"name": "d", "type": "int", "description": "Order of differentiation", 'min': 0, 'max': 1000, 'default': 1},
+        {"name": "q", "type": "int", "description": "Size of the moving average window (MA)", 'min': 0, 'max': 1000, 'default': 0},
+        {"name": "random_state", "type": "int", "description": "Random state", 'min': 0, 'max': 10000, 'default': 42},
+        ]
 
     models = [
         {"model_name": "Naive", "hparams": hparams_naive},
@@ -232,6 +239,7 @@ async def get_model_names(resolution: int, multiple: bool):
         {"model_name": "BlockRNN", "hparams": hparams_blockrnn},
         {"model_name": "LightGBM", "hparams": hparams_lgbm},
         {"model_name": "RandomForest", "hparams": hparams_rf},
+        {"model_name": "ARIMA", "hparams": hparams_arima},
         ]
     
     # Multiple does not work with Naive
