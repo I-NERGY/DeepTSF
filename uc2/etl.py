@@ -309,10 +309,11 @@ def impute(ts: pd.DataFrame,
            resolution: str = "15",
            debug: bool = False,
            name: str = "PT",
-           l_interpolation: bool = False,
            cut_date_val: str = "20221208",
            min_non_nan_interval: int = 24,
-           impute_dir=""):
+           impute_dir="",
+           imputation_method="",
+           order=1):
     """
     Reads the input dataframe and imputes the timeseries using a weighted average of historical data
     and simple interpolation. The weights of each method are exponentially dependent on the distance
@@ -364,7 +365,7 @@ def impute(ts: pd.DataFrame,
         The imputed dataframe
     """
     if max_thr == -1: max_thr = len(ts)
-    if l_interpolation:
+    if imputation_method in ['linear', 'time', 'pad', 'nearest', 'polynomial', 'spline']:
         imputed_values = ts[ts["Value"].isnull()]
 
         #null_dates: Series with all null dates to be imputed
@@ -415,7 +416,10 @@ def impute(ts: pd.DataFrame,
                 leave_nan[i] = True
 
         #using max_thr for linear interp. for UC7
-        res = ts.interpolate(inplace=False)
+        if imputation_method in ['polynomial', 'spline']:
+            res = ts.interpolate(inplace=False, method=imputation_method, order=order)
+        else:
+            res = ts.interpolate(inplace=False, method=imputation_method)
 
         null_zip = [(i, null_date) for (i, null_date) in enumerate(null_dates) if leave_nan[i]]
 
@@ -423,7 +427,7 @@ def impute(ts: pd.DataFrame,
             res.loc[null_date] = np.NaN
         imputed_values = res[ts["Value"].isnull()].copy()
 
-    else:
+    elif imputation_method == 'peppanen':
         #Returning calendar of the country ts belongs to
         calendar = create_calendar(ts, int(resolution), holidays, timezone("UTC"))
         calendar.index = calendar["datetime"]
@@ -523,6 +527,9 @@ def impute(ts: pd.DataFrame,
 
             if debug:
                 print(res.loc[null_date])
+
+    else:
+        raise Exception(f"Method {imputation_method} not supported")
     non_nan_intervals_to_nan = {}
     if min_non_nan_interval != -1:
         #If after imputation there exist continuous intervals of non nan values in the train set that are smaller 
@@ -835,10 +842,15 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
     default="false",
     help="Whether to train on multiple timeseries")
      
-@click.option("--l-interpolation",
+@click.option("--imputation-method",
+    default='linear',
+    type=click.Choice(['linear', 'time', 'pad', 'nearest', 'polynomial', 'spline', 'peppanen']),
+    help="Which imputation method to use")
+
+@click.option("--order",
     type=str,
-    default="false",
-    help="Whether to only use linear interpolation")
+    default='1',
+    help="Order of method. Applicable to polynomial and spline imputation methods only")
 
 @click.option("--rmv-outliers",
     type=str,
@@ -915,7 +927,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 
 def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, 
         country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, 
-        l_interpolation, rmv_outliers, convert_to_local_tz, ts_used_id,
+        imputation_method, order, rmv_outliers, convert_to_local_tz, ts_used_id,
         infered_resolution_series, min_non_nan_interval, cut_date_val,
         infered_resolution_past, past_covs_csv, past_covs_uri, infered_resolution_future,
         future_covs_csv, future_covs_uri, resampling_agg_method):
@@ -955,7 +967,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     ycutoff = int(ycutoff)
     ydcutoff = int(ydcutoff)
     min_non_nan_interval = int(min_non_nan_interval)
-    l_interpolation = truth_checker(l_interpolation)
+    order = int(order)
     rmv_outliers = truth_checker(rmv_outliers)
     convert_to_local_tz = truth_checker(convert_to_local_tz)
     time_covs = truth_checker(time_covs)
@@ -1080,7 +1092,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                         std_dev=std_dev,
                                                         outlier_dir=outlier_dir)
                 #holidays_: The holidays of country
-                if l_interpolation:
+                if imputation_method != "peppanen":
                     country_holidays = None
                 else:
                     try:
@@ -1106,7 +1118,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   ydcutoff=ydcutoff,
                                                   resolution=infered_resolution_series,
                                                   name=id_l[ts_num][comp_num],
-                                                  l_interpolation=l_interpolation,
+                                                  imputation_method=imputation_method,
+                                                  order=order,
                                                   cut_date_val=cut_date_val,
                                                   min_non_nan_interval=min_non_nan_interval)
                 
