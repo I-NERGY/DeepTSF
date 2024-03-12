@@ -249,7 +249,8 @@ def remove_outliers(ts: pd.DataFrame,
                     std_dev: float = 4.5,
                     resolution: str = "15",
                     print_removed: bool = False,
-                    min_non_nan_interval: int = -1):
+                    min_non_nan_interval: int = -1,
+                    outlier_dir: str = ""):
     """
     Reads the input dataframe and replaces its outliers with NaNs by removing
     values that are more than std_dev standard deviations away from their 1 month
