@@ -159,6 +159,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
                    'TCN',
                    'BlockRNN',
                    'TFT',
+                   'ARIMA',
                    'LightGBM',
                    'RandomForest',
                    'Naive',

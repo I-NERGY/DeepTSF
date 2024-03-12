@@ -203,7 +203,6 @@ def backtester(model,
     #     pass
     # Metrix
     test_series = series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min"))
-    #TODO smape not positive sometimes
     metrics = {
         "mae": mae_darts(
             test_series,

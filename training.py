@@ -7,6 +7,7 @@ from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDr
 # from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.gradient_boosted_model import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
+from darts.models.forecasting.arima import ARIMA
 from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
 
 import yaml
@@ -101,6 +102,7 @@ my_stopper = EarlyStopping(
                    'RNN',
                    'BlockRNN',
                    'TFT',
+                   'ARIMA',
                    'LightGBM',
                    'RandomForest',
                    'Naive']),
@@ -240,7 +242,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         future_covs_csv = None
         # TODO: when actual weather comes extend it, now the stage only accepts future covariates as argument.
 
-    elif darts_model in ["RNN"]:
+    elif darts_model in ["RNN", "ARIMA"]:
         """Does not accept past covariates as it needs to know future ones to provide chain forecasts
         its input needs to remain in the same feature space while recurring and with no future covariates
         this is not possible. The existence of past_covs is not permitted for the same reason. The
@@ -296,6 +298,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 resolution=resolution)
         else:
             past_covariates, id_l_past_covs, ts_id_l_past_covs = None, None, None
+
+        if (len(id_l) != 1 or len(id_l[0]) > 1) and darts_model=='ARIMA':
+            raise Exception("ARIMA does not support multiple time series") 
 
         print("\nCreating local folders...")
         logging.info("\nCreating local folders...")
@@ -435,13 +440,16 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             logging.info(f"Series starts at {series_transformed['train'].time_index[0]} and ends at {series_transformed['train'].time_index[-1]}")
 
         #TODO maybe modify print to include split train based on nans
-        #TODO make more efficient by also spliting covariates where the nans are split 
+        #TODO make more efficient by also spliting covariates where the nans are split
+            
         series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
             split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
         ## choose architecture
         
         if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
-            print(f'\nTrained Model: {darts_model}Model')
+            darts_model = darts_model+"Model"
+            
+            print(f'\nTrained Model: {darts_model}')
             hparams_to_log = hyperparameters
             if 'learning_rate' in hyperparameters:
                 hyperparameters['optimizer_kwargs'] = {'lr': hyperparameters['learning_rate']}
@@ -449,7 +457,7 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
             if 'likelihood' in hyperparameters:
                 hyperparameters['likelihood'] = eval(hyperparameters['likelihood']+"Likelihood"+"()")
-            model = eval(darts_model + 'Model')(
+            model = eval(darts_model)(
                 save_checkpoints=True,
                 log_tensorboard=False,
                 model_name=mlrun.info.run_id,
@@ -525,6 +533,21 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 past_covariates=past_covariates_transformed['train'],
                 # val_future_covariates=future_covariates_transformed['val'],
                 # val_past_covariates=past_covariates_transformed['val']
+                )
+            model_type = "pkl"
+
+        elif darts_model == 'ARIMA':
+            print(f'\nTrained Model: {darts_model}') 
+
+            hparams_to_log = hyperparameters
+            model = ARIMA(**hyperparameters)
+
+            print(f'\nTraining {darts_model} on only the last non-nan subseries as it only supports single ts forecasting...')
+            logging.info(f'\nTraining {darts_model} on only the last non-nan subseries as it only supports single ts forecasting...')
+
+            model.fit(
+                series=series_transformed['train'][-1],
+                future_covariates=future_covariates_transformed['train'],
                 )
             model_type = "pkl"
         

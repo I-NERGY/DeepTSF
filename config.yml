@@ -840,6 +840,12 @@ hyperparameters:
     random_state: 0
     output_chunk_length: 24
 
+  ARIMA_test:
+    p: 12 
+    d: 1 
+    q: 0 
+    random_state: 0
+
   NBEATS_river:
     input_chunk_length: 480
     output_chunk_length: 12
