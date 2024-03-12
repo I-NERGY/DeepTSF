@@ -489,6 +489,13 @@ hyperparameters:
     output_chunk_length: 24
     random_state: 0
 
+  ARIMA_test:
+    p: ["list", 1, 4, 8, 24, 48] 
+    d: ["list", 1, 2, 3] 
+    q: ["list", 0, 1, 2, 3] 
+    random_state: 0
+
+
   NBEATS_UC7_households:
     input_chunk_length: ["list", 1, 2, 4, 8, 16, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240]
     output_chunk_length: 24

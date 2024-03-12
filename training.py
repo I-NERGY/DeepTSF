@@ -442,10 +442,11 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
         #TODO maybe modify print to include split train based on nans
         #TODO make more efficient by also spliting covariates where the nans are split
             
-        series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
-            split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
-        ## choose architecture
+        if darts_model not in ['ARIMA']:
+            series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
+                split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
         
+        ## choose architecture
         if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
             darts_model = darts_model+"Model"
             
@@ -542,8 +543,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             hparams_to_log = hyperparameters
             model = ARIMA(**hyperparameters)
 
-            print(f'\nTraining {darts_model} on only the last non-nan subseries as it only supports single ts forecasting...')
-            logging.info(f'\nTraining {darts_model} on only the last non-nan subseries as it only supports single ts forecasting...')
+            print(f'\nTraining {darts_model}...')
+            logging.info(f'\nTraining {darts_model}...')
 
             model.fit(
                 series=series_transformed['train'][-1],

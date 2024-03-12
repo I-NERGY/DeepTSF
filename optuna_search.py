@@ -14,6 +14,7 @@ from darts.models import (
 )
 # the following are used through eval(darts_model + 'Model')
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
+from darts.models.forecasting.arima import ARIMA
 # from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.gradient_boosted_model import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
@@ -84,7 +85,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
         if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
             logs_path = f"./darts_logs/{mlrun.info.run_id}"
             model_type = "pl"
-        elif darts_model in ['LightGBM', 'RandomForest']:
+        elif darts_model in ['LightGBM', 'RandomForest', 'ARIMA']:
             print('\nStoring the model as pkl to MLflow...')
             logging.info('\nStoring the model as pkl to MLflow...')
             forest_dir = tempfile.mkdtemp()
@@ -407,7 +408,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         #past_covs_csv = future_covs_csv
         future_covs_csv = None
 
-    elif darts_model in ["RNN"]:
+    elif darts_model in ["RNN", "ARIMA"]:
         """Does not accept past covariates as it needs to know future ones to provide chain forecasts
         its input needs to remain in the same feature space while recurring and with no future covariates
         this is not possible. The existence of past_covs is not permitted for the same reason. The
@@ -456,6 +457,9 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 resolution=resolution)
     else:
         past_covariates, id_l_past_covs, ts_id_l_past_covs = None, None, None
+    
+    if (len(id_l) != 1 or len(id_l[0]) > 1) and darts_model=='ARIMA':
+        raise Exception("ARIMA does not support multiple time series") 
 
     scalers_dir = tempfile.mkdtemp()
     features_dir = tempfile.mkdtemp()
@@ -607,7 +611,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     #TODO maybe modify print to include split train based on nans
     #TODO make more efficient by also spliting covariates where the nans are split 
-    series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
+    if darts_model not in ['ARIMA']:
+        series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
             split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
     
 
@@ -676,6 +681,21 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             # val_future_covariates=future_covariates_transformed['val'],
             # val_past_covariates=past_covariates_transformed['val']
             )
+    elif darts_model == 'ARIMA':
+        print(f'\nTrained Model: {darts_model}') 
+
+        hparams_to_log = hyperparameters
+        model = ARIMA(**hyperparameters)
+
+        print(f'\nTraining {darts_model}...')
+        logging.info(f'\nTraining {darts_model}...')
+
+        model.fit(
+            series=series_transformed['train'][-1],
+            future_covariates=future_covariates_transformed['train'],
+            )
+        model_type = "pkl"
+    
     if scale:
         scaler = series_transformed["transformer"]
     else:
@@ -1017,16 +1037,16 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 @click.option("--darts-model",
               type=click.Choice(
                   ['NBEATS',
-                   'NHiTS',
                    'Transformer',
-                   'RNN',
+                   'NHiTS',
                    'TCN',
+                   'RNN',
                    'BlockRNN',
                    'TFT',
+                   'ARIMA',
                    'LightGBM',
                    'RandomForest',
-                   'Naive',
-                   'AutoARIMA']),
+                   'Naive']),
               multiple=False,
               default='None',
               help="The base architecture of the model to be trained"
