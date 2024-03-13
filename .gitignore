@@ -63,6 +63,9 @@ nodeLanguageServer.*/**
 # optuna storage
 *.db
 
+# output files
+*.out
+
 # user data set folder
 !uc2/user_datasets/*
 

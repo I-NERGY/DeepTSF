@@ -1,6 +1,6 @@
 import pretty_errors
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file
-from preprocessing import scale_covariates, split_dataset, split_nans
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series
+from preprocessing import scale_covariates, split_dataset, split_nans, filtering
 from darts.utils.missing_values import extract_subseries
 import string
 from functools import reduce
@@ -14,6 +14,7 @@ from darts.models import (
 )
 # the following are used through eval(darts_model + 'Model')
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
+from darts.models.forecasting.arima import ARIMA
 # from darts.models.forecasting.auto_arima import AutoARIMA
 from darts.models.forecasting.gradient_boosted_model import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
@@ -84,7 +85,7 @@ def log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, log_model=False
         if darts_model in ['NHiTS', 'NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'Transformer']:
             logs_path = f"./darts_logs/{mlrun.info.run_id}"
             model_type = "pl"
-        elif darts_model in ['LightGBM', 'RandomForest']:
+        elif darts_model in ['LightGBM', 'RandomForest', 'ARIMA']:
             print('\nStoring the model as pkl to MLflow...')
             logging.info('\nStoring the model as pkl to MLflow...')
             forest_dir = tempfile.mkdtemp()
@@ -239,18 +240,26 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
              cut_date_test, device, forecast_horizon, stride, retrain, scale, 
              scale_covs, multiple, eval_series, mlrun, trial, study, opt_tmpdir, 
              num_workers, day_first, eval_method, loss_function, opt_all_results,
-             evaluate_all_ts, num_samples):
+             evaluate_all_ts, num_samples, pv_ensemble):
 
                 hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
                 for param, value in hyperparameters.items():
                     if type(value) == list and value and value[0] == "range":
                         if type(value[1]) == int:
-                            training_dict[param] = trial.suggest_int(param, value[1], value[2], value[3])
+                            if param == "lags_future_covariates":
+                                training_dict[param] = trial.suggest_int(param, value[1], value[2], value[3])
+                                training_dict[param] = [training_dict[param], 24]
+                            else:
+                                training_dict[param] = trial.suggest_int(param, value[1], value[2], value[3])
                         else:
                             training_dict[param] = trial.suggest_float(param, value[1], value[2], value[3])
                     elif type(value) == list and value and value[0] == "list":
-                        training_dict[param] = trial.suggest_categorical(param, value[1:])
+                        if param == "lags_future_covariates":
+                            training_dict[param] = trial.suggest_categorical(param, value[1:])
+                            training_dict[param] = [training_dict[param], 24]
+                        else:
+                            training_dict[param] = trial.suggest_categorical(param, value[1:])
                     elif type(value) == list and value and value[0] == "equal":
                         continue
                     else:
@@ -281,6 +290,8 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                       num_workers=num_workers,
                       day_first=day_first,
                       resolution=resolution,
+                      trial=trial,
+                      pv_ensemble=pv_ensemble,
                       )
                 try:
                     trial.set_user_attr("epochs_trained", model.epochs_trained)
@@ -307,6 +318,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                     evaluate_all_ts=evaluate_all_ts,
                     study=study,
                     num_samples=num_samples,
+                    pv_ensemble=pv_ensemble,
                     )
                 trial.set_user_attr("mape", float(metrics["mape"]))
                 trial.set_user_attr("smape", float(metrics["smape"]))
@@ -327,7 +339,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
 def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          training_dict, mlrun, num_workers, day_first, resolution):
+          training_dict, mlrun, num_workers, day_first, resolution, trial, pv_ensemble):
 
 
     # Argument preprocessing
@@ -396,7 +408,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         #past_covs_csv = future_covs_csv
         future_covs_csv = None
 
-    elif darts_model in ["RNN"]:
+    elif darts_model in ["RNN", "ARIMA"]:
         """Does not accept past covariates as it needs to know future ones to provide chain forecasts
         its input needs to remain in the same feature space while recurring and with no future covariates
         this is not possible. The existence of past_covs is not permitted for the same reason. The
@@ -422,6 +434,7 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 multiple=multiple,
                 day_first=day_first,
                 resolution=resolution)
+    
     if future_covariates is not None:
         future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
@@ -444,6 +457,9 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 resolution=resolution)
     else:
         past_covariates, id_l_past_covs, ts_id_l_past_covs = None, None, None
+    
+    if (len(id_l) != 1 or len(id_l[0]) > 1) and darts_model=='ARIMA':
+        raise Exception("ARIMA does not support multiple time series") 
 
     scalers_dir = tempfile.mkdtemp()
     features_dir = tempfile.mkdtemp()
@@ -493,6 +509,50 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
     # Scaling
     print("\nScaling...")
     logging.info("\nScaling...")
+
+    if pv_ensemble:
+        for i in range(len(series_split['train'])):
+            series_split['train'][i] = series_split['train'][i] + get_pv_forecast(ts_id_l[i], 
+                                                                                  start=series_split['train'][i].pd_dataframe().index[0], 
+                                                                                  end=series_split['train'][i].pd_dataframe().index[-1], 
+                                                                                  inference=False, 
+                                                                                  kW=60, 
+                                                                                  use_saved=True)
+            series_split['val'][i] = series_split['val'][i] + get_pv_forecast(ts_id_l[i], 
+                                                                                  start=series_split['val'][i].pd_dataframe().index[0], 
+                                                                                  end=series_split['val'][i].pd_dataframe().index[-1], 
+                                                                                  inference=False, 
+                                                                                  kW=60, 
+                                                                                  use_saved=True)
+
+
+        #plot_series([series_split['train'][0], series_split['val'][0]], ["train", "val"], os.path.join(f"{features_dir}",f'series_train.html'))
+
+
+    # #TODO Add smoothing
+
+    # savgol_polyorder = 0
+
+    # savgol_window_length = 0
+
+    # #TODO Add parameters to mlflow
+    # if 'savgol_window_length' in hyperparameters:
+    #         savgol_window_length = hyperparameters['savgol_window_length']
+    #         del hyperparameters['savgol_window_length']
+        
+    # if 'savgol_polyorder' in hyperparameters:
+    #         savgol_polyorder = hyperparameters['savgol_polyorder']
+    #         del hyperparameters['savgol_polyorder']
+
+    # if savgol_window_length <= savgol_polyorder and not (savgol_window_length == 0 and savgol_polyorder == 0):
+    #     raise optuna.TrialPruned()
+
+
+    # #TODO: Add parameter
+    # if savgol_window_length != 0 and savgol_polyorder != 0:
+    #     series_split['train'], past_covariates_split['train'], future_covariates_split['train'] = \
+    #         filtering(series_split['train'], past_covariates_split['train'], future_covariates_split['train'], savgol_window_length, savgol_polyorder)
+
 
     ## scale series
     series_transformed = scale_covariates(
@@ -551,8 +611,10 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     #TODO maybe modify print to include split train based on nans
     #TODO make more efficient by also spliting covariates where the nans are split 
-    series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
+    if darts_model not in ['ARIMA']:
+        series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'] = \
             split_nans(series_transformed['train'], past_covariates_transformed['train'], future_covariates_transformed['train'])
+    
 
     ## choose architecture
     if darts_model in ['NBEATS', 'RNN', 'BlockRNN', 'TFT', 'TCN', 'NHiTS', 'Transformer']:
@@ -608,6 +670,9 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         #     print(elem)
         # for elem in future_covariates_transformed['train']:
         #     print(elem)
+
+        # for i, series in enumerate(series_transformed['train']):
+        #     series.pd_dataframe().to_csv(f"{i}_series_bad")
         model.fit(
             series=series_transformed['train'],
             # val_series=series_transformed['val'],
@@ -616,6 +681,21 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             # val_future_covariates=future_covariates_transformed['val'],
             # val_past_covariates=past_covariates_transformed['val']
             )
+    elif darts_model == 'ARIMA':
+        print(f'\nTrained Model: {darts_model}') 
+
+        hparams_to_log = hyperparameters
+        model = ARIMA(**hyperparameters)
+
+        print(f'\nTraining {darts_model}...')
+        logging.info(f'\nTraining {darts_model}...')
+
+        model.fit(
+            series=series_transformed['train'][-1],
+            future_covariates=future_covariates_transformed['train'],
+            )
+        model_type = "pkl"
+    
     if scale:
         scaler = series_transformed["transformer"]
     else:
@@ -643,7 +723,9 @@ def backtester(model,
                future_covariates=None,
                past_covariates=None,
                path_to_save_backtest=None,
-               num_samples=1):
+               num_samples=1,
+               pv_ensemble=False,
+               resolution="60"):
                #TODO Add mase
     """ Does the same job with advanced forecast but much more quickly using the darts
     bult-in historical_forecasts method. Use this for evaluation. The other only
@@ -660,7 +742,7 @@ def backtester(model,
     if stride is None:
         stride = forecast_horizon
 
-    test_start_date = pd.Timestamp(test_start_date)
+    test_start_date = pd.Timestamp(test_start_date + " 00:00:00")
     #keep last non nan values
     #must be sufficient for historical_forecasts and mase calculation
     #TODO Add check for that in the beggining
@@ -690,37 +772,41 @@ def backtester(model,
         backtest_series = transformer_ts.inverse_transform(
             backtest_series_transformed)
     else:
-        series = series_transformed
         backtest_series = backtest_series_transformed
         print("\nWarning: Scaler not provided. Ensure model provides normal scale predictions")
         logging.info(
             "\n Warning: Scaler not provided. Ensure model provides normal scale predictions")
-
+    if pv_ensemble:
+        print("\nAdding pv forecast back to forecasted series")
+        logging.info("\nAdding pv forecast back to forecasted series")
+        backtest_series = backtest_series - get_pv_forecast([], 
+                                                            start=backtest_series.pd_dataframe().index[0], 
+                                                            end=backtest_series.pd_dataframe().index[-1], 
+                                                            inference=False, 
+                                                            kW=60, 
+                                                            use_saved=True)
     # Metrix
-    test_series = series.drop_before(pd.Timestamp(test_start_date))
+    test_series = series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min"))
     metrics = {
-        "smape": smape_darts(
-            test_series,
-            backtest_series),
         "mase": mase_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series,
             insample=series.drop_after(pd.Timestamp(test_start_date))),
         "mae": mae_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series),
         "rmse": rmse_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series),
         "nrmse_max": rmse_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series) / (
-            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().max()[0]- 
-            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().min()[0]),
+            test_series.pd_dataframe().max()[0]- 
+            test_series.pd_dataframe().min()[0]),
         "nrmse_mean": rmse_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series) / (
-            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().mean()[0])
+            test_series.pd_dataframe().mean()[0])
     }
     if min(test_series.min(axis=1).values()) > 0 and min(backtest_series.min(axis=1).values()) > 0:
         metrics["mape"] = mape_darts(
@@ -730,6 +816,16 @@ def backtester(model,
         print("\nModel result or validation series not strictly positive. Setting mape to NaN...")
         logging.info("\nModel result or validation series not strictly positive. Setting mape to NaN...")
         metrics["mape"] = np.nan
+
+    try:
+        metrics["smape"] = smape_darts(
+            test_series,
+            backtest_series)
+    except:
+        print("\nSeries not strictly positive. Setting smape to NaN...")
+        logging.info("\nSeries not strictly positive. Setting smape to NaN...")
+        metrics["smape"] = np.nan
+
     
     for key, value in metrics.items():
         print(key, ': ', value)
@@ -739,7 +835,7 @@ def backtester(model,
 
 def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_test, test_end_date,
              model, forecast_horizon, stride, retrain, multiple, eval_series, cut_date_val, mlrun, 
-             resolution, eval_method, opt_all_results, evaluate_all_ts, study, num_samples, mode='remote'):
+             resolution, eval_method, opt_all_results, evaluate_all_ts, study, num_samples, pv_ensemble, mode='remote'):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -762,13 +858,28 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
         last_date=test_end_date,
         multiple=multiple,
         resolution=resolution)
+    
+    series_transformed=series.copy()
+
+    if pv_ensemble:
+        print("\nSubtracting pv forecast from train and val series")
+        logging.info("\nSubtracting pv forecast from train and val series")
+        for i in range(len(series_transformed)):
+            series_transformed[i] = series_transformed[i] + get_pv_forecast(ts_id_l[i], 
+                                                                                  start=series_transformed[i].pd_dataframe().index[0], 
+                                                                                  end=series_transformed[i].pd_dataframe().index[-1], 
+                                                                                  inference=False, 
+                                                                                  kW=60, 
+                                                                                  use_saved=True)
+        
+        #plot_series([series_transformed[0]], ["val"], os.path.join(f"{opt_all_results}",'series_val.html'))
 
     if scaler is not None:
         if not multiple:
-            series_transformed = scaler.transform(series)
+            series_transformed = scaler.transform(series_transformed)
         else:
-            series_transformed = [scaler[i].transform(series[i]) for i in range(len(series))]
-    else:
+            series_transformed = [scaler[i].transform(series_transformed[i]) for i in range(len(series_transformed))]
+    elif not pv_ensemble:
         series_transformed = series
 
     # Split in the same way as in training
@@ -816,7 +927,9 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                             future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
                                             past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                             num_samples=num_samples,
-                                            )
+                                            pv_ensemble=pv_ensemble,
+                                            resolution=resolution)
+            
             eval_results[eval_i] = list(map(str, ts_id_l[eval_i])) + [validation_results["metrics"]["smape"],
                                                                       validation_results["metrics"]["mase"],
                                                                       validation_results["metrics"]["mae"],
@@ -876,7 +989,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                         future_covariates=None if future_covariates == None else (future_covariates[0] if not multiple else future_covariates[eval_i]),
                                         past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                         num_samples=num_samples,
-                                        )
+                                        pv_ensemble=pv_ensemble,
+                                        resolution=resolution)
 
         return validation_results["metrics"]
 
@@ -923,16 +1037,16 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 @click.option("--darts-model",
               type=click.Choice(
                   ['NBEATS',
-                   'NHiTS',
                    'Transformer',
-                   'RNN',
+                   'NHiTS',
                    'TCN',
+                   'RNN',
                    'BlockRNN',
                    'TFT',
+                   'ARIMA',
                    'LightGBM',
                    'RandomForest',
-                   'Naive',
-                   'AutoARIMA']),
+                   'Naive']),
               multiple=False,
               default='None',
               help="The base architecture of the model to be trained"
@@ -1046,15 +1160,23 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     default="1",
     help="Number of samples to use for evaluating/validating a probabilistic model's output")
 
+@click.option("--pv-ensemble",
+    default="False",
+    type=str,
+    help="Wether to subtract the pv production forecasts from the training series and add it again during testing or not.",
+    )
+
 
 def optuna_search(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, year_range, resolution, darts_model, hyperparams_entrypoint,
            cut_date_val, cut_date_test, test_end_date, device, forecast_horizon, stride, retrain,
-           scale, scale_covs, multiple, eval_series, n_trials, num_workers, day_first, eval_method, loss_function, evaluate_all_ts, grid_search, num_samples):
+           scale, scale_covs, multiple, eval_series, n_trials, num_workers, day_first, eval_method, 
+           loss_function, evaluate_all_ts, grid_search, num_samples, pv_ensemble):
 
         n_trials = none_checker(n_trials)
         n_trials = int(n_trials)
         evaluate_all_ts = truth_checker(evaluate_all_ts)
+        pv_ensemble = truth_checker(pv_ensemble)
         with mlflow.start_run(run_name=f'optuna_test_{darts_model}', nested=True) as mlrun:
             if grid_search:
                 hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
@@ -1080,7 +1202,8 @@ def optuna_search(series_csv, series_uri, future_covs_csv, future_covs_uri,
             study.optimize(lambda trial: objective(series_csv, series_uri, future_covs_csv, future_covs_uri, past_covs_csv, past_covs_uri, year_range, resolution,
                        darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
                        forecast_horizon, stride, retrain, scale, scale_covs,
-                       multiple, eval_series, mlrun, trial, study, opt_tmpdir, num_workers, day_first, eval_method, loss_function, opt_all_results, evaluate_all_ts, num_samples),
+                       multiple, eval_series, mlrun, trial, study, opt_tmpdir, num_workers, day_first, eval_method, 
+                       loss_function, opt_all_results, evaluate_all_ts, num_samples, pv_ensemble),
                        n_trials=n_trials, n_jobs = 1)
 
             log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, opt_all_results=opt_all_results, evaluate_all_ts=evaluate_all_ts)
