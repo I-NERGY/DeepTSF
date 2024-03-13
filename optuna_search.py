@@ -529,29 +529,29 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
         #plot_series([series_split['train'][0], series_split['val'][0]], ["train", "val"], os.path.join(f"{features_dir}",f'series_train.html'))
 
 
-    #TODO Add smoothing
+    # #TODO Add smoothing
 
-    savgol_polyorder = 0
+    # savgol_polyorder = 0
 
-    savgol_window_length = 0
+    # savgol_window_length = 0
 
-    #TODO Add parameters to mlflow
-    if 'savgol_window_length' in hyperparameters:
-            savgol_window_length = hyperparameters['savgol_window_length']
-            del hyperparameters['savgol_window_length']
+    # #TODO Add parameters to mlflow
+    # if 'savgol_window_length' in hyperparameters:
+    #         savgol_window_length = hyperparameters['savgol_window_length']
+    #         del hyperparameters['savgol_window_length']
         
-    if 'savgol_polyorder' in hyperparameters:
-            savgol_polyorder = hyperparameters['savgol_polyorder']
-            del hyperparameters['savgol_polyorder']
+    # if 'savgol_polyorder' in hyperparameters:
+    #         savgol_polyorder = hyperparameters['savgol_polyorder']
+    #         del hyperparameters['savgol_polyorder']
 
-    if savgol_window_length <= savgol_polyorder and not (savgol_window_length == 0 and savgol_polyorder == 0):
-        raise optuna.TrialPruned()
+    # if savgol_window_length <= savgol_polyorder and not (savgol_window_length == 0 and savgol_polyorder == 0):
+    #     raise optuna.TrialPruned()
 
 
-    #TODO: Add parameter
-    if savgol_window_length != 0 and savgol_polyorder != 0:
-        series_split['train'], past_covariates_split['train'], future_covariates_split['train'] = \
-            filtering(series_split['train'], past_covariates_split['train'], future_covariates_split['train'], savgol_window_length, savgol_polyorder)
+    # #TODO: Add parameter
+    # if savgol_window_length != 0 and savgol_polyorder != 0:
+    #     series_split['train'], past_covariates_split['train'], future_covariates_split['train'] = \
+    #         filtering(series_split['train'], past_covariates_split['train'], future_covariates_split['train'], savgol_window_length, savgol_polyorder)
 
 
     ## scale series
