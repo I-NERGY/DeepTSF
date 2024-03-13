@@ -1,9 +1,10 @@
 version: '3.3'
-# to run this you need to create a .env file with the contents of .env_local
+# to run this you need to create a .env file with the contents of .env.example
 services:
 
   s3:
-    image: minio/minio:RELEASE.2020-12-18T03-27-42Z
+    image: inergy2020iccs/minio:RELEASE.2020-12-18T03-27-42Z
+    # image: minio/minio:RELEASE.2020-12-18T03-27-42Z
     container_name: s3
     restart: always
     hostname: s3
@@ -24,7 +25,8 @@ services:
       retries: 3
 
   create_bucket:
-    image: minio/mc:RELEASE.2019-07-17T22-13-42Z
+    # image: minio/mc:RELEASE.2019-07-17T22-13-42Z
+    image: inergy2020iccs/minio_mc:RELEASE.2019-07-17T22-13-42Z
     depends_on:
       - s3    
     environment:
@@ -44,12 +46,11 @@ services:
 
   pgdb:
     container_name: pgdb
+    hostname: pgdb
     restart: always
-    # build: https://github.com/I-NERGY/mlflow-tracking-server/blob/master/docker-db/Dockerfile
-    # build: ./docker-db
-    image: inergy2020iccs/pgdb:latest
-    # volumes:
-    #     - database:/var/lib/postgresql/data
+    image: inergy2020iccs/pgdb:1.0
+    volumes:
+        - database:/var/lib/postgresql/data
     ports:
       - 5432:5432
     expose:
@@ -63,12 +64,10 @@ services:
       - load-forecasting-net
 
   mlflow_server:
-    restart: always
-    # build: https://github.com/I-NERGY/mlflow-tracking-server/blob/master/docker-mlflow-server/Dockerfile
-    # build: ./docker-mlflow-server
-    image: inergy2020iccs/mlflow_server:latest
-    # image: mlflow_server
     container_name: mlflow_server
+    hostname: mlflow_server
+    restart: always
+    image: inergy2020iccs/mlflow_server:1.16.0
     ports:
       - 5000:5000
     expose:
@@ -89,18 +88,16 @@ services:
       "mlflow server --backend-store-uri postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@pgdb:5432/${POSTGRES_DATABASE} --host 0.0.0.0 --default-artifact-root s3://${BUCKET_NAME}/"
 
   backend:
-    container_name: DeepTSF-backend
-    hostname: DeepTSF-backend
-    #image: pelekhs/load-forecasting-pipeline:0.1
-    build: .
+    hostname: deeptsf_backend
+    container_name: deeptsf_backend
+    # image: inergy2020iccs/deeptsf_backend:1.0
+    build: .    
     restart: always
     ports:
       - '8080:8080'
     expose:
       - '8080'
     stdin_open: true
-    # env_file:
-    #   - .env_example
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
       MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
@@ -118,52 +115,59 @@ services:
        - load-forecasting-net
 
   dagster:
-    container_name: DeepTSF--dagster-orchestrator
-    hostname: DeepTSF--dagster-orchestrator
+    container_name: deeptsf_dagster
+    hostname: deeptsf_dagster
+    # image: inergy2020iccs/deeptsf_dagster:1.0
     build:
       context: .
       dockerfile: ./dagster-deeptsf/config/Dockerfile
-    # env_file:
-    #   - .env_example
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
       MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
       AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY}
       AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY}
+    # deploy: # activate this if you want gpu usage
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           capabilities: [gpu]
     expose:
       - 8006
     ports:
-      - "8006:8006"
+      - 8006:8006
     volumes:
       - dagster-logs:/app/dagster-deeptsf
-#      - ./uc2:/app/uc2
+      - ./uc2/user_datasets:/app/uc2/user_datasets
     networks:
       - load-forecasting-net
 
-  # frontend:
-  #   container_name: load-forecasting-dashboard
-  #   hostname: load-forecasting-dashboard
-  #   # image: korbakis/load-forecasting-dashboard:0.1
-  #   restart: always
-  #   # build: ./load-forecasting-dashboard
-  #   build: https://github.com/I-NERGY/DeepTSF.git
-  #   # volumes: # this bind mount is maybe redundant?
-  #   #   - ./src:/app/src # check if this works like that. relative paths are inside the build directory or the current directory?
-  #   ports:
-  #     - '3000:3000'
-  #   stdin_open: true
-  #   env_file:
-  #     - .env # needs to add all variables of the front-end env_file to the current .env
-  #   # environment:
-  #   #   CHOKIDAR_USEPOLLING: true
-  #   #   REACT_APP_NAME: Load_Forecasting_Dashboard
-  #   networks:
-  #     - load-forecasting-net
+  frontend:
+    container_name: deeptsf_dashboard
+    hostname: deeptsf_dashboard
+    image: inergy2020iccs/deeptsf_dashboard:1.0
+    # build: https://github.com/I-NERGY/deeptsf-dashboard.git
+    restart: always
+    expose:
+      - 3000
+    ports:
+      - 3000:3000
+    stdin_open: true
+    # environment:
+    ## These environment variable cannot be set from within here. (React issues)
+    ## Instead they should have been included as .env in the front end repo / image.
+    #   DAGSTER_ENDPOINT_URL: ${DAGSTER_ENDPOINT_URL}
+    #   REACT_APP_AUTH: "false"
+    #   REACT_APP_MLFLOW: ${MLFLOW_TRACKING_URI}
+    #   CHOKIDAR_USEPOLLING: "true"
+    #   REACT_APP_NAME: Load_Forecasting_Dashboard
+    networks:
+      - load-forecasting-net
 
 volumes:
   database:
   artifact-store:
-  dagster-logs: 
+  dagster-logs:
 
 networks: 
   load-forecasting-net:

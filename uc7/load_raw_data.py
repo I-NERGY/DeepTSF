@@ -15,12 +15,11 @@ import pandas as pd
 import numpy as np
 import csv
 from datetime import datetime
-from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
+from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, truth_checker, none_checker, allow_empty_series_fun
 import shutil
 import pretty_errors
 import uuid
 from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder
-from utils import truth_checker, none_checker
 import tempfile
 from math import ceil
 # get environment variables
@@ -38,12 +37,12 @@ from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
 
 
-
 def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
                             day_first: bool = True,
                             multiple: bool = False,
                             from_database: bool = False,
-                            covariates: str = "series"):
+                            covariates: str = "series",
+                            allow_empty_series=False):
     """
     Validates the input after read_csv is called and throws apropriate exception if it detects an error.
     
@@ -141,7 +140,6 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         if "Timeseries ID" not in ts.columns:
             ts["Timeseries ID"] = ts["ID"]
 
-                
         #Infering resolution for multiple timeseries
         times = []
         for elem in list(ts.columns):
@@ -165,6 +163,11 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         #Check that all timeseries in a multiple timeseries file have the same number of components
         if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
             raise DifferentComponentDimensions()
+        
+        if allow_empty_series:
+            ts_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, str(resolution))
+            ts_list_ret, id_l_ret, ts_id_l_ret = allow_empty_series_fun(ts_l, id_l, ts_id_l, allow_empty_series=allow_empty_series)
+            ts = multiple_dfs_to_ts_file(ts_list_ret, id_l_ret, ts_id_l_ret, "", save=False)
 
     mlflow.set_tag(f'infered_resolution_{covariates}', resolution)
             
@@ -325,7 +328,7 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
 
     with mlflow.start_run(run_name='load_data', nested=True) as mlrun:
 
-        ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, from_database=from_database)
+        ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, from_database=from_database, allow_empty_series=True)
 
         print(f'Validating timeseries on local file: {series_csv}')
         logging.info(f'Validating timeseries on local file: {series_csv}')

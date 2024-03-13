@@ -15,7 +15,7 @@ import pandas as pd
 import numpy as np
 import csv
 from datetime import datetime
-from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
+from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun
 import shutil
 import pretty_errors
 import uuid
@@ -43,7 +43,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                             day_first: bool = True,
                             multiple: bool = False,
                             from_database: bool = False,
-                            covariates: str = "series"):
+                            covariates: str = "series",
+                            allow_empty_series=False):
     """
     Validates the input after read_csv is called and throws apropriate exception if it detects an error.
     
@@ -141,7 +142,6 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         if "Timeseries ID" not in ts.columns:
             ts["Timeseries ID"] = ts["ID"]
 
-                
         #Infering resolution for multiple timeseries
         times = []
         for elem in list(ts.columns):
@@ -165,10 +165,14 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         #Check that all timeseries in a multiple timeseries file have the same number of components
         if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
             raise DifferentComponentDimensions()
+        
+        if allow_empty_series:
+            ts_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, str(resolution))
+            ts_list_ret, id_l_ret, ts_id_l_ret = allow_empty_series_fun(ts_l, id_l, ts_id_l, allow_empty_series=allow_empty_series)
+            ts = multiple_dfs_to_ts_file(ts_list_ret, id_l_ret, ts_id_l_ret, "", save=False)
 
     mlflow.set_tag(f'infered_resolution_{covariates}', resolution)
             
-
     return ts, resolution
 
 def make_multiple(ts_covs, series_csv, day_first, inf_resolution):

@@ -12,7 +12,7 @@ import numpy as np
 load_dotenv()
 from tqdm import tqdm
 import logging
-from exceptions import MandatoryArgNotSet, NotValidConfig
+from exceptions import MandatoryArgNotSet, NotValidConfig, EmptySeries
 import json
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
@@ -1138,7 +1138,6 @@ def add_weather_covariates(start, end, res_future, id_l_future_covs, ts_id_l_fut
             ts_id_l_future_covs[i].extend([ts_id_l[i][0] for _ in range(len(covs))])
     return res_future, id_l_future_covs, ts_id_l_future_covs
 
-
 def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Datetime', last_date=None, multiple = False, day_first=True, resolution="15"):
 
     import logging
@@ -1185,15 +1184,6 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
                     covariates.drop_after(pd.Timestamp(last_date))
                 except:
                     pass
-#=======
-#        covariates = darts.TimeSeries.from_csv(
-#            local_path, time_col=time_col,
-#            fill_missing_dates=True,
-#            freq=None)
-#        covariates = covariates.astype(np.float32)
-#        if last_date is not None:
-#            covariates.drop_after(pd.Timestamp(last_date))
-#>>>>>>> dev
     except (FileNotFoundError, PermissionError) as e:
         print(
             f"\nBad {name} file.  The model won't include {name}...")
@@ -1476,6 +1466,18 @@ def plot_series(df_list, ts_name_list, save_dir):
     # Show the plot
     fig.write_html(save_dir)
 
+
+def allow_empty_series_fun(ts_list, id_l, ts_id_l, allow_empty_series=False):
+    # TODO: that works only for multiple, extend for multivariate
+    ts_list_ret, id_l_ret, ts_id_l_ret = [], [], []
+    for ts, id, ts_id in zip(ts_list, id_l, ts_id_l):
+        if not ts[0].empty:
+            ts_list_ret.append(ts)
+            id_l_ret.append(id)
+            ts_id_l_ret.append(ts_id)
+        elif not allow_empty_series: 
+            raise EmptySeries()
+    return ts_list_ret, id_l_ret, ts_id_l_ret
 
 #epestrepse kai IDs
 #prwta psakse ID meta SC
