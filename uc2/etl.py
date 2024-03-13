@@ -357,7 +357,7 @@ def impute(ts: pd.DataFrame,
         by this
     min_non_nan_interval
         If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
-        hours, these intervals are all replaced  by nan values
+        hours, these intervals are all replaced by nan values
 
     Returns
     -------
@@ -365,7 +365,11 @@ def impute(ts: pd.DataFrame,
         The imputed dataframe
     """
     if max_thr == -1: max_thr = len(ts)
-    if imputation_method in ['linear', 'time', 'pad', 'nearest', 'polynomial', 'spline']:
+    if imputation_method == 'none':
+        imputed_values = ts[ts["Value"].isnull()].copy()
+        imputed_values = imputed_values[(~imputed_values["Value"].isnull())]
+        return ts, imputed_values
+    elif imputation_method in ['linear', 'time', 'pad', 'nearest', 'polynomial', 'spline', 'krogh', 'piecewise_polynomial', 'spline', 'pchip', 'akima', 'cubicspline']:
         imputed_values = ts[ts["Value"].isnull()]
 
         #null_dates: Series with all null dates to be imputed
@@ -457,7 +461,7 @@ def impute(ts: pd.DataFrame,
             if i < len(null_dates) - 1:
                 if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(minutes=int(resolution)):
                     count += 1
-                else:
+                else: 
                     count = 1
 
         #Calculating the distances to the nearest non null value that is later in the series
@@ -844,7 +848,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
      
 @click.option("--imputation-method",
     default='linear',
-    type=click.Choice(['linear', 'time', 'pad', 'nearest', 'polynomial', 'spline', 'peppanen']),
+    type=click.Choice(['linear', 'time', 'pad', 'nearest', 'polynomial', 'spline', 'peppanen', 'krogh', 'piecewise_polynomial', 'spline', 'pchip', 'akima', 'cubicspline', 'none']),
     help="Which imputation method to use")
 
 @click.option("--order",
@@ -1118,6 +1122,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   ydcutoff=ydcutoff,
                                                   resolution=infered_resolution_series,
                                                   name=id_l[ts_num][comp_num],
+                                                  impute_dir=impute_dir,
                                                   imputation_method=imputation_method,
                                                   order=order,
                                                   cut_date_val=cut_date_val,

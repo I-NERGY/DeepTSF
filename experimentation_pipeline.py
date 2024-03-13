@@ -321,7 +321,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
 
 @click.option("--imputation-method",
     default='linear',
-    type=click.Choice(['linear', 'time', 'pad', 'nearest', 'polynomial', 'spline', 'peppanen']),
+    type=click.Choice(['linear', 'time', 'pad', 'nearest', 'polynomial', 'spline', 'peppanen', 'krogh', 'piecewise_polynomial', 'spline', 'pchip', 'akima', 'cubicspline', 'none']),
     help="Which imputation method to use")
 
 @click.option("--order",
@@ -461,7 +461,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                                 "multiple": multiple, 
                                 "from_database": from_database,
                                 "database_name": database_name,
-                                "resolution":resolution}
+                                "resolution": resolution}
         
         load_raw_data_run = _get_or_run("load_raw_data", load_raw_data_params, git_commit, ignore_previous_runs)
         # series_uri = f"{load_raw_data_run.info.artifact_uri}/raw_data/series.csv" \
@@ -489,7 +489,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                       "ycutoff": ycutoff,
                       "ydcutoff": ydcutoff,
                       "multiple": multiple,
-                      "l_interpolation": l_interpolation,
+                      "imputation_method": imputation_method,
+                      "order": order,
                       "rmv_outliers": rmv_outliers,
                       "convert_to_local_tz": convert_to_local_tz,
                       "ts_used_id": ts_used_id,
