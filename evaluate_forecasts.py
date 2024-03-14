@@ -210,7 +210,7 @@ def backtester(model,
         "rmse": rmse_darts(
             test_series,
             backtest_series),
-        "nrmse_max": rmse_darts(
+        "nrmse_min_max": rmse_darts(
             test_series,
             backtest_series) / (
             test_series.pd_dataframe().max()[0]- 
@@ -886,10 +886,10 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                                                               evaluation_results["metrics"]["mae"],
                                                                               evaluation_results["metrics"]["rmse"],
                                                                               evaluation_results["metrics"]["mape"],
-                                                                              evaluation_results["metrics"]["nrmse_max"],
+                                                                              evaluation_results["metrics"]["nrmse_min_max"],
                                                                               evaluation_results["metrics"]["nrmse_mean"]]
 
-            eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape", "nrmse_max", "nrmse_mean"])
+            eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape", "nrmse_min_max", "nrmse_mean"])
             save_path = f"{evaltmpdir}/evaluation_results_all_ts.csv"
             eval_results.to_csv(save_path)
             evaluation_results["metrics"] = eval_results.mean(axis=0, numeric_only=True).to_dict()

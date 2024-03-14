@@ -551,3 +551,6 @@ hyperparameters:
     lags: ["range", 24, 96, 24]
     random_state: 0
 
+  LGBM_example_test:
+    lags: ["range", 24, 48, 24]
+    random_state: 0

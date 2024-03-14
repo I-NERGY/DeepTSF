@@ -325,7 +325,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 trial.set_user_attr("mase", float(metrics["mase"]))
                 trial.set_user_attr("mae", float(metrics["mae"]))
                 trial.set_user_attr("rmse", float(metrics["rmse"]))
-                trial.set_user_attr("nrmse_max", float(metrics["nrmse_max"]))
+                trial.set_user_attr("nrmse_min_max", float(metrics["nrmse_min_max"]))
                 trial.set_user_attr("nrmse_mean", float(metrics["nrmse_mean"]))
                 log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, 
                     log_model=True, curr_loss=float(metrics[loss_function]), 
@@ -798,7 +798,7 @@ def backtester(model,
         "rmse": rmse_darts(
             test_series,
             backtest_series),
-        "nrmse_max": rmse_darts(
+        "nrmse_min_max": rmse_darts(
             test_series,
             backtest_series) / (
             test_series.pd_dataframe().max()[0]- 
@@ -935,10 +935,10 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                                                                       validation_results["metrics"]["mae"],
                                                                       validation_results["metrics"]["rmse"],
                                                                       validation_results["metrics"]["mape"],
-                                                                      validation_results["metrics"]["nrmse_max"],
+                                                                      validation_results["metrics"]["nrmse_min_max"],
                                                                       validation_results["metrics"]["nrmse_mean"]]
 
-        eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape", "nrmse_max", "nrmse_mean"])
+        eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape", "nrmse_min_max", "nrmse_mean"])
         trial_num = len(study.trials_dataframe()) - 1
         save_path = f"{opt_all_results}/trial_{trial_num}.csv"
         if os.path.exists(save_path):
@@ -1140,7 +1140,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
          "mase", 
          "mae",
          "rmse",
-         "nrmse_max",
+         "nrmse_min_max",
          "nrmse_mean"]),
     default="mape",
     help="Loss function to use for optuna")
