@@ -13,7 +13,7 @@ services:
     expose:
       - 8080
     stdin_open: true
-    # deploy:
+    # deploy: # use this configuration for GPU usage (if GPU available)
     #   resources:
     #     reservations:
     #       devices:
@@ -21,8 +21,8 @@ services:
     #           capabilities: [gpu]
     env_file:
       - .env
-    # networks:
-    #    - load-forecasting-net
+    networks:
+       - inergy_network
 
   dagster:
     container_name: DeepTSF--dagster-orchestrator
@@ -39,13 +39,13 @@ services:
     #   AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     expose:
       - 8006
-    ports:
-      - "8006:8006"
+    # ports:
+    #   - "8006:8006"
     volumes:
       - dagster-logs:/app/dagster-deeptsf
 #      - ./uc2:/app/uc2
-    # networks:
-    #   - load-forecasting-net
+    networks:
+       - inergy_network
 
   # frontend:
   #   container_name: load-forecasting-dashboard
@@ -70,6 +70,6 @@ services:
 volumes:
     dagster-logs: 
 
-# networks: 
-#   load-forecasting-net:
-#     external: true
+networks:
+  inergy_network:
+    external: true
