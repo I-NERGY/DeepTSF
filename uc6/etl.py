@@ -4,7 +4,8 @@ import pretty_errors
 from utils import none_checker
 import os
 from os import times
-from utils import download_online_file, truth_checker, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, get_weather_covariates
+from utils import download_online_file, truth_checker, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
+from utils import plot_imputation, plot_removed, get_weather_covariates
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 import darts
 from darts.utils.timeseries_generation import holidays_timeseries
@@ -247,7 +248,9 @@ def remove_outliers(ts: pd.DataFrame,
                     name: str = "Portugal",
                     std_dev: float = 4.5,
                     resolution: str = "15",
-                    print_removed: bool = True):
+                    print_removed: bool = False,
+                    min_non_nan_interval: int = -1,
+                    outlier_dir: str = ""):
     """
     Reads the input dataframe and replaces its outliers with NaNs by removing
     values that are more than std_dev standard deviations away from their 1 month
@@ -274,43 +277,86 @@ def remove_outliers(ts: pd.DataFrame,
         The original dataframe with its outlier values replaced with NaNs, along
         with a dataframe consisting of the removed values.
     """
-
+    null_dates = ts[ts["Value"].isnull()].index
     #Datetimes with NaN values are removed from the dataframe
     ts = ts.dropna()
-    print(ts)
-    #Removing all zero values if no negative values are present
-    if min(ts["Value"]) >= 0:
-        a = ts.loc[ts["Value"] <= 0]
-    else:
-        a = pd.DataFrame(columns=ts.columns)
-        a.index.name = ts.index.name
+    #Keeping 0s for UC7
+    a = pd.DataFrame(columns=ts.columns)
+    a.index.name = ts.index.name
 
     #Calculating monthly mean and standard deviation and removing values
     #that are more than std_dev standard deviations away from the mean
-    mean_per_month = ts.groupby(lambda x: x.month).mean().to_dict()["Value"]
-    mean = ts.index.to_series().apply(lambda x: mean_per_month[x.month])
-    std_per_month = ts.groupby(lambda x: x.month).std().to_dict()["Value"]
-    std = ts.index.to_series().apply(lambda x: std_per_month[x.month])
-    a = pd.concat([a, ts.loc[-std_dev * std + mean > ts["Value"]]])
-    a = pd.concat([a, ts.loc[ts["Value"] > std_dev * std + mean]])
+    mean_per_month = ts.groupby(lambda x: str(x.month) + "-" + str(x.year)).mean().to_dict()["Value"]
+
+    resolution = int(resolution)
+    nan_sum = 0
+    prev = null_dates[0]
+    cut_off = ts.quantile(.99)[0]
+    for null_date in null_dates[1:]:
+        nan_sum += 1
+        if (null_date - prev)!= pd.Timedelta(resolution, "min"):
+            # if (nan_sum - 1) * mean_per_month[str(prev.month) + "-" + str(prev.year)]*0.5 <= ts.loc[prev + pd.Timedelta(resolution, "min")][0] and (nan_sum - 1 > 2) or ts.loc[prev + pd.Timedelta(resolution, "min")][0] == 0:
+            #     a.loc[prev + pd.Timedelta(resolution, "min")] = ts.loc[prev + pd.Timedelta(resolution, "min")]
+            if cut_off <= ts.loc[prev + pd.Timedelta(resolution, "min")][0] or ts.loc[prev + pd.Timedelta(resolution, "min")][0] == 0:
+                a.loc[prev + pd.Timedelta(resolution, "min")] = ts.loc[prev + pd.Timedelta(resolution, "min")]
+            nan_sum = 1
+        prev = null_date
+    try:
+        if cut_off <= ts.loc[prev + pd.Timedelta(resolution, "min")][0] or ts.loc[prev + pd.Timedelta(resolution, "min")][0] == 0:
+            a.loc[prev + pd.Timedelta(resolution, "min")] = ts.loc[prev + pd.Timedelta(resolution, "min")]
+    except:
+        pass
+
+    if min_non_nan_interval != -1:
+        #UC7 Do that for l_interpolation also
+        #If after imputation there exist continuous intervals of non nan values in the train set that are smaller 
+        #than min_non_nan_interval time steps, these intervals are all replaced by nan values
+        not_nan_values = ts[(~ts["Value"].isnull())]
+        not_nan_dates = not_nan_values.index
+        prev = not_nan_dates[0]
+        start = prev
+
+        for not_nan_day in not_nan_dates[1:]:
+            if (not_nan_day - prev)!= pd.Timedelta(resolution, "min"):
+                if prev - start < pd.Timedelta(resolution * min_non_nan_interval, "min"):
+                    for date in pd.date_range(start=start, end=prev, freq=str(resolution) + "min"):
+                        a.loc[date] = ts.loc[date].values[0]
+
+                start = not_nan_day
+            prev = not_nan_day
+        if prev - start < pd.Timedelta(resolution * min_non_nan_interval, "min"):
+            for date in pd.date_range(start=start, end=prev, freq=str(resolution) + "min"):
+                a.loc[date] = ts.loc[date].values[0]
+
 
     #Plotting Removed values and new series
     a = a.sort_values(by='Datetime')
     a = a[~a.index.duplicated(keep='first')]
-    if print_removed: print(f"Removed from {name}", a)
-    fig, ax = plt.subplots(figsize=(8,5))
-    ax.plot(ts.index, ts["Value"], color='black', label = f'Load of {name}')
-    ax.scatter(a.index, a["Value"], color='blue', label = 'Removed Outliers')
-    plt.legend()
-    mlflow.log_figure(fig, f'outlier_detection_results/removed_outliers_{name}.png')
 
     res = ts.drop(index=a.index)
-    fig, ax = plt.subplots(figsize=(8,5))
-    ax.plot(res.index, res["Value"], color='black', label = f'Load of {name} after Outlier Detection')
-    plt.legend()
-    mlflow.log_figure(fig, f'outlier_detection_results/outlier_free_series_{name}.png')
+    if print_removed: print(f"Removed from {name}", a)
 
-    return res.asfreq(resolution+'min'), a
+    removed = a.copy()
+    #maybe they are removed also
+    #fix
+    removed.loc[res.index[0]] = pd.NA
+    removed.loc[res.index[-1]] = pd.NA
+    removed = removed.sort_values(by='Datetime')
+    removed = removed[~removed.index.duplicated(keep='first')]
+
+    if not removed.empty:
+        full_removed = removed.asfreq(str(resolution)+'min')
+    else:
+        full_removed = removed.copy()
+
+    if not ts.empty:
+        full_ts = ts.asfreq(str(resolution)+'min')
+    else:
+        full_ts = full_ts.copy()
+
+    plot_removed(full_removed, full_ts, name, outlier_dir)
+
+    return res.asfreq(str(resolution)+'min'), a
 
 def impute(ts: pd.DataFrame,
            holidays,
@@ -319,12 +365,15 @@ def impute(ts: pd.DataFrame,
            wncutoff: float = 0.000694,
            ycutoff: int = 3,
            ydcutoff: int = 30,
+           #TODO Add to params
+           dcutoff: int = 6,
            resolution: str = "15",
            debug: bool = False,
            name: str = "PT",
            l_interpolation: bool = False,
            cut_date_val: str = "20221208",
-           min_non_nan_interval: int = 24):
+           min_non_nan_interval: int = 24,
+           impute_dir=""):
     """
     Reads the input dataframe and imputes the timeseries using a weighted average of historical data
     and simple interpolation. The weights of each method are exponentially dependent on the distance
@@ -433,14 +482,13 @@ def impute(ts: pd.DataFrame,
 
         for i, null_date in tqdm(null_zip):
             res.loc[null_date] = np.NaN
-            print(res.loc[null_date])
-        imputed_values = res[ts["Value"].isnull()]
+        imputed_values = res[ts["Value"].isnull()].copy()
 
     else:
         #Returning calendar of the country ts belongs to
         calendar = create_calendar(ts, int(resolution), holidays, timezone("UTC"))
         calendar.index = calendar["datetime"]
-        imputed_values = ts[ts["Value"].isnull()]
+        imputed_values = ts[ts["Value"].isnull()].copy()
 
         #null_dates: Series with all null dates to be imputed
         null_dates = imputed_values.index
@@ -503,6 +551,7 @@ def impute(ts: pd.DataFrame,
             currWN = calendar.loc[null_date]['WN']
             currYN = calendar.loc[null_date]['yearday']
             currY = calendar.loc[null_date]['year']
+            currDN = calendar.loc[null_date]['DN']
 
             #weight of interpolated series, decreases as distance to nearest known value increases
             w = np.e ** (-a * d[i])
@@ -512,19 +561,30 @@ def impute(ts: pd.DataFrame,
             #All dates before cut_date_val that have nan values are imputed using historical data
             #from dates which are also before cut_date_val
             if null_date < pd.Timestamp(cut_date_val):
-                historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
+                historical = ts[(~isnull) & (((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
                                         (ts["Value"].index < pd.Timestamp(cut_date_val)) &\
                                         (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
                                         (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
-                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Value"]
+                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff))) |\
+                                        ((((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < dcutoff) |\
+                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < dcutoff)) &\
+                                        ((calendar['DN'] - currDN < int(resolution)/120) & (- calendar['DN'] + currDN < int(resolution)/120))))]["Value"]
+
+                # historical = ts[(~isnull) &\
+                #                         (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < dcutoff) |\
+                #                         ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < dcutoff)) &\
+                #                         (calendar['hour'] == currH)]["Value"]
+
                 
             #Dates after cut_date_val are not affected by cut_date_val
             else:
-                historical = ts[(~isnull) & ((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
+                historical = ts[(~isnull) & (((calendar['WN'] - currWN < wncutoff) & (calendar['WN'] - currWN > -wncutoff) &\
                                         (calendar['year'] - currY < ycutoff) & (calendar['year'] - currY > -ycutoff) &\
                                         (((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff) |\
-                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff)))]["Value"]
-
+                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < ydcutoff))) |\
+                                        ((((calendar['yearday'] - currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < dcutoff) |\
+                                        ((-calendar['yearday'] + currYN) % (365 + calendar['year'].apply(lambda x: isleap(x))) < dcutoff)) &\
+                                        ((calendar['DN'] - currDN < int(resolution)/120) & (- calendar['DN'] + currDN < int(resolution)/120))))]["Value"]
 
             if debug: print("~~~~~~Date~~~~~~~",null_date, "~~~~~~~Dates summed~~~~~~~~~~",historical,sep="\n")
 
@@ -537,6 +597,7 @@ def impute(ts: pd.DataFrame,
 
             if debug:
                 print(res.loc[null_date])
+    non_nan_intervals_to_nan = {}
     if min_non_nan_interval != -1:
         #UC7 Do that for l_interpolation also
         #If after imputation there exist continuous intervals of non nan values in the train set that are smaller 
@@ -551,18 +612,38 @@ def impute(ts: pd.DataFrame,
                 if prev - start < pd.Timedelta(int(resolution) * min_non_nan_interval, "min"):
                     print(f"Non Nan interval from {start} to {prev} is smaller than {min_non_nan_interval} time steps. Making this also Nan")
                     for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+                        non_nan_intervals_to_nan[date] = res.loc[date].values[0]
                         res.loc[date] = pd.NA
+                        imputed_values.loc[date] = pd.NA
+
                 start = not_nan_day
             prev = not_nan_day
         if prev - start < pd.Timedelta(int(resolution) * min_non_nan_interval, "min"):
             for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+                non_nan_intervals_to_nan[date] = res.loc[date].values[0]
                 res.loc[date] = pd.NA
+                imputed_values.loc[date] = pd.NA
+    imputed_values = imputed_values[(~imputed_values["Value"].isnull())]
+    non_nan_intervals_to_nan = pd.DataFrame.from_dict(non_nan_intervals_to_nan, columns=["Value"], orient='index')
+    non_nan_intervals_to_nan.index.name = "Datetime"
+    if not res.empty:
+        full_res = res.asfreq(str(resolution)+'min')
+    else:
+        full_res = res.copy()
 
-    fig, ax = plt.subplots(figsize=(8,5))
-    ax.plot(res.index, res["Value"], color='black', label = f'Load of {name} after Imputation')
-    plt.legend()
-    mlflow.log_figure(fig, f'imputation_results/imputed_series_{name}.png')
+    if not imputed_values.empty:
+        full_imputed_values = imputed_values.asfreq(str(resolution)+'min')
+    else:
+        full_imputed_values = imputed_values.copy()
+    
+    if not non_nan_intervals_to_nan.empty:
+        full_non_nan_intervals_to_nan = non_nan_intervals_to_nan.asfreq(str(resolution)+'min')
+    else:
+        full_non_nan_intervals_to_nan = non_nan_intervals_to_nan.copy()
+
+    plot_imputation(full_res, full_imputed_values, full_non_nan_intervals_to_nan, name, impute_dir)
     return res, imputed_values
+
 
 def utc_to_local(df, country_code):
     # Get dictionary of countries and their timezones
@@ -1076,7 +1157,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                     comp_res, removed = remove_outliers(ts=comp_res,
                                                         name=id_l[ts_num][comp_num],
                                                         resolution=infered_resolution_series,
-                                                        std_dev=std_dev)
+                                                        std_dev=std_dev,
+                                                        outlier_dir=outlier_dir)
 
                 #holidays_: The holidays of country
                 if l_interpolation:
@@ -1108,7 +1190,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   name=id_l[ts_num][comp_num],
                                                   l_interpolation=l_interpolation,
                                                   cut_date_val=cut_date_val,
-                                                  min_non_nan_interval=min_non_nan_interval)
+                                                  min_non_nan_interval=min_non_nan_interval,
+                                                  impute_dir=impute_dir)
                 
                 if int(resolution) < int(infered_resolution_series):
                     raise NoUpsamplingException()
@@ -1126,6 +1209,10 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
                 # explicitly redefine frequency
                 comp_res = comp_res.asfreq(resolution+'min')
+
+                if 'W6 positive_active' in id_l[ts_num][comp_num]:
+                    comp_res = -comp_res
+
 
                 # ts_res.to_csv(f'{tmpdir}/4_asfreq.csv')
 

@@ -159,6 +159,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
                    'TCN',
                    'BlockRNN',
                    'TFT',
+                   'ARIMA',
                    'LightGBM',
                    'RandomForest',
                    'Naive',
@@ -317,11 +318,16 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
          'ID']),
     default="ts_ID",
     help="what ID type is speciffied in eval_series: if ts_ID is speciffied, then we look at Timeseries ID column. Else, we look at ID column ")
-@click.option("--l-interpolation",
-    type=str,
-    default="false",
-    help="Whether to only use linear interpolation")
 
+@click.option("--imputation-method",
+    default='linear',
+    type=click.Choice(['linear', 'time', 'pad', 'nearest', 'polynomial', 'spline', 'peppanen', 'krogh', 'piecewise_polynomial', 'spline', 'pchip', 'akima', 'cubicspline', 'none']),
+    help="Which imputation method to use")
+
+@click.option("--order",
+    type=str,
+    default='1',
+    help="Order of method. Applicable to polynomial and spline imputation methods only")
 @click.option("--rmv-outliers",
     type=str,
     default="true",
@@ -379,6 +385,7 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     type=str,
     default="1",
     help="Number of samples to use for evaluating/validating a probabilistic model's output")
+
 @click.option("--resampling-agg-method",
     default="averaging",
     type=click.Choice(['averaging',
@@ -388,13 +395,19 @@ def _get_or_run(entrypoint, parameters, git_commit, ignore_previous_run=True, us
     help="Method to use for resampling."
     )
 
+@click.option("--pv-ensemble",
+    default="False",
+    type=str,
+    help="Wether to subtract the pv production forecasts from the training series and add it again during testing or not.",
+    )
+
 def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, year_range, 
              resolution, time_covs, darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
              forecast_horizon, stride, retrain, ignore_previous_runs, scale, scale_covs, day_first,
              country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, shap_data_size, analyze_with_shap,
              multiple, eval_series, n_trials, opt_test, from_database, database_name, num_workers, eval_method,
-             l_interpolation, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, shap_input_length,
-             ts_used_id, m_mase, min_non_nan_interval, num_samples, resampling_agg_method):
+             imputation_method, order, rmv_outliers, loss_function, evaluate_all_ts, convert_to_local_tz, grid_search, shap_input_length,
+             ts_used_id, m_mase, min_non_nan_interval, num_samples, resampling_agg_method, pv_ensemble):
 
     disable_warnings(InsecureRequestWarning)
     
@@ -448,7 +461,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                                 "multiple": multiple, 
                                 "from_database": from_database,
                                 "database_name": database_name,
-                                "resolution":resolution}
+                                "resolution": resolution}
         
         load_raw_data_run = _get_or_run("load_raw_data", load_raw_data_params, git_commit, ignore_previous_runs)
         # series_uri = f"{load_raw_data_run.info.artifact_uri}/raw_data/series.csv" \
@@ -476,7 +489,8 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                       "ycutoff": ycutoff,
                       "ydcutoff": ydcutoff,
                       "multiple": multiple,
-                      "l_interpolation": l_interpolation,
+                      "imputation_method": imputation_method,
+                      "order": order,
                       "rmv_outliers": rmv_outliers,
                       "convert_to_local_tz": convert_to_local_tz,
                       "ts_used_id": ts_used_id,
@@ -526,6 +540,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "evaluate_all_ts": evaluate_all_ts,
                 "grid_search" : grid_search,
                 "num_samples": num_samples,
+                "pv_ensemble":pv_ensemble,
             }
             train_opt_run = _get_or_run("optuna_search", optuna_params, git_commit, ignore_previous_runs)
 
@@ -547,6 +562,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "num_workers": num_workers,
                 "day_first": day_first,
                 "resolution": resolution,
+                "pv_ensemble": pv_ensemble,
             }
             train_opt_run = _get_or_run("train", train_params, git_commit, ignore_previous_runs)
 
@@ -598,6 +614,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
                 "evaluate_all_ts": evaluate_all_ts,
                 "m_mase": m_mase,
                 "num_samples": num_samples,
+                "pv_ensemble": pv_ensemble,
             }
 
         if "input_chunk_length" in train_opt_run.data.params:

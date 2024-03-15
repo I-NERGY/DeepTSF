@@ -230,6 +230,13 @@ async def get_model_names(resolution: int, multiple: bool):
         {"name": "output_chunk_length", "type": "int", "description": "Forecast horizon length", 'min': 1, 'max': 1000, 'default': default_output_chunk},
         {"name": "random_state", "type": "int", "description": "Randomness of weight initialization", 'min': 0, 'max': 10000, 'default': 42},
         ]
+    
+    hparams_arima = [    
+        {"name": "p", "type": "int", "description": "Order (number of time lags) of the autoregressive model (AR)", 'min': 0, 'max': 1000, 'default': 12},
+        {"name": "d", "type": "int", "description": "Order of differentiation", 'min': 0, 'max': 1000, 'default': 1},
+        {"name": "q", "type": "int", "description": "Size of the moving average window (MA)", 'min': 0, 'max': 1000, 'default': 0},
+        {"name": "random_state", "type": "int", "description": "Random state", 'min': 0, 'max': 10000, 'default': 42},
+        ]
 
     models = [
         {"model_name": "Naive", "hparams": hparams_naive},
@@ -242,6 +249,7 @@ async def get_model_names(resolution: int, multiple: bool):
         {"model_name": "BlockRNN", "hparams": hparams_blockrnn},
         {"model_name": "LightGBM", "hparams": hparams_lgbm},
         {"model_name": "RandomForest", "hparams": hparams_rf},
+        {"model_name": "ARIMA", "hparams": hparams_arima},
         ]
     
     # Multiple does not work with Naive
@@ -565,7 +573,7 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
         "forecast_horizon": parameters["forecast_horizon"], # input: user | type: str | example: "96" | should be int > 0 (default 24 if resolution=60, 96 if resolution=15, 48 if resolution=30)
         "hyperparams_entrypoint": hparam_str,
         "ignore_previous_runs": parameters["ignore_previous_runs"],
-        "l_interpolation": True,    
+        "imputation_method": parameters["imputation_method"],    
 	    "ts_used_id": parameters["ts_used_id"], # uc2: None, uc6: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active', uc7: None 
         "eval_series": parameters["ts_used_id"], # same as above,
 	    "evaluate_all_ts": parameters["evaluate_all_ts"], 	    

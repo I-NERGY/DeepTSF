@@ -1,5 +1,5 @@
 import pretty_errors
-from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file
+from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series
 from darts.utils.missing_values import extract_subseries
 from functools import reduce
 from darts.metrics import mape as mape_darts
@@ -79,7 +79,9 @@ def backtester(model,
                past_covariates=None,
                path_to_save_backtest=None,
                m_mase=1,
-               num_samples=1):
+               num_samples=1,
+               pv_ensemble=False,
+               resolution="60"):
     """ Does the same job with advanced forecast but much more quickly using the darts
     bult-in historical_forecasts method. Use this for evaluation. The other only
     provides pure inference. Provide a unified timeseries test set point based
@@ -94,7 +96,7 @@ def backtester(model,
     # produce the fewest forecasts possible.
     if stride is None:
         stride = forecast_horizon
-    test_start_date = pd.Timestamp(test_start_date)
+    test_start_date = pd.Timestamp(test_start_date + " 00:00:00")
 
 
     #keep last non nan values
@@ -102,6 +104,11 @@ def backtester(model,
     #TODO Add check for that in the beggining
     series = extract_subseries(series, min_gap_size=1)[-1]
     series_transformed = extract_subseries(series_transformed, min_gap_size=1)[-1]
+
+    # plot_series(df_list=[series_transformed], 
+    #                 ts_name_list=["series_transformed"], 
+    #                 save_dir=os.path.join(path_to_save_backtest,
+    #                                     f'series_transformed.html'))
 
     # produce list of forecasts
     backtest_series_transformed = model.historical_forecasts(series_transformed,
@@ -125,73 +132,93 @@ def backtester(model,
         backtest_series = transformer_ts.inverse_transform(
             backtest_series_transformed)
     else:
-        series = series_transformed
         backtest_series = backtest_series_transformed
         print("\nWarning: Scaler not provided. Ensure model provides normal scale predictions")
         logging.info(
             "\n Warning: Scaler not provided. Ensure model provides normal scale predictions")
+        
+    # plot_series(df_list=[backtest_series], 
+    #                 ts_name_list=["backtest_series"], 
+    #                 save_dir=os.path.join(path_to_save_backtest,
+    #                                     f'backtest_series_no_pv.html'))
 
-    # plot all test
-    fig1 = plt.figure(figsize=(15, 8))
-    ax1 = fig1.add_subplot(111)
-    backtest_series.plot(label='forecast')
-    #try except in case of nans before start
-    try:
-        series \
-        .drop_before(pd.Timestamp(pd.Timestamp(test_start_date) - datetime.timedelta(days=7))) \
-        .drop_after(backtest_series.time_index[-1]) \
-        .plot(label='actual')
-    except:
-        series \
-        .drop_before(pd.Timestamp(pd.Timestamp(test_start_date) - datetime.timedelta(days=1))) \
-        .drop_after(backtest_series.time_index[-1]) \
-        .plot(label='actual')
-    ax1.legend()
-    ax1.set_title(
-        f'Backtest, starting {test_start_date}, {forecast_horizon}-steps horizon')
-    # plt.show()
+        
 
-    try:
-        # plot one week (better visibility)
-        forecast_start_date = pd.Timestamp(
-            test_start_date + datetime.timedelta(days=7))
+    if pv_ensemble:
+        print("\nAdding pv forecast to prediction")
+        logging.info("\nAdding pv forecast to prediction")
 
-        fig2 = plt.figure(figsize=(15, 8))
-        ax2 = fig2.add_subplot(111)
-        backtest_series \
-            .drop_before(pd.Timestamp(forecast_start_date)) \
-            .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
-            .plot(label='Forecast')
-        series \
-            .drop_before(pd.Timestamp(forecast_start_date)) \
-            .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
-            .plot(label='Actual')
-        ax2.legend()
-        ax2.set_title(
-        f'Weekly forecast, Start date: {forecast_start_date}, Forecast horizon (timesteps): {forecast_horizon}, Forecast extended with backtesting...')
-    except:
-        pass
+        backtest_series = backtest_series - get_pv_forecast([], 
+                                                            start=backtest_series.pd_dataframe().index[0], 
+                                                            end=backtest_series.pd_dataframe().index[-1], 
+                                                            inference=False, 
+                                                            kW=60, 
+                                                            use_saved=True)
+        
+        # plot_series(df_list=[backtest_series], 
+        #             ts_name_list=["backtest_series"], 
+        #             save_dir=os.path.join(path_to_save_backtest,
+        #                                 f'backtest_series.html'))
+
+
+    # # plot all test
+    # fig1 = plt.figure(figsize=(15, 8))
+    # ax1 = fig1.add_subplot(111)
+    # backtest_series.plot(label='forecast')
+    # #try except in case of nans before start
+    # try:
+    #     series \
+    #     .drop_before(pd.Timestamp(pd.Timestamp(test_start_date) - datetime.timedelta(days=7))) \
+    #     .drop_after(backtest_series.time_index[-1]) \
+    #     .plot(label='actual')
+    # except:
+    #     series \
+    #     .drop_before(pd.Timestamp(pd.Timestamp(test_start_date) - datetime.timedelta(days=1))) \
+    #     .drop_after(backtest_series.time_index[-1]) \
+    #     .plot(label='actual')
+    # ax1.legend()
+    # ax1.set_title(
+    #     f'Backtest, starting {test_start_date}, {forecast_horizon}-steps horizon')
+    # # plt.show()
+
+    # try:
+    #     # plot one week (better visibility)
+    #     forecast_start_date = pd.Timestamp(
+    #         test_start_date + datetime.timedelta(days=7))
+
+    #     fig2 = plt.figure(figsize=(15, 8))
+    #     ax2 = fig2.add_subplot(111)
+    #     backtest_series \
+    #         .drop_before(pd.Timestamp(forecast_start_date)) \
+    #         .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
+    #         .plot(label='Forecast')
+    #     series \
+    #         .drop_before(pd.Timestamp(forecast_start_date)) \
+    #         .drop_after(forecast_start_date + datetime.timedelta(days=7)) \
+    #         .plot(label='Actual')
+    #     ax2.legend()
+    #     ax2.set_title(
+    #     f'Weekly forecast, Start date: {forecast_start_date}, Forecast horizon (timesteps): {forecast_horizon}, Forecast extended with backtesting...')
+    # except:
+    #     pass
     # Metrix
-    test_series = series.drop_before(pd.Timestamp(test_start_date))
+    test_series = series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min"))
     metrics = {
-        "smape": smape_darts(
+        "mae": mae_darts(
             test_series,
             backtest_series),
-        "mae": mae_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
-            backtest_series),
         "rmse": rmse_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series),
-        "nrmse_max": rmse_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+        "nrmse_min_max": rmse_darts(
+            test_series,
             backtest_series) / (
-            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().max()[0]- 
-            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().min()[0]),
+            test_series.pd_dataframe().max()[0]- 
+            test_series.pd_dataframe().min()[0]),
         "nrmse_mean": rmse_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series) / (
-            series.drop_before(pd.Timestamp(test_start_date)).pd_dataframe().mean()[0])
+            test_series.pd_dataframe().mean()[0])
     }
     if min(test_series.min(axis=1).values()) > 0 and min(backtest_series.min(axis=1).values()) > 0:
         metrics["mape"] = mape_darts(
@@ -203,7 +230,7 @@ def backtester(model,
         metrics["mape"] = np.nan
     try:
         metrics["mase"] = mase_darts(
-            series.drop_before(pd.Timestamp(test_start_date)),
+            test_series,
             backtest_series,
             insample=series.drop_after(pd.Timestamp(test_start_date)),
             m = m_mase)
@@ -211,6 +238,17 @@ def backtester(model,
         print("\nSeries is periodical. Setting mase to NaN...")
         logging.info("\nModel result or testing series not strictly positive. Setting mape to NaN...")
         metrics["mase"] = np.nan
+
+    try:
+        metrics["smape"] = smape_darts(
+            test_series,
+            backtest_series)
+    except:
+        print("\nSeries not strictly positive. Setting smape to NaN...")
+        logging.info("\nSeries not strictly positive. Setting smape to NaN...")
+        metrics["smape"] = np.nan
+
+    
 
 
     for key, value in metrics.items():
@@ -221,26 +259,34 @@ def backtester(model,
     if path_to_save_backtest is not None:
         os.makedirs(path_to_save_backtest, exist_ok=True)
         mape = metrics['mape']
-        fig1.savefig(os.path.join(path_to_save_backtest,
-            f'test_start_date_{test_start_date.date()}_forecast_horizon_{forecast_horizon}_mape_{mape:.2f}.png'))
-        fig2.savefig(os.path.join(path_to_save_backtest,
-            f' week2_forecast_start_date_{test_start_date.date()}_forecast_horizon_{forecast_horizon}.png'))
+        # fig1.savefig(os.path.join(path_to_save_backtest,
+        #     f'test_start_date_{test_start_date.date()}_forecast_horizon_{forecast_horizon}_mape_{mape:.2f}.png'))
+        # fig2.savefig(os.path.join(path_to_save_backtest,
+        #     f' week2_forecast_start_date_{test_start_date.date()}_forecast_horizon_{forecast_horizon}.png'))
+
+        plot_series(df_list=[series, backtest_series], 
+                    ts_name_list=["Actual", "Prediction"], 
+                    save_dir=os.path.join(path_to_save_backtest,
+                                        f'Actual_vs_Predicted.html'))
         try:
-            backtest_series.drop_before(pd.Timestamp(test_start_date)) \
+            backtest_series \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions.csv'))
         except:
-            backtest_series.drop_before(pd.Timestamp(test_start_date)).quantile_df() \
+            backtest_series.quantile_df() \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions.csv'))
 
         try:
-            backtest_series_transformed.drop_before(pd.Timestamp(test_start_date)) \
+            backtest_series_transformed \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions_transformed.csv'))
         except:
-            backtest_series_transformed.drop_before(pd.Timestamp(test_start_date)).quantile_df() \
+            backtest_series_transformed.quantile_df() \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions_transformed.csv'))
 
-        series_transformed.drop_before(pd.Timestamp(test_start_date)) \
+        series_transformed.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min")) \
         .to_csv(os.path.join(path_to_save_backtest, 'test_transformed.csv'))
+
+        series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min")) \
+        .to_csv(os.path.join(path_to_save_backtest, 'original_series.csv'))
 
     return {"metrics": metrics, "eval_plot": plt, "backtest_series": backtest_series}
 
@@ -652,9 +698,19 @@ def call_shap(n_past_covs: int,
     default="1",
     help="Number of samples to use for evaluating/validating a probabilistic model's output")
 
+@click.option("--pv-ensemble",
+    default="False",
+    type=str,
+    help="Wether to subtract the pv production forecasts from the training series and add it again during testing or not.",
+    )
 
-def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, forecast_horizon, stride, retrain, shap_input_length, shap_output_length, size, analyze_with_shap, multiple, eval_series, cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase, num_samples):
+
+def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, 
+             forecast_horizon, stride, retrain, shap_input_length, shap_output_length, size, analyze_with_shap, multiple, eval_series, 
+             cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase, num_samples, pv_ensemble):
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
+
+    evaltmpdir = tempfile.mkdtemp()
 
     # Argument processing
     test_end_date = none_checker(test_end_date)
@@ -664,6 +720,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     num_samples = int(num_samples)
     stride = int(forecast_horizon) if stride is None else int(stride)
     retrain = truth_checker(retrain)
+    pv_ensemble = truth_checker(pv_ensemble)
     analyze_with_shap = truth_checker(analyze_with_shap)
     multiple = truth_checker(multiple)
     future_covariates_uri = none_checker(future_covs_uri)
@@ -690,6 +747,37 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         multiple=multiple,
         day_first=day_first,
         resolution=resolution)
+    
+    series_transformed = series.copy()
+    # plot_series(df_list=[series_transformed[0]], 
+    #                 ts_name_list=["series_transformed"], 
+    #                 save_dir=os.path.join(f"{evaltmpdir}",
+    #                                     f'series_transformed_start.html'))
+    
+    if pv_ensemble:
+        print("\Subtracting pv forecast from series to be fed to model")
+        logging.info("\nSubtracting pv forecast from series to be fed to model")
+
+        for i in range(len(series_transformed)):
+            print(get_pv_forecast([], 
+                                                            start=series_transformed[i].pd_dataframe().index[0], 
+                                                            end=series_transformed[i].pd_dataframe().index[-1], 
+                                                            inference=False, 
+                                                            kW=60, 
+                                                            use_saved=True))
+            print(series_transformed[i])
+            series_transformed[i] = series_transformed[i] + get_pv_forecast([], 
+                                                            start=series_transformed[i].pd_dataframe().index[0], 
+                                                            end=series_transformed[i].pd_dataframe().index[-1], 
+                                                            inference=False, 
+                                                            kW=60, 
+                                                            use_saved=True)
+        
+            # plot_series(df_list=[series_transformed[0]], 
+            #         ts_name_list=["series_transformed"], 
+            #         save_dir=os.path.join(f"{evaltmpdir}",
+            #                             f'series_transformed_no_pv.html'))
+
 
 
     if future_covariates_uri is not None:
@@ -723,10 +811,10 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
 
     if scaler is not None:
         if not multiple:
-            series_transformed = scaler.transform(series)
+            series_transformed = scaler.transform(series_transformed)
         else:
-            series_transformed = [scaler[i].transform(series[i]) for i in range(len(series))]
-    else:
+            series_transformed = [scaler[i].transform(series_transformed[i]) for i in range(len(series_transformed))]
+    elif not pv_ensemble:
         series_transformed = series
 
     # Split in the same way as in training
@@ -765,7 +853,6 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     else:
         eval_i = 0
     # Evaluate Model
-    evaltmpdir = tempfile.mkdtemp()
     with mlflow.start_run(run_name='eval', nested=True) as mlrun:
         mlflow.set_tag("run_id", mlrun.info.run_id)
         mlflow.set_tag("stage", "evaluation")
@@ -791,16 +878,18 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                             path_to_save_backtest=f"{evaltmpdir}/{ts_id_l[eval_i][0]}",
                                             m_mase=m_mase,
-                                            num_samples=num_samples)
+                                            num_samples=num_samples,
+                                            pv_ensemble=pv_ensemble,
+                                            resolution=resolution)
                 eval_results[eval_i] = list(map(str, ts_id_l[eval_i][:1])) + [evaluation_results["metrics"]["smape"],
                                                                               evaluation_results["metrics"]["mase"],
                                                                               evaluation_results["metrics"]["mae"],
                                                                               evaluation_results["metrics"]["rmse"],
                                                                               evaluation_results["metrics"]["mape"],
-                                                                              evaluation_results["metrics"]["nrmse_max"],
+                                                                              evaluation_results["metrics"]["nrmse_min_max"],
                                                                               evaluation_results["metrics"]["nrmse_mean"]]
 
-            eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape", "nrmse_max", "nrmse_mean"])
+            eval_results = pd.DataFrame.from_dict(eval_results, orient='index', columns=["Timeseries ID", "smape", "mase", "mae", "rmse", "mape", "nrmse_min_max", "nrmse_mean"])
             save_path = f"{evaltmpdir}/evaluation_results_all_ts.csv"
             eval_results.to_csv(save_path)
             evaluation_results["metrics"] = eval_results.mean(axis=0, numeric_only=True).to_dict()
@@ -825,7 +914,9 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             past_covariates=None if past_covariates == None else (past_covariates[0] if not multiple else past_covariates[eval_i]),
                                             path_to_save_backtest=evaltmpdir,
                                             m_mase=m_mase,
-                                            num_samples=num_samples)
+                                            num_samples=num_samples,
+                                            pv_ensemble=pv_ensemble,
+                                            resolution=resolution)
             if analyze_with_shap:
                 data, background = build_shap_dataset(size=size,
                                                 train=series_split['train'],

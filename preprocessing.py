@@ -5,6 +5,8 @@ import os
 import pandas as pd
 import yaml
 from darts.dataprocessing.transformers import Scaler
+from darts import TimeSeries
+from scipy.signal import savgol_filter 
 import datetime
 from darts.utils.missing_values import extract_subseries
 # get environment variables
@@ -18,11 +20,24 @@ from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
 
+def filtering(covariates, past_covs, future_covs, savgol_window_length, savgol_polyorder):
+    #TODO Fix for multivariate
+    print(f"Filtering...\n")
+    logging.info(f"Filtering...\n")
 
-def split_nans(covariates, past_covs, future_covs):
+    result = []
+    if past_covs != None and type(past_covs) != list:
+        past_covs = [past_covs]
+    if future_covs != None and type(future_covs) != list:
+        future_covs = [future_covs]
     if type(covariates) != list:
         covariates = [covariates]
+    for i, covariate in enumerate(covariates):
+        covariate_array = savgol_filter(x=covariate.pd_dataframe()["Value"], window_length=savgol_window_length, polyorder=savgol_polyorder)
+        result.append(TimeSeries.from_times_and_values(covariate.time_index, covariate_array))
+    return result, past_covs, future_covs
     
+def split_nans(covariates, past_covs, future_covs):    
     result = []
     past_covs_return = [] if past_covs != None else None
     future_covs_return = [] if future_covs != None else None
@@ -53,7 +68,7 @@ def split_nans(covariates, past_covs, future_covs):
     return result, past_covs_return, future_covs_return
 
 def split_dataset(covariates, val_start_date_str, test_start_date_str,
-        test_end_date=None, store_dir=None, name='series',
+        test_end_date=None, store_dir=None, name='series_',
         conf_file_name='split_info.yml', multiple=False,
         id_l=[], ts_id_l=[]):
     if covariates is not None:

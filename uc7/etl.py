@@ -1124,6 +1124,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 # explicitly redefine frequency
                 comp_res = comp_res.asfreq(resolution+'min')
 
+                if 'W6 positive_active' in id_l[ts_num][comp_num]:
+                    comp_res = -comp_res
+
                 # ts_res.to_csv(f'{tmpdir}/4_asfreq.csv')
 
                 # darts dataset creation
