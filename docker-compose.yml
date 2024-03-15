@@ -90,13 +90,15 @@ services:
   backend:
     hostname: deeptsf_backend
     container_name: deeptsf_backend
-    # image: inergy2020iccs/deeptsf_backend:1.0
+    # image: inergy2020iccs/deeptsf_backend:1.0.1  # only for releases
     build: .    
     restart: always
     ports:
       - '8080:8080'
     expose:
       - '8080'
+    # volumes:
+      # - .:/app/. #debugging only
     stdin_open: true
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
@@ -117,7 +119,7 @@ services:
   dagster:
     container_name: deeptsf_dagster
     hostname: deeptsf_dagster
-    # image: inergy2020iccs/deeptsf_dagster:1.0
+    # image: inergy2020iccs/deeptsf_dagster:1.0.1 # only for releases
     build:
       context: .
       dockerfile: ./dagster-deeptsf/config/Dockerfile
@@ -139,13 +141,14 @@ services:
     volumes:
       - dagster-logs:/app/dagster-deeptsf
       - ./uc2/user_datasets:/app/uc2/user_datasets
+      # - ./dagster-deeptsf/dagster_deeptsf:/app/dagster-deeptsf/dagster_deeptsf  #debugging only
     networks:
       - load-forecasting-net
 
   frontend:
     container_name: deeptsf_dashboard
     hostname: deeptsf_dashboard
-    image: inergy2020iccs/deeptsf_dashboard:1.0
+    image: inergy2020iccs/deeptsf_dashboard:1.0.1
     # build: https://github.com/I-NERGY/deeptsf-dashboard.git
     restart: always
     expose:
