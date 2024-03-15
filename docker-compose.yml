@@ -90,8 +90,8 @@ services:
   backend:
     hostname: deeptsf_backend
     container_name: deeptsf_backend
-    # image: inergy2020iccs/deeptsf_backend:1.0.1  # only for releases
-    build: .    
+    image: inergy2020iccs/deeptsf_backend:1.0.1  # only for releases
+    # build: .    
     restart: always
     ports:
       - '8080:8080'
@@ -119,10 +119,10 @@ services:
   dagster:
     container_name: deeptsf_dagster
     hostname: deeptsf_dagster
-    # image: inergy2020iccs/deeptsf_dagster:1.0.1 # only for releases
-    build:
-      context: .
-      dockerfile: ./dagster-deeptsf/config/Dockerfile
+    image: inergy2020iccs/deeptsf_dagster:1.0.1 # only for releases
+    # build:
+    #   context: .
+    #   dockerfile: ./dagster-deeptsf/config/Dockerfile
     environment:
       MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI}
       MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
