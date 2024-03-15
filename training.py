@@ -546,8 +546,13 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             print(f'\nTraining {darts_model}...')
             logging.info(f'\nTraining {darts_model}...')
 
+            if type(series_transformed['train']) == list:
+                fit_series = series_transformed['train'][-1]
+            else:
+                fit_series = series_transformed['train']
+
             model.fit(
-                series=series_transformed['train'][-1],
+                series=fit_series,
                 future_covariates=future_covariates_transformed['train'],
                 )
             model_type = "pkl"

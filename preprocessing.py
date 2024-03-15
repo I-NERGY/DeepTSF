@@ -149,13 +149,13 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale
                 # i can fit on all dataset, but I won't do it as this function works for all covariates!
                 # this is a problem only if not a full year is contained in the training set
                 covariates_train_transformed = \
-                    [transformer.fit_transform(covariates_train, n_jobs=-1)]
+                    transformer.fit_transform(covariates_train, n_jobs=-1)
                 covariates_val_transformed = \
-                    [transformer.transform(covariates_val, n_jobs=-1)]
+                    transformer.transform(covariates_val, n_jobs=-1)
                 covariates_test_transformed = \
-                    [transformer.transform(covariates_test, n_jobs=-1)]
+                    transformer.transform(covariates_test, n_jobs=-1)
                 covariates_transformed = \
-                    [transformer.transform(covariates, n_jobs=-1)]
+                    transformer.transform(covariates, n_jobs=-1)
                 transformers = transformer
             else:
                 transformers = []
@@ -189,7 +189,7 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale
 
         if store_dir is not None:
             if not multiple:
-                covariates_transformed[0].to_csv(
+                covariates_transformed.to_csv(
                     f"{store_dir}/{filename_suffix}")
             else:
                 multiple_dfs_to_ts_file(covariates_transformed, id_l, ts_id_l, f"{store_dir}/{filename_suffix}")
