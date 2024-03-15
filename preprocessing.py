@@ -189,7 +189,7 @@ def scale_covariates(covariates_split, store_dir=None, filename_suffix='', scale
 
         if store_dir is not None:
             if not multiple:
-                covariates_transformed.to_csv(
+                covariates_transformed[0].to_csv(
                     f"{store_dir}/{filename_suffix}")
             else:
                 multiple_dfs_to_ts_file(covariates_transformed, id_l, ts_id_l, f"{store_dir}/{filename_suffix}")
