@@ -57,6 +57,7 @@ nodeLanguageServer.*/**
 .*
 !.gitignore
 !/.gitattributes
+!.env
 !.env.example
 !.env.auth.example
 
