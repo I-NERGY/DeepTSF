@@ -209,7 +209,7 @@ def load_local_pkl_as_object(local_path):
     return pkl_object
 
 
-def download_online_file(url, dst_filename=None, dst_dir=None):
+def download_online_file(client, url, dst_filename=None, dst_dir=None):
     import sys
     import tempfile
     import requests
@@ -219,21 +219,24 @@ def download_online_file(url, dst_filename=None, dst_dir=None):
         dst_dir = tempfile.mkdtemp()
     else:
         os.makedirs(dst_dir, exist_ok=True)
-    req = requests.get(url)
-    if req.status_code != 200:
-        raise Exception(f"\nResponse is not 200\nProblem downloading: {url}")
-        sys.exit()
-    url_content = req.content
     if dst_filename is None:
         dst_filename = url.split('/')[-1]
     filepath = os.path.join(dst_dir, dst_filename)
-    file = open(filepath, 'wb')
-    file.write(url_content)
-    file.close()
+    url = url.split('mlflow-bucket')[-1]
+    client.fget_object("mlflow-bucket", url, filepath)
+    # print(req)
+    # if req.status_code != 200:
+    #     raise Exception(f"\nResponse is not 200\nProblem downloading: {url}")
+    #     sys.exit()
+    # url_content = req.content
+    # filepath = os.path.join(dst_dir, dst_filename)
+    # file = open(filepath, 'wb')
+    # file.write(url_content)
+    # file.close()
     return filepath
 
 
-def download_mlflow_file(url, dst_dir=None):
+def download_mlflow_file(client, url, dst_dir=None):
     S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
 
     if dst_dir is None:
@@ -243,21 +246,21 @@ def download_mlflow_file(url, dst_dir=None):
     if url.startswith('s3://mlflow-bucket/'):
         url = url.replace("s3:/", S3_ENDPOINT_URL)
         local_path = download_online_file(
-            url, dst_dir=dst_dir)
+            client, url, dst_dir=dst_dir)
     elif url.startswith('runs:/'):
-        client = mlflow.tracking.MlflowClient()
+        mlflow_client = mlflow.tracking.MlflowClient()
         run_id = url.split('/')[1]
         mlflow_path = '/'.join(url.split('/')[3:])
-        local_path = client.download_artifacts(run_id, mlflow_path, dst_dir)
+        local_path = mlflow_client.download_artifacts(run_id, mlflow_path, dst_dir)
     elif url.startswith('http://'):
         local_path = download_online_file(
-            url, dst_dir=dst_dir)
+            client, url, dst_dir=dst_dir)
     return local_path
 
 
-def load_pkl_model_from_server(model_uri):
+def load_pkl_model_from_server(client, model_uri):
     print("\nLoading remote PKL model...")
-    model_path = download_mlflow_file(f'{model_uri}/_model.pkl')
+    model_path = download_mlflow_file(client, f'{model_uri}/_model.pkl')
     print(model_path)
     best_model = load_local_pkl_as_object(model_path)
     return best_model
@@ -291,29 +294,29 @@ def load_pl_model_from_server(model_root_dir):
     import tempfile
 
     print("\nLoading remote PL model...")
-    client = mlflow.tracking.MlflowClient()
+    mlflow_client = mlflow.tracking.MlflowClient()
     print(model_root_dir)
     model_run_id = model_root_dir.split("/")[5]
     mlflow_relative_model_root_dir = model_root_dir.split("/artifacts/")[1]
 
     local_dir = tempfile.mkdtemp()
-    client.download_artifacts(
+    mlflow_client.download_artifacts(
         run_id=model_run_id, path=mlflow_relative_model_root_dir, dst_path=local_dir)
     best_model = load_local_pl_model(os.path.join(
         local_dir, mlflow_relative_model_root_dir))
     return best_model
 
 
-def load_model(model_root_dir, mode="remote"):
+def load_model(client, model_root_dir, mode="remote"):
 
     # Get model type as tag of model's run
     import mlflow
     print(model_root_dir)
 
     if mode == 'remote':
-        client = mlflow.tracking.MlflowClient()
+        mlflow_client = mlflow.tracking.MlflowClient()
         run_id = model_root_dir.split('/')[-1]
-        model_run = client.get_run(run_id)
+        model_run = mlflow_client.get_run(run_id)
         model_type = model_run.data.tags.get('model_type')
     else:
         if "_model.pth.tar" in os.listdir(model_root_dir):
@@ -324,8 +327,9 @@ def load_model(model_root_dir, mode="remote"):
     # Load accordingly
     if mode == "remote" and model_type == "pl":
         model = load_pl_model_from_server(model_root_dir=model_root_dir)
+    #TODO Check if working with pl models
     elif mode == "remote" and model_type == "pkl":
-        model = load_pkl_model_from_server(model_root_dir)
+        model = load_pkl_model_from_server(client, model_root_dir)
     elif mode == "local" and model_type == 'pl':
         model = load_local_pl_model(model_root_dir=model_root_dir)
     else:
@@ -348,11 +352,11 @@ def load_scaler(scaler_uri=None, mode="remote"):
         run_id = scaler_uri.split("/")[-2]
         mlflow_filepath = scaler_uri.split("/artifacts/")[1]
 
-        client = mlflow.tracking.MlflowClient()
+        mlflow_client = mlflow.tracking.MlflowClient()
         local_dir = tempfile.mkdtemp()
         print("Scaler: ", scaler_uri)
         print("Run: ", run_id)
-        client.download_artifacts(
+        mlflow_client.download_artifacts(
             run_id=run_id,
             path=mlflow_filepath,
             dst_path=local_dir
@@ -377,11 +381,11 @@ def load_ts_id(load_ts_id_uri=None, mode="remote"):
         run_id = load_ts_id_uri.split("/")[-2]
         mlflow_filepath = load_ts_id_uri.split("/artifacts/")[1]
 
-        client = mlflow.tracking.MlflowClient()
+        mlflow_client = mlflow.tracking.MlflowClient()
         local_dir = tempfile.mkdtemp()
         print("ts id list: ", load_ts_id_uri)
         print("Run: ", run_id)
-        client.download_artifacts(
+        mlflow_client.download_artifacts(
             run_id=run_id,
             path=mlflow_filepath,
             dst_path=local_dir
@@ -1193,7 +1197,7 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
     return covariates, id_l, ts_id_l
 
 
-def parse_uri_prediction_input(model_input: dict, model, ts_id_l) -> dict:
+def parse_uri_prediction_input(client, model_input: dict, model, ts_id_l) -> dict:
 
     series_uri = model_input['series_uri']
 
@@ -1223,7 +1227,7 @@ def parse_uri_prediction_input(model_input: dict, model, ts_id_l) -> dict:
 
     if 'runs:/' in series_uri or 's3://mlflow-bucket/' in series_uri or series_uri.startswith('http://'):
         print('\nDownloading remote file of recent time series history...')
-        series_uri = download_mlflow_file(series_uri)
+        series_uri = download_mlflow_file(client, series_uri)
 
     if multiple:
         predict_series_idx = [elem[0] for elem in ts_id_l].index(ts_id_pred)
@@ -1414,6 +1418,7 @@ def plot_imputation(df, imputed_datetimes, non_nan_intervals_to_nan, name, imput
     fig.write_html(f'{impute_dir}/imputed_series_{name}.html')
 
 def plot_removed(removed, res, name, outlier_dir):
+    #TODO Fix size issue 
 
     layout = go.Layout(
         title=f'Outlier Detection of time series {name}',

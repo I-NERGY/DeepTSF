@@ -12,6 +12,7 @@ from darts.utils.timeseries_generation import holidays_timeseries
 import pandas as pd
 import math
 from datetime import timezone
+from datetime import datetime
 import matplotlib.pyplot as plt
 import mlflow
 import click
@@ -29,13 +30,17 @@ from tqdm import tqdm
 from pytz import country_timezones
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
-
 # get environment variables
 from dotenv import load_dotenv
+from minio import Minio
 load_dotenv()
 # explicitly set MLFLOW_TRACKING_URI as it cannot be set through load_dotenv
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=False)
 
 # DATE HANDLERS
 def isholiday(x, holiday_list):
@@ -215,8 +220,8 @@ def cut_extra_samples(ts_list):
         earliest_end = min(comp.index[-1] for comp in ts)
         latest_beginning = max(comp.index[0] for comp in ts)
 
-        print(f"\nMaking series {i} \ {len(ts_list) - 1} start on {latest_beginning} and end on {earliest_end}...")
-        logging.info(f"\nMaking series {i} \ {len(ts_list) - 1} start on {latest_beginning} and end on {earliest_end}...")
+        print(f"\nMaking series {i} \\ {len(ts_list) - 1} start on {latest_beginning} and end on {earliest_end}...")
+        logging.info(f"\nMaking series {i} \\ {len(ts_list) - 1} start on {latest_beginning} and end on {earliest_end}...")
         ts_list_cut.append(list(comp[(comp.index <= earliest_end) & (comp.index >= latest_beginning)] for comp in ts))
     return ts_list_cut
 
@@ -280,8 +285,8 @@ def remove_outliers(ts: pd.DataFrame,
     removed = a.copy()
     #maybe they are removed also
     #fix
-    removed.loc[res.index[0]] = pd.NA
-    removed.loc[res.index[-1]] = pd.NA
+    removed.loc[res.index[0]] = np.nan
+    removed.loc[res.index[-1]] = np.nan
     removed = removed.sort_values(by='Datetime')
     removed = removed[~removed.index.duplicated(keep='first')]
 
@@ -549,16 +554,16 @@ def impute(ts: pd.DataFrame,
                     print(f"Non Nan interval from {start} to {prev} is smaller than {min_non_nan_interval} time steps. Making this also Nan")
                     for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
                         non_nan_intervals_to_nan[date] = res.loc[date].values[0]
-                        res.loc[date] = pd.NA
-                        imputed_values.loc[date] = pd.NA
+                        res.loc[date] = np.nan
+                        imputed_values.loc[date] = np.nan
 
                 start = not_nan_day
             prev = not_nan_day
         if prev - start < pd.Timedelta(int(resolution) * min_non_nan_interval, "min"):
             for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
                 non_nan_intervals_to_nan[date] = res.loc[date].values[0]
-                res.loc[date] = pd.NA
-                imputed_values.loc[date] = pd.NA
+                res.loc[date] = np.nan
+                imputed_values.loc[date] = np.nan
     imputed_values = imputed_values[(~imputed_values["Value"].isnull())]
     non_nan_intervals_to_nan = pd.DataFrame.from_dict(non_nan_intervals_to_nan, columns=["Value"], orient='index')
     non_nan_intervals_to_nan.index.name = "Datetime"
@@ -945,7 +950,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
 
     # If series_uri is given, series_csv will be downloaded from there
     if none_checker(series_uri) != None:
-        download_file_path = download_online_file(series_uri, dst_filename="load.csv")
+        download_file_path = download_online_file(client, series_uri, dst_filename="load.csv")
         series_csv = download_file_path
 
     past_covs_csv = none_checker(past_covs_csv)
@@ -1029,6 +1034,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
         id_l, ts_id_l = [["Timeseries"]], [["Timeseries"]]
 
     # Year range handling
+
     if none_checker(year_range) is None:
         year_range = f"{ts_list[0][0].index[0].year}-{ts_list[0][0].index[-1].year}"
     if "-" in year_range:
@@ -1067,8 +1073,8 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                         utc_to_local(comp, id_l[ts_num][comp_num])
                     except:
                         try:
-                            print(f"\ID not a country code, trying country argument...")
-                            logging.info(f"\ID not a country code, trying country argument...")
+                            print(f"\nID not a country code, trying country argument...")
+                            logging.info(f"\nID not a country code, trying country argument...")
                             utc_to_local(comp, country)
                         except:
                             print(f"\nError occured, keeping time provided by the file...")

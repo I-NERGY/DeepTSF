@@ -19,7 +19,7 @@ from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to
 import shutil
 import pretty_errors
 import uuid
-from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder
+from exceptions import WrongIDs, EmptyDataframe, DifferentComponentDimensions, WrongColumnNames, DatetimesNotInOrder, WrongIndexFormat
 from utils import truth_checker, none_checker
 import tempfile
 from math import ceil
@@ -121,6 +121,9 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     #Dataframe can not be empty
     if ts.empty:
         raise EmptyDataframe(from_database)
+    
+    if type(ts.index[0]) != pd.Timestamp:
+        raise WrongIndexFormat()
     
     if not multiple:
         #Check that dates are in order. If month is used before day and day_first is set to True, this is not the case.
