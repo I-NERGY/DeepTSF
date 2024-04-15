@@ -29,7 +29,7 @@ COPY . .
 
 # Make RUN commands use the new environment:
 SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
-
+ 
 # RUN echo "conda activate DeepTSF_env" > ~/.bashrc
 
 # RUN python -c "import torch: print(torch.cuda.is_available())"
@@ -44,4 +44,4 @@ SHELL ["conda", "run", "-n", "DeepTSF_env", "/bin/bash", "-c"]
 
 # RUN pip install python-multipart
 
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8080"]
+ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "DeepTSF_env", "uvicorn", "api:app", "--ssl-keyfile", "privkey3.pem", "--ssl-certfile","cert3.pem", "--host", "0.0.0.0", "--port", "8080"]
