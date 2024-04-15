@@ -13,7 +13,7 @@ class CliConfig(Config):
     convert_to_local_tz: str = 'false'
     day_first: str = 'false'
     multiple: str = 'false'
-    l_interpolation: str = 'false'
+    imputation_method: str = 'linear'
     resolution: str = '60'
     rmv_outliers: str = 'true'
     country: str = 'IT'
@@ -58,7 +58,7 @@ def cli_command(config: CliConfig):
            f"-P convert_to_local_tz={config.convert_to_local_tz} " \
            f"-P day_first={config.day_first}  " \
            f"-P multiple={config.multiple} " \
-           f"-P l_interpolation={config.l_interpolation} " \
+           f"-P imputation_method={config.imputation_method} " \
            f"-P resolution={config.resolution} " \
            f"-P rmv_outliers={config.rmv_outliers} " \
            f"-P country={config.country} " \
