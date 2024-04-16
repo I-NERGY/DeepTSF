@@ -11,7 +11,7 @@ from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils import load_artifacts
+from utils import load_artifacts, to_seconds
 import psutil, nvsmi
 import os
 from dotenv import load_dotenv
@@ -121,8 +121,8 @@ async def root():
 @scientist_router.get("/models/get_model_names/{resolution}/{multiple}", tags=['Metrics and models retrieval'])
 async def get_model_names(resolution: int, multiple: bool):
 
-    default_input_chunk = int(60 / resolution * 168) if int(60 / resolution * 168) > 0 else 1
-    default_output_chunk =  int(60 / resolution * 24) if int(60 / resolution * 24) > 0 else 1
+    default_input_chunk = int(60 * 60 / resolution * 168) if int(60 * 60 / resolution * 168) > 0 else 1
+    default_output_chunk =  int(60 * 60 / resolution * 24) if int(60 * 60 / resolution * 24) > 0 else 1
 
     hparams_naive = [ 
         {"name": "days_seasonality", "type": "int", "description": "Period of sNaive model (in days)", 'min': 1, 'max': 366, 'default': 1}   
@@ -272,6 +272,8 @@ def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_serie
         raise HTTPException(status_code=415, detail="Unsupported file type provided. Please upload CSV file")
     try:
         ts, resolution_minutes = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple, allow_empty_series=allow_empty_series)
+        resolution_minutes = to_seconds(resolution_minutes)
+    #TODO resolution_minutes now in seconds.
     except WrongColumnNames:
         print("There was an error validating the file. Please reupload CSV with correct column names")
         raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with correct column names")

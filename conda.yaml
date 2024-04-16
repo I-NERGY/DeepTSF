@@ -1,4 +1,4 @@
-name: DeepTSF_env
+name: DeepTSF_env_old
 channels:
   - defaults
 dependencies:
@@ -261,4 +261,4 @@ dependencies:
     - xgboost==1.7.5
     - yarl==1.7.2
     - zipp==3.8.0
-prefix: /new_vol_300/opt/miniconda3/envs/DeepTSF_env
+prefix: /new_vol_300/opt/miniconda3/envs/DeepTSF_env_old
