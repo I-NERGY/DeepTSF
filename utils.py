@@ -1548,6 +1548,60 @@ def to_standard_form(freq):
         return f'{total_seconds}s'  # Secondly frequency
 
 
+def change_form(freq, change_format_to="pandas_form"):
+    import re
+
+    # Dictionary to map time units from short to long forms and vice versa
+    time_units = {
+        "s": "second",
+        "min": "minute",
+        "h": "hour",
+        "d": "day"
+    }
+    
+    # Identify the number and unit from the frequency
+    match = re.match(r"(\d+)?(\w+)", freq)
+    if not match:
+        raise ValueError("Invalid frequency format.")
+    
+    number, unit = match.groups()
+
+    if not number:
+      number = 1
+    
+    # Convert to the desired format
+    if change_format_to == "print_form":
+        # From pandas form (e.g., '1h') to human-readable form (e.g., '1 hour')
+        full_unit = time_units.get(unit, "unknown")  # Default to 'unknown' if unit not found
+        if int(number) > 1:
+            full_unit += 's'  # Make plural if more than one
+        return f"{number} {full_unit}"
+    elif change_format_to == "pandas_form":
+        # From human-readable form (e.g., '1 hour') to pandas form (e.g., '1h')
+        for short, long in time_units.items():
+            if long in freq:
+                # Check if the unit matches and convert it
+                if ' ' in freq:
+                    num, _ = freq.split()
+                return f"{num}{short}"
+    else:
+        raise ValueError("Invalid change_format_to value. Use 'pandas_form' or 'print_form'.")
+
+def make_time_list(resolution):
+    import re
+
+    # List of all supported resolutions in increasing order
+    all_resolutions = ["1s", "2s", "5s", "15s", "30s", "1min", "2min", "5min", "15min", "30min", "1h", "2h", "6h", "1d", "2d", "5d", "10d"]
+
+    input_seconds = to_seconds(resolution)
+
+    # Filter and convert resolutions
+    resolutions = [{"value": change_form(resolution, change_format_to="print_form"), "default": True}]
+    for res in all_resolutions:
+        if to_seconds(res) > input_seconds:
+            resolutions.append({"value": change_form(res, "print_form"), "default": False})
+    return resolutions
+
 #epestrepse kai IDs
 #prwta psakse ID meta SC
 #TODO: Fix it. It does not get any progress any more

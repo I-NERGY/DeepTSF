@@ -11,7 +11,7 @@ from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils import load_artifacts, to_seconds
+from utils import load_artifacts, to_seconds, change_form, make_time_list
 import psutil, nvsmi
 import os
 from dotenv import load_dotenv
@@ -271,27 +271,16 @@ def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_serie
         print("Unsupported file type provided. Please upload CSV file")
         raise HTTPException(status_code=415, detail="Unsupported file type provided. Please upload CSV file")
     try:
-        ts, resolution_minutes = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple, allow_empty_series=allow_empty_series)
-        resolution_minutes = to_seconds(resolution_minutes)
-    #TODO resolution_minutes now in seconds.
+        ts, resolution = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple, allow_empty_series=allow_empty_series)
+        resolution_seconds = to_seconds(resolution)
     except WrongColumnNames:
         print("There was an error validating the file. Please reupload CSV with correct column names")
         raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with correct column names")
     except DatetimesNotInOrder:
         print("There was an error validating the file. Datetimes are not in order")
         raise HTTPException(status_code=415, detail="There was an error validating the file. Datetimes are not in order")
-
-    if resolution_minutes < 1 and resolution_minutes > 3600:
-       print("Dataset resolution should be between 1 and 180 minutes")
-       raise HTTPException(status_code=415, detail="Dataset resolution should be between 1 and 180 minutes")
-       # return {"message": "Dataset resolution should be between 1 and 180 minutes"}
-
-    resolutions = []
-    for m in range(1, 3601):
-        if resolution_minutes == m:
-            resolutions = [{"value": str(resolution_minutes), "default": True}]
-        if resolution_minutes < m and m % resolution_minutes == 0: 
-            resolutions.append({k: v for (k,v) in zip(["value", "default"],[str(m), False])})
+    
+    resolutions = make_time_list(resolution=resolution)    
     return ts, resolutions
 
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
@@ -398,7 +387,7 @@ run experimentation pipeline body example (series_csv is returned from retrieve_
         "rmv_outliers": true,
         "multiple": false,
         "series_csv": "/tmp/tmpxebh4mdj/uc2.csv", 
-        "resolution": "15",
+        "resolution": "15min",
         "resampling_agg_method": "averaging",
         "validation_start_date": "20220101",
         "test_start_date": "20220201",
@@ -466,7 +455,7 @@ run experimentation pipeline body example :
         "rmv_outliers": true,
         "multiple": true,
         "series_csv": "/tmp/tmpsxph8ydb/uc6.csv",
-        "resolution": "5",
+        "resolution": "5min",
         "resampling_agg_method": "averaging",
         "validation_start_date": "20220101",
         "test_start_date": "20220201",
@@ -494,7 +483,7 @@ run experimentation pipeline body example :
         "rmv_outliers": true,
         "multiple": true,
         "series_csv": "/tmp/tmpsxph8ydb/uc7.csv",
-        "resolution": "5",
+        "resolution": "5min",
         "resampling_agg_method": "averaging",
         "validation_start_date": "20220101",
         "test_start_date": "20220201",
@@ -566,7 +555,7 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
         "rmv_outliers": parameters["rmv_outliers"],  
         "multiple": parameters["multiple"],
         "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
-        "resolution": parameters["resolution"], # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
+        "resolution": change_form(freq=parameters["resolution"], change_format_to="pandas_form"), # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
         "resampling_agg_method": parameters["resampling_agg_method"],
         "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
         "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
