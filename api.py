@@ -285,9 +285,8 @@ def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_serie
     return ts, resolutions
 
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
-async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True), multiple: bool = Form(default=False)):
-    
-    format = "short"
+async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True), 
+                                 multiple: bool = Form(default=False), format: str = 'long'):
 
     # Store uploaded dataset to backend
     print("Uploading file...")
@@ -542,8 +541,6 @@ def mlflow_run(params: dict, experiment_name: str, uc: str = "2"):
 
 @scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
 async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks):
-
-    parameters["format"] = 'short'
 
     # if this key exists then I am on the "user uploaded dataset" case so I proceed to the changes of the other parameters in the dict
     try:
