@@ -30,9 +30,14 @@ class WrongColumnNames(Exception):
     """
     Exception raised if series_csv has wrong column names.
     """
-    def __init__(self, columns, col_num, names):
-        mames = "and".join(names)
-        self.message = f'Column names provided: {columns}. series_csv must have {col_num} columns named {names}.'
+    def __init__(self, columns, col_num, names, format="single"):
+        names = ", ".join(names)
+        if format == "short":
+            self.message = f'Column names provided: {columns}. For {format} format, series_csv must have at least {col_num} columns named {names}.'
+        elif format == "long":
+            self.message = f'Column names provided: {columns}. For {format} format, series_csv must have {col_num} columns named {names}.'
+        else:
+            self.message = f'Column names provided: {columns}. For single time series, series_csv must have {col_num} columns named {names}.'
         super().__init__(self.message)
 
 class CountryDoesNotExist(Exception):
@@ -100,4 +105,20 @@ class TsUsedIdDoesNotExcist(Exception):
     """
     def __init__(self):
         self.message = f'This ts_used_id does not exist in the multiple time series file'
+        super().__init__(self.message)
+
+class DifferentFrequenciesMultipleTS(Exception):
+    """
+    Exception raised if multiple / multivariate series file has different inferred resolutions.
+    """
+    def __init__(self, infered_resolution_1, id_1, infered_resolution_2, id_2):
+        self.message = f'Resolution of 2 components have been inferred to be different: {id_1} - {infered_resolution_1}, and {id_2} - {infered_resolution_2}'
+        super().__init__(self.message)
+
+class EvalSeriesNotFound(Exception):
+    """
+    Exception raised if eval_series parameter is not found.
+    """
+    def __init__(self, eval_series):
+        self.message = f"eval_series parameter '{eval_series}' not found in file"
         super().__init__(self.message)

@@ -11,7 +11,7 @@ from exceptions import DatetimesNotInOrder, WrongColumnNames
 from datetime import datetime, timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from mlflow.tracking import MlflowClient
-from utils import load_artifacts
+from utils import load_artifacts, to_seconds, change_form, make_time_list
 import psutil, nvsmi
 import os
 from dotenv import load_dotenv
@@ -119,10 +119,12 @@ async def root():
 
 
 @scientist_router.get("/models/get_model_names/{resolution}/{multiple}", tags=['Metrics and models retrieval'])
-async def get_model_names(resolution: int, multiple: bool):
+async def get_model_names(resolution: str, multiple: bool):
 
-    default_input_chunk = int(60 / resolution * 168) if int(60 / resolution * 168) > 0 else 1
-    default_output_chunk =  int(60 / resolution * 24) if int(60 / resolution * 24) > 0 else 1
+    resolution = to_seconds(change_form(resolution, 'pandas_form'))
+
+    default_input_chunk = int(60 * 60 / resolution * 168) if int(60 * 60 / resolution * 168) > 0 else 1
+    default_output_chunk =  int(60 * 60 / resolution * 24) if int(60 * 60 / resolution * 24) > 0 else 1
 
     hparams_naive = [ 
         {"name": "days_seasonality", "type": "int", "description": "Period of sNaive model (in days)", 'min': 1, 'max': 366, 'default': 1}   
@@ -264,37 +266,28 @@ async def get_metric_names():
     return metrics
 
 
-def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_series=False):
+def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_series=False, format='long'):
 
     fileExtension = fname.split(".")[-1].lower() == "csv"
     if not fileExtension:
         print("Unsupported file type provided. Please upload CSV file")
         raise HTTPException(status_code=415, detail="Unsupported file type provided. Please upload CSV file")
     try:
-        ts, resolution_minutes = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple, allow_empty_series=allow_empty_series)
+        ts, resolution = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple, allow_empty_series=allow_empty_series, format=format)
     except WrongColumnNames:
         print("There was an error validating the file. Please reupload CSV with correct column names")
         raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with correct column names")
     except DatetimesNotInOrder:
         print("There was an error validating the file. Datetimes are not in order")
         raise HTTPException(status_code=415, detail="There was an error validating the file. Datetimes are not in order")
-
-    if resolution_minutes < 1 and resolution_minutes > 3600:
-       print("Dataset resolution should be between 1 and 180 minutes")
-       raise HTTPException(status_code=415, detail="Dataset resolution should be between 1 and 180 minutes")
-       # return {"message": "Dataset resolution should be between 1 and 180 minutes"}
-
-    resolutions = []
-    for m in range(1, 3601):
-        if resolution_minutes == m:
-            resolutions = [{"value": str(resolution_minutes), "default": True}]
-        if resolution_minutes < m and m % resolution_minutes == 0: 
-            resolutions.append({k: v for (k,v) in zip(["value", "default"],[str(m), False])})
+    
+    resolutions = make_time_list(resolution=resolution)    
     return ts, resolutions
 
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
-async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True), multiple: bool = Form(default=False)):
-    
+async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True), 
+                                 multiple: bool = Form(default=False), format: str = 'long'):
+
     # Store uploaded dataset to backend
     print("Uploading file...")
     try:
@@ -313,13 +306,21 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
 
     # Validation
     print("Validating file...") 
-    ts, resolutions = csv_validator(fname, day_first, multiple)
+    ts, resolutions = csv_validator(fname, day_first, multiple, format=format)
 
-    return {"message": "Validation successful",
+    if multiple:
+        if format == "long":
+            dataset_start_multiple = ts.iloc[0]['Datetime']
+            dataset_end_multiple = ts.iloc[-1]['Datetime']
+        else:
+            dataset_start_multiple = ts.iloc[0]['Date']
+            dataset_end_multiple = ts.iloc[-1]['Date']
+    
+    return {"message": "Validation successful", 
             "fname": fname,
-            "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
-            "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
-            "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
+            "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else dataset_start_multiple,
+            "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else dataset_start_multiple + timedelta(days=10),
+            "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else dataset_end_multiple,
             "allowed_resolutions": resolutions,
             "ts_used_id": None,
             "evaluate_all_ts": True if multiple else None
@@ -377,7 +378,7 @@ async def retrieve_uc2_dataset():
     client.close()
     # Validate_csv
     multiple = False
-    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple)
+    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple, format='short')
     return {"message": "Validation successful",
         "fname": fname,
         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
@@ -396,7 +397,7 @@ run experimentation pipeline body example (series_csv is returned from retrieve_
         "rmv_outliers": true,
         "multiple": false,
         "series_csv": "/tmp/tmpxebh4mdj/uc2.csv", 
-        "resolution": "15",
+        "resolution": "15min",
         "resampling_agg_method": "averaging",
         "validation_start_date": "20220101",
         "test_start_date": "20220201",
@@ -445,7 +446,7 @@ async def retrieve_uc6_dataset(series_name: str):
     client.close()
     # Validate_csv
     multiple = True
-    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple)
+    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple, format='short')
     return {"message": "Validation successful",
         "fname": fname,
         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
@@ -464,7 +465,7 @@ run experimentation pipeline body example :
         "rmv_outliers": true,
         "multiple": true,
         "series_csv": "/tmp/tmpsxph8ydb/uc6.csv",
-        "resolution": "5",
+        "resolution": "5min",
         "resampling_agg_method": "averaging",
         "validation_start_date": "20220101",
         "test_start_date": "20220201",
@@ -492,7 +493,7 @@ run experimentation pipeline body example :
         "rmv_outliers": true,
         "multiple": true,
         "series_csv": "/tmp/tmpsxph8ydb/uc7.csv",
-        "resolution": "5",
+        "resolution": "5min",
         "resampling_agg_method": "averaging",
         "validation_start_date": "20220101",
         "test_start_date": "20220201",
@@ -540,7 +541,7 @@ def mlflow_run(params: dict, experiment_name: str, uc: str = "2"):
 
 @scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
 async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks):
-    
+
     # if this key exists then I am on the "user uploaded dataset" case so I proceed to the changes of the other parameters in the dict
     try:
         uc = parameters['uc']  # Trying to access a key that doesn't exist
@@ -564,7 +565,7 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
         "rmv_outliers": parameters["rmv_outliers"],  
         "multiple": parameters["multiple"],
         "series_csv": parameters["series_csv"], # input: get value from @app.post('/upload/validateCSVfile/') | type: str | example: -
-        "resolution": parameters["resolution"], # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
+        "resolution": change_form(freq=parameters["resolution"], change_format_to="pandas_form"), # input: user | type: str | example: "15" | get allowed values from @app.get('/experimentation_pipeline/etl/get_resolutions/')
         "resampling_agg_method": parameters["resampling_agg_method"],
         "cut_date_val": parameters["validation_start_date"], # input: user | type: str | example: "20201101" | choose from calendar, should be > dataset_start and < dataset_end
         "cut_date_test": parameters["test_start_date"], # input: user | type: str | example: "20210101" | Choose from calendar, should be > cut_date_val and < dataset_end
@@ -576,7 +577,8 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
         "imputation_method": parameters["imputation_method"],    
 	    "ts_used_id": parameters["ts_used_id"], # uc2: None, uc6: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active', uc7: None 
         "eval_series": parameters["ts_used_id"], # same as above,
-	    "evaluate_all_ts": parameters["evaluate_all_ts"], 	    
+	    "evaluate_all_ts": parameters["evaluate_all_ts"],
+        "format": parameters["format"] 	    
         # "country": parameters["country"], this should be given if we want to have advanced imputation
      }
     

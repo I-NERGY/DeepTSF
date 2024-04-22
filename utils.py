@@ -7,12 +7,14 @@ import mlflow
 import pandas as pd
 import yaml
 import darts
+from pandas.tseries.frequencies import to_offset
+from math import ceil
 cur_dir = os.path.dirname(os.path.realpath(__file__))
 import numpy as np
 load_dotenv()
 from tqdm import tqdm
 import logging
-from exceptions import MandatoryArgNotSet, NotValidConfig, EmptySeries
+from exceptions import MandatoryArgNotSet, NotValidConfig, EmptySeries, DifferentFrequenciesMultipleTS
 import json
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
@@ -39,6 +41,7 @@ import tempfile
 import holidays
 from pytz import timezone
 import pytz
+from datetime import datetime
 
 class ConfigParser:
     def __init__(self, config_file=f'{cur_dir}/config.yml', config_string=None):
@@ -80,13 +83,13 @@ def download_file_from_s3_bucket(object_name, dst_filename, dst_dir=None, bucket
     bucket.download_file(object_name, local_path)
     return local_path
 
-def get_pv_forecast(ts_id, start=None, end=None, inference=False, kW=185, use_saved=False):
+def get_pv_forecast(ts_id, start=None, end=None, inference=False, kW=185, use_saved=False, format="long"):
     # start = ts[0].index[0] - pd.Timedelta("1d"),    
     # end = ts[0].index[-1] + pd.Timedelta("1d"),
     #TODO Add parameters to mlflow
     #TODO Add visualization
     if use_saved:
-        covs_list, cov_id_l, cov_ts_id_l = multiple_ts_file_to_dfs("/new_vol_300/opt/energy-forecasting-theo/uc7-data-ops/pvlib/UC6_covs_final.csv", True, "60")
+        covs_list, cov_id_l, cov_ts_id_l = multiple_ts_file_to_dfs("/new_vol_300/opt/energy-forecasting-theo/uc7-data-ops/pvlib/UC6_covs_final.csv", True, "60", format=format)
         covs_list = covs_list[0]
         covs_list_final = [covs_list]
         #[['diffuse_radiation_W4 positive_active', 'direct_normal_irradiance_W4 positive_active', 'shortwave_radiation_W4 positive_active', 'temperature_W4 positive_active', 'windspeed_10m_W4 positive_active']]
@@ -100,7 +103,6 @@ def get_pv_forecast(ts_id, start=None, end=None, inference=False, kW=185, use_sa
         covs_list_final.append(covs_list[1])
         covs_list_final = [covs_list_final]
         print(f"Using covs of {cov_id_l[0][0]}")
-        print(cov_id_l)
         return darts.TimeSeries.from_dataframe(pvlib_forecast(covs_weather=covs_list_final[0], start=start, end=end, kW=kW))
     else:
         covs_list, cov_id_l, cov_ts_id_l = add_weather_covariates(start-pd.Timedelta("1d"),
@@ -124,7 +126,7 @@ def get_pv_forecast(ts_id, start=None, end=None, inference=False, kW=185, use_sa
                         wncutoff = 0.000694,
                         ycutoff = 3,
                         ydcutoff = 30,
-                        resolution = "60",
+                        resolution = "60min",
                         debug = False,
                         name = id,
                         l_interpolation = False,
@@ -606,7 +608,7 @@ def impute(ts: pd.DataFrame,
            wncutoff: float = 0.000694,
            ycutoff: int = 3,
            ydcutoff: int = 30,
-           resolution: str = "15",
+           resolution: str = "15min",
            debug: bool = False,
            name: str = "PT",
            l_interpolation: bool = False,
@@ -689,7 +691,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)):
             d[i] = min(d[i], count)
             if i < len(null_dates) - 1:
-                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(minutes=int(resolution)):
+                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else:
                     count = 1
@@ -699,7 +701,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)-1, -1, -1):
             d[i] = min(d[i], count)
             if i > 0:
-                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(minutes=int(resolution)):
+                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else:
                     count = 1
@@ -724,7 +726,7 @@ def impute(ts: pd.DataFrame,
 
     else:
         #Returning calendar of the country ts belongs to
-        calendar = create_calendar(ts, int(resolution), holidays, timezone("UTC"))
+        calendar = create_calendar(ts, resolution, holidays, timezone("UTC"))
         calendar.index = calendar["datetime"]
         imputed_values = ts[ts[ts.columns[0]].isnull()].copy()
 
@@ -750,7 +752,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)):
             d[i] = min(d[i], count)
             if i < len(null_dates) - 1:
-                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(minutes=int(resolution)):
+                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else:
                     count = 1
@@ -760,7 +762,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)-1, -1, -1):
             d[i] = min(d[i], count)
             if i > 0:
-                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(minutes=int(resolution)):
+                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else:
                     count = 1
@@ -806,14 +808,14 @@ def impute(ts: pd.DataFrame,
                     historical = ts[(~isnull) & (ts[ts.columns[0]].index < pd.Timestamp(cut_date_val)) &\
                                         ((((calendar['yearday'] - currYN) < 0) &\
                                         ((-calendar['yearday'] + currYN) < dcutoff)) &\
-                                        ((calendar['DN'] - currDN < int(resolution)/120) & (- calendar['DN'] + currDN < int(resolution)/120)))][ts.columns[0]]
+                                        ((calendar['DN'] - currDN < to_seconds(resolution)/(120*60)) & (- calendar['DN'] + currDN < to_seconds(resolution)/(120*60))))][ts.columns[0]]
 
                 
                 #Dates after cut_date_val are not affected by cut_date_val
                 else:
                     historical = ts[(~isnull) & ((((calendar['yearday'] - currYN) < 0) &\
                                         ((-calendar['yearday'] + currYN) < dcutoff)) &\
-                                        ((calendar['DN'] - currDN < int(resolution)/120) & (- calendar['DN'] + currDN < int(resolution)/120)))][ts.columns[0]]
+                                        ((calendar['DN'] - currDN < to_seconds(resolution)/(120*60)) & (- calendar['DN'] + currDN < to_seconds(resolution)/(120*60))))][ts.columns[0]]
             
                 if historical.empty:
                     dcutoff += 1
@@ -843,18 +845,18 @@ def impute(ts: pd.DataFrame,
         start = prev
 
         for not_nan_day in not_nan_dates[1:]:
-            if (not_nan_day - prev)!= pd.Timedelta(int(resolution), "min"):
-                if prev - start < pd.Timedelta(int(resolution) * min_non_nan_interval, "min"):
+            if (not_nan_day - prev)!= pd.Timedelta(resolution):
+                if prev - start < pd.Timedelta(to_seconds(resolution) * min_non_nan_interval, "sec"):
                     print(f"Non Nan interval from {start} to {prev} is smaller than {min_non_nan_interval} time steps. Making this also Nan")
-                    for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+                    for date in pd.date_range(start=start, end=prev, freq=resolution):
                         non_nan_intervals_to_nan[date] = res.loc[date].values[0]
                         res.loc[date] = pd.NA
                         imputed_values.loc[date] = pd.NA
 
                 start = not_nan_day
             prev = not_nan_day
-        if prev - start < pd.Timedelta(int(resolution) * min_non_nan_interval, "min"):
-            for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+        if prev - start < pd.Timedelta(to_seconds(resolution) * min_non_nan_interval, "sec"):
+            for date in pd.date_range(start=start, end=prev, freq=resolution):
                 non_nan_intervals_to_nan[date] = res.loc[date].values[0]
                 res.loc[date] = pd.NA
                 imputed_values.loc[date] = pd.NA
@@ -865,17 +867,17 @@ def impute(ts: pd.DataFrame,
     non_nan_intervals_to_nan.to_csv("non_nan_intervals_to_nan.csv")
     res.to_csv("res.csv")
     if not res.empty:
-        full_res = res.asfreq(str(resolution)+'min')
+        full_res = res.asfreq(resolution)
     else:
         full_res = res.copy()
 
     if not imputed_values.empty:
-        full_imputed_values = imputed_values.asfreq(str(resolution)+'min')
+        full_imputed_values = imputed_values.asfreq(resolution)
     else:
         full_imputed_values = imputed_values.copy()
     
     if not non_nan_intervals_to_nan.empty:
-        full_non_nan_intervals_to_nan = non_nan_intervals_to_nan.asfreq(str(resolution)+'min')
+        full_non_nan_intervals_to_nan = non_nan_intervals_to_nan.asfreq(resolution)
     else:
         full_non_nan_intervals_to_nan = non_nan_intervals_to_nan.copy()
 
@@ -1138,7 +1140,7 @@ def add_weather_covariates(start, end, res_future, id_l_future_covs, ts_id_l_fut
             ts_id_l_future_covs[i].extend([ts_id_l[i][0] for _ in range(len(covs))])
     return res_future, id_l_future_covs, ts_id_l_future_covs
 
-def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Datetime', last_date=None, multiple = False, day_first=True, resolution="15"):
+def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col='Datetime', last_date=None, multiple = False, day_first=True, resolution="15min", format="long"):
 
     import logging
     import darts
@@ -1147,8 +1149,9 @@ def load_local_csv_as_darts_timeseries(local_path, name='Time Series', time_col=
 
     try:
         if multiple:
-            #TODO Fix this too
-            ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=True, resolution=resolution)
+            #TODO Fix this too (
+            #file_name, format)
+            ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv=local_path, day_first=day_first, resolution=resolution, format=format)
             covariate_l  = []
 
             print("\nTurning dataframes to timeseries...")
@@ -1237,7 +1240,8 @@ def parse_uri_prediction_input(model_input: dict, model, ts_id_l) -> dict:
             time_col='Datetime',
             last_date=None,
             multiple=multiple,
-            resolution=model_input["resolution"] )
+            resolution=model_input["resolution"],
+            format="long" )
 
         
         if multiple:
@@ -1293,8 +1297,9 @@ def parse_uri_prediction_input(model_input: dict, model, ts_id_l) -> dict:
 
 def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-global-load.csv",
                             day_first: bool = True,
-                            resolution: str = "15",
-                            value_name="Value"):
+                            resolution: str = "15min",
+                            value_name="Value",
+                            format="long"):
     """
     Reads the input multiple ts file, and returns a tuple containing a list of the time series it consists
     of, along with their ids and timeseries ids. 
@@ -1339,6 +1344,7 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     id_l = []
     ts_id_l = []
     ts_ids = list(np.unique(ts["Timeseries ID"]))
+    first = True
     print("\nTurning multiple ts file to dataframe list...")
     logging.info("\nTurning multiple ts file to dataframe list...")
     for ts_id in tqdm(ts_ids):
@@ -1349,16 +1355,36 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
         ts_id_l.append([])
         for id in ids:
             curr_comp = curr_ts[curr_ts["ID"] == id]
-            curr_comp = pd.melt(curr_comp, id_vars=['Date', 'ID', 'Timeseries ID'], var_name='Time', value_name="Value")
-            curr_comp["Datetime"] = pd.to_datetime(curr_comp['Date'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
+            if format == 'short':
+                curr_comp = pd.melt(curr_comp, id_vars=['Date', 'ID', 'Timeseries ID'], var_name='Time', value_name=value_name)
+                curr_comp["Datetime"] = pd.to_datetime(curr_comp['Date'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
+            else:
+                curr_comp["Datetime"] = pd.to_datetime(curr_comp["Datetime"])
             curr_comp = curr_comp.set_index("Datetime")
-            series = curr_comp[value_name].sort_index().dropna().asfreq(resolution+'min')
+            series = curr_comp[value_name].sort_index().dropna()
+            if resolution!=None:
+                series = series.asfreq(resolution)
+            elif first:
+                infered_resolution = to_standard_form(pd.to_timedelta(np.diff(series.index).min()))
+                series = series.asfreq(infered_resolution)
+                first = False
+            else:
+                temp = to_standard_form(pd.to_timedelta(np.diff(series.index).min()))
+                if temp != infered_resolution:
+                    raise DifferentFrequenciesMultipleTS(temp, infered_resolution, id)
+                else:
+                    series = series.asfreq(temp)
+                    infered_resolution = temp
+
             res[-1].append(pd.DataFrame({value_name : series}))
             id_l[-1].append(id)
             ts_id_l[-1].append(ts_id)
-    return res, id_l, ts_id_l
+    if resolution != None:
+        return res, id_l, ts_id_l
+    else:
+        return res, id_l, ts_id_l, infered_resolution
 
-def multiple_dfs_to_ts_file(res_l, id_l, ts_id_l, save_dir, save=True):
+def multiple_dfs_to_ts_file(res_l, id_l, ts_id_l, save_dir, save=True, format="long", value_name="Value"):
     ts_list = []
     print("\nTurning dataframe list to multiple ts file...")
     logging.info("\nTurning dataframe list to multiple ts file...")
@@ -1366,17 +1392,22 @@ def multiple_dfs_to_ts_file(res_l, id_l, ts_id_l, save_dir, save=True):
         if type(ts) == darts.timeseries.TimeSeries:
             ts = [ts.univariate_component(i).pd_dataframe() for i in range(ts.n_components)]
         for comp_num, (comp, id, ts_id) in enumerate(zip(ts, id_ts, ts_id_ts)):
-            load_col = comp.columns[0]
-            comp["Date"] = comp.index.date
-            comp["Time"] = comp.index.time
-            comp = pd.pivot_table(comp, index=["Date"], columns=["Time"])
-            comp = comp[load_col]
+            comp.columns.values[0] = value_name
+            if format == "short":
+                comp["Date"] = comp.index.date
+                comp["Time"] = comp.index.time
+                comp = pd.pivot_table(comp, index=["Date"], columns=["Time"])
+                comp = comp[value_name]
             comp["ID"] = id
             comp["Timeseries ID"] = ts_id
             ts_list.append(comp)
-    res = pd.concat(ts_list).sort_values(by=["Date", "ID"])
-    columns = list(res.columns)[-2:] + list(res.columns)[:-2]
-    res = res[columns].reset_index()
+    if format == "long":
+        res = pd.concat(ts_list).reset_index()
+        res.rename(columns={'index': 'Datetime'}, inplace=True)
+    else:
+        res = pd.concat(ts_list).sort_values(by=["Date", "Timeseries ID", "ID"])
+        res = res.reindex(columns=sorted(res.columns, key=lambda x : 0 if isinstance(x, str) else int(datetime.combine(datetime.today().date(), x).timestamp())))
+        res = res.reset_index()
     if save:
         res.to_csv(save_dir)
     return res
@@ -1437,7 +1468,7 @@ def plot_removed(removed, res, name, outlier_dir):
     # Show the plot
     fig.write_html(f'{outlier_dir}/removed_outliers_{name}.html')
 
-def plot_series(df_list, ts_name_list, save_dir):
+def plot_series(df_list, ts_name_list, save_dir, id_list=None):
     if df_list == []: return
     if ts_name_list == []:return
     name = ", ".join(ts_name_list)
@@ -1450,9 +1481,21 @@ def plot_series(df_list, ts_name_list, save_dir):
     # Create the figure
     fig = go.Figure(layout=layout)
 
-    #TODO Fix for multivariate
     if type(df_list[0]) == darts.timeseries.TimeSeries:
-        df_list = [elem.pd_dataframe() for elem in df_list]
+        temp_df_list = []
+        temp_ts_name_list = []
+        for ts_idx, ts in enumerate(df_list):
+            temp_df_list.extend([ts.univariate_component(i).pd_dataframe() for i in range(ts.n_components)])
+            if ts.n_components == 1:
+                temp_ts_name_list.extend([ts_name_list[ts_idx] for _ in range(ts.n_components)])
+            elif id_list:
+                temp_ts_name_list.extend([ts_name_list[ts_idx] + " - component " + id_list[i] for i in range(ts.n_components)])
+            else:
+                temp_ts_name_list.extend([ts_name_list[ts_idx] + " - component " + str(i) for i in range(ts.n_components)])
+        for df in temp_df_list: 
+            df.columns.values[0] = "Value"
+        df_list = temp_df_list
+        ts_name_list = temp_ts_name_list
 
     # Plot the time series, ignoring NaN values
     for df, ts_name in zip(df_list, ts_name_list):
@@ -1478,6 +1521,86 @@ def allow_empty_series_fun(ts_list, id_l, ts_id_l, allow_empty_series=False):
         elif not allow_empty_series: 
             raise EmptySeries()
     return ts_list_ret, id_l_ret, ts_id_l_ret
+
+def to_seconds(resolution):
+    return ceil(pd.to_timedelta(to_offset(resolution)).total_seconds())
+
+def to_standard_form(freq):
+
+    total_seconds = int(freq.total_seconds())
+
+    if total_seconds % 86400 == 0:
+        if total_seconds // 86400 == 1:
+            return '1d'  # Daily frequency
+        else:
+            return f'{total_seconds // 86400}d'
+    elif total_seconds % 3600 == 0:
+        if total_seconds // 3600 == 1:
+            return '1h'  # Hourly frequency
+        else:
+            return f'{total_seconds // 3600}h'
+    elif total_seconds % 60 == 0:
+        if total_seconds // 60 == 1:
+            return '1min'  # Minutely frequency
+        else:
+            return f'{total_seconds // 60}min'
+    else:
+        return f'{total_seconds}s'  # Secondly frequency
+
+
+def change_form(freq, change_format_to="pandas_form"):
+    import re
+
+    # Dictionary to map time units from short to long forms and vice versa
+    time_units = {
+        "s": "second",
+        "min": "minute",
+        "h": "hour",
+        "d": "day"
+    }
+    
+    # Identify the number and unit from the frequency
+    match = re.match(r"(\d+)?(\w+)", freq)
+    if not match:
+        raise ValueError("Invalid frequency format.")
+    
+    number, unit = match.groups()
+
+    if not number:
+      number = 1
+    
+    # Convert to the desired format
+    if change_format_to == "print_form":
+        # From pandas form (e.g., '1h') to human-readable form (e.g., '1 hour')
+        full_unit = time_units.get(unit, "unknown")  # Default to 'unknown' if unit not found
+        if int(number) > 1:
+            full_unit += 's'  # Make plural if more than one
+        return f"{number} {full_unit}"
+    elif change_format_to == "pandas_form":
+        # From human-readable form (e.g., '1 hour') to pandas form (e.g., '1h')
+        for short, long in time_units.items():
+            if long in freq:
+                # Check if the unit matches and convert it
+                if ' ' in freq:
+                    num, _ = freq.split()
+                return f"{num}{short}"
+    else:
+        raise ValueError("Invalid change_format_to value. Use 'pandas_form' or 'print_form'.")
+
+def make_time_list(resolution):
+    import re
+
+    # List of all supported resolutions in increasing order
+    all_resolutions = ["1s", "2s", "5s", "15s", "30s", "1min", "2min", "5min", "15min", "30min", "1h", "2h", "6h", "1d", "2d", "5d", "10d"]
+
+    input_seconds = to_seconds(resolution)
+
+    # Filter and convert resolutions
+    resolutions = [{"value": change_form(resolution, change_format_to="print_form"), "default": True}]
+    for res in all_resolutions:
+        if to_seconds(res) > input_seconds:
+            resolutions.append({"value": change_form(res, "print_form"), "default": False})
+    return resolutions
 
 #epestrepse kai IDs
 #prwta psakse ID meta SC

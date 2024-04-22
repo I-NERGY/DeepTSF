@@ -989,6 +989,10 @@ hyperparameters:
     days_seasonality: 1
 
   LGBM_uc7:
-    lags: 24
-    lags_future_covariates: [24, 24]
+    lags: 1
+    lags_future_covariates: [1, 1]
+    random_state: 0
+
+  LGBM_example_test:
+    lags: 1
     random_state: 0
