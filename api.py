@@ -119,7 +119,9 @@ async def root():
 
 
 @scientist_router.get("/models/get_model_names/{resolution}/{multiple}", tags=['Metrics and models retrieval'])
-async def get_model_names(resolution: int, multiple: bool):
+async def get_model_names(resolution: str, multiple: bool):
+
+    resolution = to_seconds(change_form(resolution, 'pandas_form'))
 
     default_input_chunk = int(60 * 60 / resolution * 168) if int(60 * 60 / resolution * 168) > 0 else 1
     default_output_chunk =  int(60 * 60 / resolution * 24) if int(60 * 60 / resolution * 24) > 0 else 1
@@ -264,15 +266,14 @@ async def get_metric_names():
     return metrics
 
 
-def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_series=False):
+def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_series=False, format='long'):
 
     fileExtension = fname.split(".")[-1].lower() == "csv"
     if not fileExtension:
         print("Unsupported file type provided. Please upload CSV file")
         raise HTTPException(status_code=415, detail="Unsupported file type provided. Please upload CSV file")
     try:
-        ts, resolution = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple, allow_empty_series=allow_empty_series)
-        resolution_seconds = to_seconds(resolution)
+        ts, resolution = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple, allow_empty_series=allow_empty_series, format=format)
     except WrongColumnNames:
         print("There was an error validating the file. Please reupload CSV with correct column names")
         raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with correct column names")
@@ -286,6 +287,8 @@ def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_serie
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
 async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True), multiple: bool = Form(default=False)):
     
+    format = "short"
+
     # Store uploaded dataset to backend
     print("Uploading file...")
     try:
@@ -304,13 +307,21 @@ async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool =
 
     # Validation
     print("Validating file...") 
-    ts, resolutions = csv_validator(fname, day_first, multiple)
+    ts, resolutions = csv_validator(fname, day_first, multiple, format=format)
 
-    return {"message": "Validation successful",
+    if multiple:
+        if format == "long":
+            dataset_start_multiple = ts.iloc[0]['Datetime']
+            dataset_end_multiple = ts.iloc[-1]['Datetime']
+        else:
+            dataset_start_multiple = ts.iloc[0]['Date']
+            dataset_end_multiple = ts.iloc[-1]['Date']
+    
+    return {"message": "Validation successful", 
             "fname": fname,
-            "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
-            "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'] + timedelta(days=10),
-            "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else ts.iloc[-1]['Date'],
+            "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else dataset_start_multiple,
+            "allowed_validation_start": datetime.datetime.strftime(ts.index[0] + timedelta(days=10), "%Y-%m-%d") if multiple==False else dataset_start_multiple + timedelta(days=10),
+            "dataset_end": datetime.datetime.strftime(ts.index[-1], "%Y-%m-%d") if multiple==False else dataset_end_multiple,
             "allowed_resolutions": resolutions,
             "ts_used_id": None,
             "evaluate_all_ts": True if multiple else None
@@ -368,7 +379,7 @@ async def retrieve_uc2_dataset():
     client.close()
     # Validate_csv
     multiple = False
-    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple)
+    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple, format='short')
     return {"message": "Validation successful",
         "fname": fname,
         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
@@ -436,7 +447,7 @@ async def retrieve_uc6_dataset(series_name: str):
     client.close()
     # Validate_csv
     multiple = True
-    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple)
+    ts, resolutions = csv_validator(fname, day_first=False, multiple=multiple, format='short')
     return {"message": "Validation successful",
         "fname": fname,
         "dataset_start": datetime.datetime.strftime(ts.index[0], "%Y-%m-%d") if multiple==False else ts.iloc[0]['Date'],
@@ -531,7 +542,9 @@ def mlflow_run(params: dict, experiment_name: str, uc: str = "2"):
 
 @scientist_router.post('/experimentation_pipeline/run_all', tags=['Experimentation Pipeline'])
 async def run_experimentation_pipeline(parameters: dict, background_tasks: BackgroundTasks):
-    
+
+    parameters["format"] = 'short'
+
     # if this key exists then I am on the "user uploaded dataset" case so I proceed to the changes of the other parameters in the dict
     try:
         uc = parameters['uc']  # Trying to access a key that doesn't exist
@@ -567,7 +580,8 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
         "imputation_method": parameters["imputation_method"],    
 	    "ts_used_id": parameters["ts_used_id"], # uc2: None, uc6: 'W6 positive_active' or 'W6 positive_active' or 'W4 positive_reactive' or 'W4 positive_active', uc7: None 
         "eval_series": parameters["ts_used_id"], # same as above,
-	    "evaluate_all_ts": parameters["evaluate_all_ts"], 	    
+	    "evaluate_all_ts": parameters["evaluate_all_ts"],
+        "format": parameters["format"] 	    
         # "country": parameters["country"], this should be given if we want to have advanced imputation
      }
     

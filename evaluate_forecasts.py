@@ -864,7 +864,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
     else:
         eval_i = 0
 
-    if eval_i == -1:
+    if eval_i == -1 and evaluate_all_ts==False:
         raise EvalSeriesNotFound(eval_series)
     # Evaluate Model
     with mlflow.start_run(run_name='eval', nested=True) as mlrun:
