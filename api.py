@@ -286,7 +286,7 @@ def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_serie
 
 @scientist_router.post('/upload/uploadCSVfile', tags=['Experimentation Pipeline'])
 async def create_upload_csv_file(file: UploadFile = File(...), day_first: bool = Form(default=True), 
-                                 multiple: bool = Form(default=False), format: str = 'long'):
+                                 multiple: bool = Form(default=False), format: str = Form(default=False)):
 
     # Store uploaded dataset to backend
     print("Uploading file...")
@@ -553,14 +553,17 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
            # this is the default use case for all other runs except uc7
         pass  
 
+    print(parameters["hyperparams_entrypoint"])
+
+    # fix TFT as no covariates come from front
+    if parameters['model'] == "TFT":
+        parameters["hyperparams_entrypoint"]["add_relative_index"] = 'True'
+    # format hparams string
     hparam_str = str(parameters["hyperparams_entrypoint"])
     hparam_str = hparam_str.replace('"', '')
     hparam_str = hparam_str.replace("'", "")
     print(hparam_str)
-    # parameters["hyperparams_entrypoint"] = { (key.replace('"', '')) : (val.replace('"', '') if isinstance(val, str) else val) for key, val in parameters["hyperparams_entrypoint"].items()}
-    
-    # print(parameters[f"Resolution:{resolution}"])
-    print(parameters)   
+
     params = { 
         "rmv_outliers": parameters["rmv_outliers"],  
         "multiple": parameters["multiple"],
