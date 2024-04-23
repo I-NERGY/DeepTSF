@@ -86,15 +86,15 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
     1     | 2015-04-09   | ES | ES            | 25497    | 23492                 | ... | 25487
     .
     .
-    The columns that can be present in the short format csv have the following meaning:
+The columns that can be present in the short format csv have the following meaning:
         - Index: Simply a monotonic integer range
         - Date: The Date each row is referring to
         - ID: Each ID corresponds to a component of a timeseries in the file. 
               This ID must be unique for each timeseries component in the file.
         - Timeseries ID (Optional): Timeseries ID column is not compulsory, and shows the 
               timeseries to which each component belongs. If Timeseries ID is not present, it is 
-              assumed that each component represents one seperate series (the column is set to ID).
-        - Time columns: Columns that store the Load of each compontent.
+              assumed that each component represents one separate series (the column is set to ID).
+        - Time columns: Columns that store the Value of each component.
 
     The columns that can be present in the long format csv have the following meaning:
         - Index: Simply a monotonic integer range
@@ -173,7 +173,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                         raise DatetimesNotInOrder(id)
         else:
             des_columns = list(map(str, ['Datetime', 'ID', 'Timeseries ID', 'Value']))
-            #Check that only columns 'Datetime', 'ID', 'Timeseries ID' exist in any order.
+            #Check that only columns 'Datetime', 'ID', 'Timeseries ID', 'Value' exist in any order.
             if not set(des_columns) == set(list(ts.columns)):
                 raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns, "long")
             #Check that all dates for each component are sorted
