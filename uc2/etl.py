@@ -349,8 +349,8 @@ def impute(ts: pd.DataFrame,
         The resolution of the dataset
     debug
         If true it will print helpfull intermediate results
-    l_interpolation
-        Whether to only use linear interpolation 
+    name
+        The name of the string that will influence the name of the files that are produced.
     cut_date_val
         All dates before cut_date_val that have nan values are imputed using historical data
         from dates which are also before cut_date_val. Datetimes after cut_date_val are not affected
@@ -358,6 +358,13 @@ def impute(ts: pd.DataFrame,
     min_non_nan_interval
         If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
         hours, these intervals are all replaced by nan values
+    impute_dir
+        The name of the directory where the output files will be stored
+    imputation_method
+        Which imputation method to use. Options supported: 'linear', 'time', 'pad', 'nearest', 'polynomial', 'spline', 
+        'peppanen', 'krogh', 'piecewise_polynomial', 'spline', 'pchip', 'akima', 'cubicspline', and 'none'.
+    order
+        Order of method. Applicable to polynomial and spline imputation methods only
 
     Returns
     -------

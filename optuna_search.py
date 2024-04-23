@@ -750,10 +750,6 @@ def backtester(model,
     on test_start_date. series_transformed does not need to be adjacent to
     training series. if transformer_ts=None then no inverse transform is applied
     to the model predictions.
-    Parameters
-    ----------
-    Returns
-    ----------
     """
     # produce the fewest forecasts possible.
     if stride is None:
