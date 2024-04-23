@@ -48,7 +48,7 @@ def isweekend(x):
         return True
     return False
 
-def create_calendar(timeseries, timestep_minutes, holiday_list, local_timezone):
+def create_calendar(timeseries, holiday_list, local_timezone):
 
     calendar = pd.DataFrame(
         timeseries.index.tolist(),
@@ -440,7 +440,7 @@ def impute(ts: pd.DataFrame,
 
     elif imputation_method == 'peppanen':
         #Returning calendar of the country ts belongs to
-        calendar = create_calendar(ts, _, holidays, timezone("UTC"))
+        calendar = create_calendar(ts, holidays, timezone("UTC"))
         calendar.index = calendar["datetime"]
         imputed_values = ts[ts["Value"].isnull()].copy()
 
@@ -466,7 +466,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)):
             d[i] = min(d[i], count)
             if i < len(null_dates) - 1:
-                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(seconds==to_seconds(resolution)):
+                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else: 
                     count = 1
@@ -476,7 +476,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)-1, -1, -1):
             d[i] = min(d[i], count)
             if i > 0:
-                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(seconds==to_seconds(resolution)):
+                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else:
                     count = 1
