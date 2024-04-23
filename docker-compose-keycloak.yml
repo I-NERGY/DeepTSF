@@ -6,7 +6,9 @@ services:
     container_name: DeepTSF-backend
     hostname: DeepTSF-backend
     #image: pelekhs/load-forecasting-pipeline:0.1
-    build: .
+    build:
+      context: .
+      dockerfile: ./Dockerfile_keycloak
     restart: always
     ports:
       - '8080:8080'

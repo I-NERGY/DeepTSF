@@ -15,7 +15,7 @@ import pandas as pd
 import numpy as np
 import csv
 from datetime import datetime
-from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun
+from utils import download_online_file, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file, allow_empty_series_fun, to_seconds, to_standard_form
 import shutil
 import pretty_errors
 import uuid
@@ -44,7 +44,9 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                             multiple: bool = False,
                             from_database: bool = False,
                             covariates: str = "series",
-                            allow_empty_series=False):
+                            allow_empty_series=False,
+                            format="long",
+                            log_to_mlflow=True):
     """
     Validates the input after read_csv is called and throws apropriate exception if it detects an error.
     
@@ -61,31 +63,50 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
           named arbitrarily
 
     For multiple timeseries:
-        - Columns 'Date', 'ID', and the time columns exist in any order
+        - Columns 'Date', 'ID', and time columns exist in any order
         - Only the permitted column names exist in the dataframe (see Multiple timeseries file format bellow)
         - All timeseries in the dataframe have the same number of components
 
-    In case of a multiple timeseries, its resolution is also infered, and stored in mlflow as a tag. If we
-    have a single timeseries, then mlflow stores the resolution given by the user
+    For all timeseries, their resolution is also infered, and stored in mlflow as a tag. Furthermore, we support 2
+    formats for multiple time series files; short and long. These formats are presented bellow:
 
     Multiple timeseries file format (along with example values):
+
+    Long format:
+
+    Index |Datetime            | ID | Timeseries ID | Value 
+    0     |2015-04-09 00:00:00 | PT | PT            | 5248  
+    1     |2015-04-09 00:00:00 | ES | ES            | 25497
+    .
+    .
+
+    Short format:
 
     Index | Date         | ID | Timeseries ID | 00:00:00 | 00:00:00 + resolution | ... | 24:00:00 - resolution
     0     | 2015-04-09   | PT | PT            | 5248     | 5109                  | ... | 5345
     1     | 2015-04-09   | ES | ES            | 25497    | 23492                 | ... | 25487
     .
     .
-    The columns that can be present in the csv have the following meaning:
+The columns that can be present in the short format csv have the following meaning:
         - Index: Simply a monotonic integer range
         - Date: The Date each row is referring to
         - ID: Each ID corresponds to a component of a timeseries in the file. 
               This ID must be unique for each timeseries component in the file.
         - Timeseries ID (Optional): Timeseries ID column is not compulsory, and shows the 
               timeseries to which each component belongs. If Timeseries ID is not present, it is 
+              assumed that each component represents one separate series (the column is set to ID).
+        - Time columns: Columns that store the Value of each component.
+
+    The columns that can be present in the long format csv have the following meaning:
+        - Index: Simply a monotonic integer range
+        - Datetime: The Datetime each value is referring to
+        - ID: Each ID corresponds to a component of a timeseries in the file. 
+              This ID must be unique for each timeseries component in the file.
+        - Timeseries ID (Optional): Timeseries ID column is not compulsory, and shows the 
+              timeseries to which each component belongs. If Timeseries ID is not present, it is 
               assumed that each component represents one seperate series (the column is set to ID).
-        - Time columns: Columns that store the Load of each compontent. They must be consequtive and 
-              separated by resolution minutes. They should start at 00:00:00, and end at 24:00:00 - 
-              resolution
+        - Value: The value of this component in a particular Datetime.
+
         
     Columns can be in any order and the file will be considered valid.
 
@@ -114,7 +135,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      sep=None,
                      header=0,
                      index_col=0,
-                     parse_dates=(['Date'] if multiple else True),
+                     parse_dates=([1] if multiple else True),
                      dayfirst=day_first,
                      engine='python')
     
@@ -134,48 +155,51 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', '<Value Column Name>'])
 
         #Infering resolution for single timeseries
-        #TODO support non int resolutions
-        resolution = ceil(pd.to_timedelta(to_offset(pd.infer_freq(ts.index))).total_seconds() / 60.0)
+        resolution = to_standard_form(pd.to_timedelta(np.diff(ts.index).min()))
 
     else:
         #If columns don't exist set defaults
-        if "Timeseries ID" not in ts.columns:
+        if "Timeseries ID" not in ts.columns and "ID" in ts.columns:
             ts["Timeseries ID"] = ts["ID"]
 
-        #Infering resolution for multiple timeseries
-        times = []
-        for elem in list(ts.columns):
-            try:
-                times.append(pd.Timestamp(elem))
-            except:
-                pass
-        times.sort()
-        resolution = ceil((times[1] - times[0]).seconds // 60)
-
-        des_columns = list(map(str, ['Date', 'ID', 'Timeseries ID'] + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(minutes=resolution)).time() for i in range(60*24//resolution)]))
-        #Check that all columns 'Date', 'ID', 'Timeseries ID' and the time columns exist in any order.
-        if not set(des_columns) == set(list(ts.columns)):
-            raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns)
-        #Check that all dates for each component are sorted
-        for id in np.unique(ts["ID"]):
-            if not ts.loc[ts["ID"] == id]["Date"].sort_values().equals(ts.loc[ts["ID"] == id]["Date"]):
-                #(ts.loc[ts["ID"] == id]["Date"].sort_values()).to_csv("test.csv")
-                raise DatetimesNotInOrder(id)
-        
+        if format == "short":
+            des_columns = list(map(str, ['Date', 'ID', 'Timeseries ID']))
+            #Check that all columns 'Date', 'ID', 'Timeseries ID' and only time columns exist in any order.
+            if not set(des_columns).issubset(set(list(ts.columns))) and any(not isinstance(e, pd.Timestamp) for e in (set(list(ts.columns))).difference(set(des_columns))):
+                raise WrongColumnNames(list(ts.columns), len(des_columns) + 1, des_columns + ['and the rest should all be time columns'], "short")
+            #Check that all dates for each component are sorted
+            for ts_id in np.unique(ts["Timeseries ID"]):
+                for id in np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"]):
+                    if not ts.loc[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)]["Date"].sort_values().equals(ts.loc[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)]["Date"]):
+                        raise DatetimesNotInOrder(id)
+        else:
+            des_columns = list(map(str, ['Datetime', 'ID', 'Timeseries ID', 'Value']))
+            #Check that only columns 'Datetime', 'ID', 'Timeseries ID', 'Value' exist in any order.
+            if not set(des_columns) == set(list(ts.columns)):
+                raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns, "long")
+            #Check that all dates for each component are sorted
+            for ts_id in np.unique(ts["Timeseries ID"]):
+                for id in np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"]):
+                    if not ts.loc[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)]["Datetime"].sort_values().equals(ts.loc[(ts["ID"] == id) & (ts["Timeseries ID"] == ts_id)]["Datetime"]):
+                        raise DatetimesNotInOrder(id)
+                    
         #Check that all timeseries in a multiple timeseries file have the same number of components
         if len(set(len(np.unique(ts.loc[ts["Timeseries ID"] == ts_id]["ID"])) for ts_id in np.unique(ts["Timeseries ID"]))) != 1:
             raise DifferentComponentDimensions()
         
-        if allow_empty_series:
-            ts_l, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, str(resolution))
-            ts_list_ret, id_l_ret, ts_id_l_ret = allow_empty_series_fun(ts_l, id_l, ts_id_l, allow_empty_series=allow_empty_series)
-            ts = multiple_dfs_to_ts_file(ts_list_ret, id_l_ret, ts_id_l_ret, "", save=False)
+        #Infering resolution for multiple ts
+        ts_l, id_l, ts_id_l, resolution = multiple_ts_file_to_dfs(series_csv, day_first, None, format=format)
 
-    mlflow.set_tag(f'infered_resolution_{covariates}', resolution)
+        if allow_empty_series:
+            ts_list_ret, id_l_ret, ts_id_l_ret = allow_empty_series_fun(ts_l, id_l, ts_id_l, allow_empty_series=allow_empty_series)
+            ts = multiple_dfs_to_ts_file(ts_list_ret, id_l_ret, ts_id_l_ret, "", save=False, format=format)
+
+    if log_to_mlflow:
+        mlflow.set_tag(f'infered_resolution_{covariates}', resolution)
             
     return ts, resolution
 
-def make_multiple(ts_covs, series_csv, day_first, inf_resolution):
+def make_multiple(ts_covs, series_csv, day_first, inf_resolution, format):
     """
     In case covariates.
 
@@ -204,14 +228,14 @@ def make_multiple(ts_covs, series_csv, day_first, inf_resolution):
 
 
     if series_csv != None:
-        ts_list, _, _, _, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, inf_resolution)
+        ts_list, _, _, _, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, inf_resolution, format=format)
 
         ts_list_covs = [[ts_covs] for _ in range(len(ts_list))]
         id_l_covs = [[str(list(ts_covs.columns)[0]) + "_" + ts_id_l[i]] for i in range(len(ts_list))]
     else:
         ts_list_covs = [[ts_covs]]
         id_l_covs = [[list(ts_covs.columns)[0]]]
-    return multiple_dfs_to_ts_file(ts_list_covs, id_l_covs, id_l_covs, id_l_covs, id_l_covs, "", save=False)
+    return multiple_dfs_to_ts_file(ts_list_covs, id_l_covs, id_l_covs, id_l_covs, id_l_covs, "", save=False, format=format)
 
 from pymongo import MongoClient
 import pandas as pd
@@ -244,10 +268,8 @@ def load_data_to_csv(tmpdir, database_name):
     return
 
 @click.command(
-    help="Downloads the RDN series and saves it as an mlflow artifact "
-    "called 'load_x_y.csv'."
+    help="Downloads the time series and saves it as an mlflow artifact. Also runs some validation checks."
     )
-# TODO: Update that to accept url as input instead of local file
 @click.option("--series-csv",
     type=str,
     default="None",
@@ -298,8 +320,13 @@ def load_data_to_csv(tmpdir, database_name):
     type=str,
     help="Which database file to read."
 )
+@click.option("--format",
+    default="long",
+    type=str,
+    help="Which file format to use. Only for multiple time series"
+)
 
-def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, day_first, multiple, resolution, from_database, database_name):
+def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, day_first, multiple, resolution, from_database, database_name, format):
     from_database = truth_checker(from_database)
     tmpdir = tempfile.mkdtemp()
 
@@ -332,11 +359,9 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
 
     multiple = truth_checker(multiple)
 
-    resolution = int(resolution)
-
     with mlflow.start_run(run_name='load_data', nested=True) as mlrun:
 
-        ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, from_database=from_database)
+        ts, _ = read_and_validate_input(series_csv, day_first, multiple=multiple, from_database=from_database, format=format)
 
         print(f'Validating timeseries on local file: {series_csv}')
         logging.info(f'Validating timeseries on local file: {series_csv}')
@@ -362,7 +387,8 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
                                                               day_first,
                                                               multiple=True,
                                                               from_database=from_database,
-                                                              covariates="past")
+                                                              covariates="past",
+                                                              format=format)
             # except:
             #     ts_past_covs, inf_resolution = read_and_validate_input(past_covs_csv,
             #                                                                day_first,
@@ -399,17 +425,21 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
                                                               day_first,
                                                               multiple=True,
                                                               from_database=from_database,
-                                                              covariates="future")
+                                                              covariates="future",
+                                                              format=format)
+            #TODO Catch this exception more robustly
             except:
                 ts_future_covs, inf_resolution = read_and_validate_input(future_covs_csv,
                                                                            day_first,
                                                                            multiple=False,
                                                                            from_database=from_database,
-                                                                           covariates="future")
+                                                                           covariates="future",
+                                                                           format=format)
                 ts_future_covs = make_multiple(ts_future_covs,
                                                  series_csv,
                                                  day_first,
-                                                 str(inf_resolution))
+                                                 inf_resolution,
+                                                 format=format)
                                     
             local_path_future_covs = local_path_future_covs.replace("'", "") if "'" in local_path_future_covs else local_path_future_covs
             future_covs_filename = os.path.join(*local_path_future_covs, future_covs_fname)
@@ -430,9 +460,13 @@ def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_c
 
         # set mlflow tags for next steps
         if multiple:
-            mlflow.set_tag("dataset_start", datetime.strftime(ts["Date"].iloc[0], "%Y%m%d"))
-            mlflow.set_tag("dataset_end", datetime.strftime(ts["Date"].iloc[-1], "%Y%m%d"))
-            pass
+            #TODO See where in use, possible implications with different duration tss
+            if format == "short":
+                mlflow.set_tag("dataset_start", datetime.strftime(ts["Date"].iloc[0], "%Y%m%d"))
+                mlflow.set_tag("dataset_end", datetime.strftime(ts["Date"].iloc[-1], "%Y%m%d"))
+            else:
+                mlflow.set_tag("dataset_start", datetime.strftime(ts["Datetime"].iloc[0], "%Y%m%d"))
+                mlflow.set_tag("dataset_end", datetime.strftime(ts["Datetime"].iloc[-1], "%Y%m%d"))
         else:
             mlflow.set_tag("dataset_start", datetime.strftime(ts.index[0], "%Y%m%d"))
             mlflow.set_tag("dataset_end", datetime.strftime(ts.index[-1], "%Y%m%d"))

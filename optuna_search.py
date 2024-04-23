@@ -1,5 +1,6 @@
 import pretty_errors
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
+from exceptions import EvalSeriesNotFound
 from preprocessing import scale_covariates, split_dataset, split_nans, filtering
 from darts.utils.missing_values import extract_subseries
 import string
@@ -240,7 +241,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
              cut_date_test, device, forecast_horizon, stride, retrain, scale, 
              scale_covs, multiple, eval_series, mlrun, trial, study, opt_tmpdir, 
              num_workers, day_first, eval_method, loss_function, opt_all_results,
-             evaluate_all_ts, num_samples, pv_ensemble):
+             evaluate_all_ts, num_samples, pv_ensemble, format):
 
                 hyperparameters = ConfigParser(config_file='../config_opt.yml', config_string=hyperparams_entrypoint).read_hyperparameters(hyperparams_entrypoint)
                 training_dict = {}
@@ -292,6 +293,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                       resolution=resolution,
                       trial=trial,
                       pv_ensemble=pv_ensemble,
+                      format=format,
                       )
                 try:
                     trial.set_user_attr("epochs_trained", model.epochs_trained)
@@ -319,6 +321,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
                     study=study,
                     num_samples=num_samples,
                     pv_ensemble=pv_ensemble,
+                    format=format,
                     )
                 trial.set_user_attr("mape", float(metrics["mape"]))
                 trial.set_user_attr("smape", float(metrics["smape"]))
@@ -339,7 +342,7 @@ def objective(series_csv, series_uri, future_covs_csv, future_covs_uri,
 def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
-          training_dict, mlrun, num_workers, day_first, resolution, trial, pv_ensemble):
+          training_dict, mlrun, num_workers, day_first, resolution, trial, pv_ensemble, format):
 
 
     # Argument preprocessing
@@ -433,7 +436,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 last_date=test_end_date,
                 multiple=multiple,
                 day_first=day_first,
-                resolution=resolution)
+                resolution=resolution,
+                format=format)
     
     if future_covariates is not None:
         future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
@@ -443,7 +447,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 last_date=test_end_date,
                 multiple=True,
                 day_first=day_first,
-                resolution=resolution)
+                resolution=resolution,
+                format=format)
     else:
         future_covariates, id_l_future_covs, ts_id_l_future_covs = None, None, None
     if past_covariates is not None:
@@ -454,7 +459,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
                 last_date=test_end_date,
                 multiple=True,
                 day_first=day_first,
-                resolution=resolution)
+                resolution=resolution,
+                format=format)
     else:
         past_covariates, id_l_past_covs, ts_id_l_past_covs = None, None, None
     
@@ -482,7 +488,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             conf_file_name='split_info.yml',
             multiple=multiple,
             id_l=id_l,
-            ts_id_l=ts_id_l)
+            ts_id_l=ts_id_l,
+            format=format)
         ## future covariates
     future_covariates_split = split_dataset(
             future_covariates,
@@ -493,7 +500,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             name='future_covariates',
             multiple=True,
             id_l=id_l_future_covs,
-            ts_id_l=ts_id_l_future_covs)
+            ts_id_l=ts_id_l_future_covs,
+            format=format)
         ## past covariates
     past_covariates_split = split_dataset(
             past_covariates,
@@ -504,7 +512,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             name='past_covariates',
             multiple=True,
             id_l=id_l_past_covs,
-            ts_id_l=ts_id_l_past_covs)
+            ts_id_l=ts_id_l_past_covs,
+            format=format)
     #################
     # Scaling
     print("\nScaling...")
@@ -562,7 +571,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             scale=scale,
             multiple=multiple,
             id_l=id_l,
-            ts_id_l=ts_id_l
+            ts_id_l=ts_id_l,
+            format=format,
             )
     if scale:
         pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
@@ -575,7 +585,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             scale=scale_covs,
             multiple=True,
             id_l=id_l_future_covs,
-            ts_id_l=ts_id_l_future_covs
+            ts_id_l=ts_id_l_future_covs,
+            format=format,
             )
         ## scale past covariates
     past_covariates_transformed = scale_covariates(
@@ -585,7 +596,8 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
             scale=scale_covs,
             multiple=True,
             id_l=id_l_past_covs,
-            ts_id_l=ts_id_l_past_covs
+            ts_id_l=ts_id_l_past_covs,
+            format=format
             )
 
     ######################
@@ -730,7 +742,7 @@ def backtester(model,
                path_to_save_backtest=None,
                num_samples=1,
                pv_ensemble=False,
-               resolution="60"):
+               resolution="60min"):
                #TODO Add mase
     """ Does the same job with advanced forecast but much more quickly using the darts
     bult-in historical_forecasts method. Use this for evaluation. The other only
@@ -738,21 +750,18 @@ def backtester(model,
     on test_start_date. series_transformed does not need to be adjacent to
     training series. if transformer_ts=None then no inverse transform is applied
     to the model predictions.
-    Parameters
-    ----------
-    Returns
-    ----------
     """
     # produce the fewest forecasts possible.
     if stride is None:
         stride = forecast_horizon
 
-    test_start_date = pd.Timestamp(test_start_date + " 00:00:00")
     #keep last non nan values
     #must be sufficient for historical_forecasts and mase calculation
     #TODO Add check for that in the beggining
     series = extract_subseries(series, min_gap_size=1)[-1]
     series_transformed = extract_subseries(series_transformed, min_gap_size=1)[-1]
+
+    test_start_date = series_transformed.pd_dataframe()[series_transformed.pd_dataframe().index >= pd.Timestamp(test_start_date + " 00:00:00")].index[0]
 
     # produce list of forecasts
     #print("backtesting starting at", test_start_date, "series:", series_transformed)
@@ -791,7 +800,7 @@ def backtester(model,
                                                             kW=60, 
                                                             use_saved=True)
     # Metrix
-    test_series = series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min"))
+    test_series = series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(resolution))
     metrics = {
         "mase": mase_darts(
             test_series,
@@ -840,7 +849,7 @@ def backtester(model,
 
 def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_test, test_end_date,
              model, forecast_horizon, stride, retrain, multiple, eval_series, cut_date_val, mlrun, 
-             resolution, eval_method, opt_all_results, evaluate_all_ts, study, num_samples, pv_ensemble, mode='remote'):
+             resolution, eval_method, opt_all_results, evaluate_all_ts, study, num_samples, pv_ensemble, format, mode='remote'):
     # TODO: modify functions to support models with likelihood != None
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
@@ -862,7 +871,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
         local_path=series_path,
         last_date=test_end_date,
         multiple=multiple,
-        resolution=resolution)
+        resolution=resolution,
+        format=format)
     
     series_transformed=series.copy()
 
@@ -896,7 +906,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
             test_end_date=test_end_date,
             multiple=multiple,
             id_l=id_l,
-            ts_id_l=ts_id_l)
+            ts_id_l=ts_id_l,
+            format=format)
 
 
     series_transformed_split = split_dataset(
@@ -906,7 +917,8 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
             test_end_date=test_end_date,
             multiple=multiple,
             id_l=id_l,
-            ts_id_l=ts_id_l)
+            ts_id_l=ts_id_l,
+            format=format)
         
     if evaluate_all_ts and multiple:
         eval_results = {}
@@ -968,8 +980,10 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
                             eval_i = i
         else:
             eval_i = 0
-        # Evaluate Model
 
+        if eval_i == -1:
+            raise EvalSeriesNotFound(eval_series)
+        # Evaluate Model
         backtest_series = darts.timeseries.concatenate([series_split['train'][eval_i], series_split['val'][eval_i]]) if multiple else \
                           darts.timeseries.concatenate([series_split['train'], series_split['val']])
         backtest_series_transformed = darts.timeseries.concatenate([series_transformed_split['train'][eval_i], series_transformed_split['val'][eval_i]]) if multiple else \
@@ -1170,13 +1184,17 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
     type=str,
     help="Wether to subtract the pv production forecasts from the training series and add it again during testing or not.",
     )
-
+@click.option("--format",
+    default="long",
+    type=str,
+    help="Which file format to use. Only for multiple time series"
+)
 
 def optuna_search(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, year_range, resolution, darts_model, hyperparams_entrypoint,
            cut_date_val, cut_date_test, test_end_date, device, forecast_horizon, stride, retrain,
            scale, scale_covs, multiple, eval_series, n_trials, num_workers, day_first, eval_method, 
-           loss_function, evaluate_all_ts, grid_search, num_samples, pv_ensemble):
+           loss_function, evaluate_all_ts, grid_search, num_samples, pv_ensemble, format):
 
         n_trials = none_checker(n_trials)
         n_trials = int(n_trials)
@@ -1208,7 +1226,7 @@ def optuna_search(series_csv, series_uri, future_covs_csv, future_covs_uri,
                        darts_model, hyperparams_entrypoint, cut_date_val, test_end_date, cut_date_test, device,
                        forecast_horizon, stride, retrain, scale, scale_covs,
                        multiple, eval_series, mlrun, trial, study, opt_tmpdir, num_workers, day_first, eval_method, 
-                       loss_function, opt_all_results, evaluate_all_ts, num_samples, pv_ensemble),
+                       loss_function, opt_all_results, evaluate_all_ts, num_samples, pv_ensemble, format),
                        n_trials=n_trials, n_jobs = 1)
 
             log_optuna(study, opt_tmpdir, hyperparams_entrypoint, mlrun, opt_all_results=opt_all_results, evaluate_all_ts=evaluate_all_ts)

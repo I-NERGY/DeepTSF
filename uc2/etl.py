@@ -5,7 +5,7 @@ from utils import none_checker
 import os
 from os import times
 from utils import download_online_file, truth_checker, multiple_ts_file_to_dfs, multiple_dfs_to_ts_file
-from utils import plot_imputation, plot_removed, get_weather_covariates
+from utils import plot_imputation, plot_removed, get_weather_covariates, to_seconds
 from darts.utils.timeseries_generation import datetime_attribute_timeseries
 import darts
 from darts.utils.timeseries_generation import holidays_timeseries
@@ -48,7 +48,7 @@ def isweekend(x):
         return True
     return False
 
-def create_calendar(timeseries, timestep_minutes, holiday_list, local_timezone):
+def create_calendar(timeseries, holiday_list, local_timezone):
 
     calendar = pd.DataFrame(
         timeseries.index.tolist(),
@@ -223,7 +223,7 @@ def cut_extra_samples(ts_list):
 def remove_outliers(ts: pd.DataFrame,
                     name: str = "Portugal",
                     std_dev: float = 4.5,
-                    resolution: str = "15",
+                    resolution: str = "15min",
                     print_removed: bool = False,
                     outlier_dir: str = ""):
     """
@@ -286,18 +286,18 @@ def remove_outliers(ts: pd.DataFrame,
     removed = removed[~removed.index.duplicated(keep='first')]
 
     if not removed.empty:
-        full_removed = removed.asfreq(str(resolution)+'min')
+        full_removed = removed.asfreq(resolution)
     else:
         full_removed = removed.copy()
 
     if not ts.empty:
-        full_ts = ts.asfreq(str(resolution)+'min')
+        full_ts = ts.asfreq(resolution)
     else:
         full_ts = full_ts.copy()
 
     plot_removed(full_removed, full_ts, name, outlier_dir)
 
-    return res.asfreq(str(resolution)+'min'), a
+    return res.asfreq(resolution), a
 
 def impute(ts: pd.DataFrame,
            holidays,
@@ -306,7 +306,7 @@ def impute(ts: pd.DataFrame,
            wncutoff: float = 0.000694,
            ycutoff: int = 3,
            ydcutoff: int = 30,
-           resolution: str = "15",
+           resolution: str = "15min",
            debug: bool = False,
            name: str = "PT",
            cut_date_val: str = "20221208",
@@ -349,8 +349,8 @@ def impute(ts: pd.DataFrame,
         The resolution of the dataset
     debug
         If true it will print helpfull intermediate results
-    l_interpolation
-        Whether to only use linear interpolation 
+    name
+        The name of the string that will influence the name of the files that are produced.
     cut_date_val
         All dates before cut_date_val that have nan values are imputed using historical data
         from dates which are also before cut_date_val. Datetimes after cut_date_val are not affected
@@ -358,6 +358,13 @@ def impute(ts: pd.DataFrame,
     min_non_nan_interval
         If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
         hours, these intervals are all replaced by nan values
+    impute_dir
+        The name of the directory where the output files will be stored
+    imputation_method
+        Which imputation method to use. Options supported: 'linear', 'time', 'pad', 'nearest', 'polynomial', 'spline', 
+        'peppanen', 'krogh', 'piecewise_polynomial', 'spline', 'pchip', 'akima', 'cubicspline', and 'none'.
+    order
+        Order of method. Applicable to polynomial and spline imputation methods only
 
     Returns
     -------
@@ -395,7 +402,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)):
             d[i] = min(d[i], count)
             if i < len(null_dates) - 1:
-                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(minutes=int(resolution)):
+                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else:
                     count = 1
@@ -405,7 +412,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)-1, -1, -1):
             d[i] = min(d[i], count)
             if i > 0:
-                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(minutes=int(resolution)):
+                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else:
                     count = 1
@@ -433,7 +440,7 @@ def impute(ts: pd.DataFrame,
 
     elif imputation_method == 'peppanen':
         #Returning calendar of the country ts belongs to
-        calendar = create_calendar(ts, int(resolution), holidays, timezone("UTC"))
+        calendar = create_calendar(ts, holidays, timezone("UTC"))
         calendar.index = calendar["datetime"]
         imputed_values = ts[ts["Value"].isnull()].copy()
 
@@ -459,7 +466,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)):
             d[i] = min(d[i], count)
             if i < len(null_dates) - 1:
-                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(minutes=int(resolution)):
+                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else: 
                     count = 1
@@ -469,7 +476,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)-1, -1, -1):
             d[i] = min(d[i], count)
             if i > 0:
-                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(minutes=int(resolution)):
+                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else:
                     count = 1
@@ -544,18 +551,18 @@ def impute(ts: pd.DataFrame,
         start = prev
 
         for not_nan_day in not_nan_dates[1:]:
-            if (not_nan_day - prev)!= pd.Timedelta(int(resolution), "min"):
-                if prev - start < pd.Timedelta(int(resolution) * min_non_nan_interval, "min"):
+            if (not_nan_day - prev)!= pd.Timedelta(resolution):
+                if prev - start < pd.Timedelta(to_seconds(resolution) * min_non_nan_interval, "sec"):
                     print(f"Non Nan interval from {start} to {prev} is smaller than {min_non_nan_interval} time steps. Making this also Nan")
-                    for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+                    for date in pd.date_range(start=start, end=prev, freq=resolution):
                         non_nan_intervals_to_nan[date] = res.loc[date].values[0]
                         res.loc[date] = pd.NA
                         imputed_values.loc[date] = pd.NA
 
                 start = not_nan_day
             prev = not_nan_day
-        if prev - start < pd.Timedelta(int(resolution) * min_non_nan_interval, "min"):
-            for date in pd.date_range(start=start, end=prev, freq=resolution + "min"):
+        if prev - start < pd.Timedelta(to_seconds(resolution) * min_non_nan_interval, "sec"):
+            for date in pd.date_range(start=start, end=prev, freq=resolution):
                 non_nan_intervals_to_nan[date] = res.loc[date].values[0]
                 res.loc[date] = pd.NA
                 imputed_values.loc[date] = pd.NA
@@ -563,17 +570,17 @@ def impute(ts: pd.DataFrame,
     non_nan_intervals_to_nan = pd.DataFrame.from_dict(non_nan_intervals_to_nan, columns=["Value"], orient='index')
     non_nan_intervals_to_nan.index.name = "Datetime"
     if not res.empty:
-        full_res = res.asfreq(str(resolution)+'min')
+        full_res = res.asfreq(resolution)
     else:
         full_res = res.copy()
 
     if not imputed_values.empty:
-        full_imputed_values = imputed_values.asfreq(str(resolution)+'min')
+        full_imputed_values = imputed_values.asfreq(resolution)
     else:
         full_imputed_values = imputed_values.copy()
     
     if not non_nan_intervals_to_nan.empty:
-        full_non_nan_intervals_to_nan = non_nan_intervals_to_nan.asfreq(str(resolution)+'min')
+        full_non_nan_intervals_to_nan = non_nan_intervals_to_nan.asfreq(resolution)
     else:
         full_non_nan_intervals_to_nan = non_nan_intervals_to_nan.copy()
 
@@ -637,13 +644,12 @@ def save_consecutive_nans(ts, resolution, tmpdir, name):
     str
         The contents of the saved file in string format.
     """
-    resolution = int(resolution)
     output = "Consecutive nans left in df:\n"
     null_dates = ts[ts["Value"].isnull()].index
     prev = null_dates[0]
     output = output + str(prev) + " - "
     for null_date in null_dates[1:]:
-        if (null_date - prev)!= pd.Timedelta(resolution, "min"):
+        if (null_date - prev)!= pd.Timedelta(resolution):
             output = output + str(prev) + "\n" + str(null_date) + " - "
         prev = null_date
     output = output + str(null_date)
@@ -676,7 +682,7 @@ def resample(series, new_resolution, method):
         The method of the resampling. The possibilities include averaging, summation, 
         and downsampling. More specifically:
             - averaging: An new dataframe will be produced with datetimes that are
-            separated by new_resolution minutes. The first datetime of the new dataframe
+            separated by new_resolution. The first datetime of the new dataframe
             will be the same as that of the old one. Also, all other datetimes (lets call
             them datetime) will be calculated using the average of the datetimes of the
             old dataset that belong to the date range [datetime, datetime + new_resolution).
@@ -698,11 +704,11 @@ def resample(series, new_resolution, method):
         The resampled dataframe
     """
     if method == "averaging":
-        return pd.DataFrame(series["Value"].resample(new_resolution+'min').mean(), columns=["Value"])
+        return pd.DataFrame(series["Value"].resample(new_resolution).mean(), columns=["Value"])
     elif method == "summation":
-        return pd.DataFrame(series["Value"].resample(new_resolution+'min').apply(sum_wo_nans), columns=["Value"])
+        return pd.DataFrame(series["Value"].resample(new_resolution).apply(sum_wo_nans), columns=["Value"])
     else:
-        return pd.DataFrame(series["Value"].resample(new_resolution+'min').first(), columns=["Value"])
+        return pd.DataFrame(series["Value"].resample(new_resolution).first(), columns=["Value"])
 
 def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resolution, type, multiple, year_min, year_max, resampling_agg_method):
     """
@@ -751,10 +757,10 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
         ts_res = ts_res.interpolate(inplace=False)
 
         #resampling
-        if int(resolution) < int(infered_resolution):
+        if to_seconds(resolution) < to_seconds(infered_resolution):
             raise NoUpsamplingException()
                     
-        if int(resolution) != int(infered_resolution):
+        if to_seconds(resolution) != to_seconds(infered_resolution):
             print(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution")
             logging.info(f"\nResampling {ts_id} component of {cov_id} timeseries of {type} covariates as given frequency different than infered resolution")
             ts_res = resample(ts_res, resolution, resampling_agg_method)
@@ -786,7 +792,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 @click.option("--resolution",
     default="None",
     type=str,
-    help="The resolution of the dataset in minutes."
+    help="The resolution of the dataset. Can be in seconds, minutes, hours and days."
 )
 @click.option("--time-covs",
     default="false",
@@ -874,7 +880,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 
 @click.option("--infered-resolution-series",
     type=str,
-    default="15",
+    default="15min",
     help="infered resolution of the dataset from load_raw_data")
 
 @click.option("--min-non-nan-interval",
@@ -893,7 +899,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
 
 @click.option("--infered-resolution-past",
     type=str,
-    default="15",
+    default="15min",
     help="infered resolution of the past covariates from load_raw_data")
 
 @click.option("--past-covs-csv",
@@ -907,7 +913,7 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
     )
 @click.option("--infered-resolution-future",
     type=str,
-    default="15",
+    default="15min",
     help="infered resolution of the future covariates from load_raw_data")
 
 @click.option("--future-covs-csv",
@@ -928,13 +934,17 @@ def preprocess_covariates(ts_list, id_list, cov_id, infered_resolution, resoluti
     multiple=False,
     help="Method to use for resampling."
     )
-
+@click.option("--format",
+    default="long",
+    type=str,
+    help="Which file format to use. Only for multiple time series"
+)
 def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first, 
         country, std_dev, max_thr, a, wncutoff, ycutoff, ydcutoff, multiple, 
         imputation_method, order, rmv_outliers, convert_to_local_tz, ts_used_id,
         infered_resolution_series, min_non_nan_interval, cut_date_val,
         infered_resolution_past, past_covs_csv, past_covs_uri, infered_resolution_future,
-        future_covs_csv, future_covs_uri, resampling_agg_method):
+        future_covs_csv, future_covs_uri, resampling_agg_method, format):
 
     # TODO: play with get_time_covariates and create sinusoidal
     # transformations for all features (e.g dayofyear)
@@ -985,17 +995,17 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
     #Read past / futute covariates
     if past_covs_csv != None:
         ts_list_past_covs, id_l_past_covs, ts_id_l_past_covs = \
-                multiple_ts_file_to_dfs(past_covs_csv, day_first, infered_resolution_past)
+                multiple_ts_file_to_dfs(past_covs_csv, day_first, infered_resolution_past, format=format)
     else:
         ts_list_past_covs, id_l_past_covs, ts_id_l_past_covs = [], [], []
     if future_covs_csv != None:
         ts_list_future_covs, id_l_future_covs, ts_id_l_future_covs = \
-                multiple_ts_file_to_dfs(future_covs_csv, day_first, infered_resolution_future)
+                multiple_ts_file_to_dfs(future_covs_csv, day_first, infered_resolution_future, format=format)
     else:
         ts_list_future_covs, id_l_future_covs, ts_id_l_future_covs = [], [], []
 
     if multiple:
-        ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, infered_resolution_series)
+        ts_list, id_l, ts_id_l = multiple_ts_file_to_dfs(series_csv, day_first, infered_resolution_series, format=format)
         # selecting only ts_used_id from multiple ts if the user wants to
         if ts_used_id != None:
             try:
@@ -1128,9 +1138,9 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                                                   cut_date_val=cut_date_val,
                                                   min_non_nan_interval=min_non_nan_interval)
                 
-                if int(resolution) < int(infered_resolution_series):
+                if to_seconds(resolution) < to_seconds(infered_resolution_series):
                     raise NoUpsamplingException()
-                if int(resolution) != int(infered_resolution_series):
+                if to_seconds(resolution) != to_seconds(infered_resolution_series):
                     print(f"\nResampling as given frequency different than infered resolution")
                     logging.info(f"\nResampling as given frequency is different than infered resolution")
                     comp_res = resample(comp_res, resolution, resampling_agg_method)
@@ -1143,7 +1153,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                 logging.info("\nCreating darts data frame...")
 
                 # explicitly redefine frequency
-                comp_res = comp_res.asfreq(resolution+'min')
+                comp_res = comp_res.asfreq(resolution)
 
                 # ts_res.to_csv(f'{tmpdir}/4_asfreq.csv')
 
@@ -1216,11 +1226,11 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
             print("\nStoring datasets locally...")
             logging.info("\nStoring datasets...")
         else:
-            multiple_dfs_to_ts_file(res_, id_l, ts_id_l, f'{tmpdir}/series.csv')
+            multiple_dfs_to_ts_file(res_, id_l, ts_id_l, f'{tmpdir}/series.csv', format=format)
         if past_covs_csv != None:
-            multiple_dfs_to_ts_file(res_past, id_l_past_covs, ts_id_l_past_covs, f'{tmpdir}/past_covs.csv')
+            multiple_dfs_to_ts_file(res_past, id_l_past_covs, ts_id_l_past_covs, f'{tmpdir}/past_covs.csv', format=format)
         if (future_covs_csv != None) or time_covs:
-            multiple_dfs_to_ts_file(res_future, id_l_future_covs, ts_id_l_future_covs, f'{tmpdir}/future_covs.csv')
+            multiple_dfs_to_ts_file(res_future, id_l_future_covs, ts_id_l_future_covs, f'{tmpdir}/future_covs.csv', format=format)
         print("\nUploading features to MLflow server...")
         logging.info("\nUploading features to MLflow server...")
         mlflow.log_artifacts(tmpdir, "features")

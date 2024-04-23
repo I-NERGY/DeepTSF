@@ -55,7 +55,7 @@ So run the following to set up your working environment:
 
 Then, you can execute any experiment you want. An example working command (also demonstrated in the whitepaper [1]), is shown below:
 
-```mlflow run --experiment-name example --entry-point exp_pipeline . -P series_csv=Italy.csv -P convert_to_local_tz=false -P day_first=false -P from_database=false -P multiple=false -P l_interpolation=false -P resolution=60 -P rmv_outliers=true -P country=IT -P year_range=2015-2022 -P cut_date_val=20200101 -P cut_date_test=20210101 -P test_end_date=20211231 -P scale=true -P darts_model=NBEATS -P hyperparams_entrypoint=NBEATS_example -P loss_function=mape -P opt_test=true -P grid_search=false -P n_trials=100 -P device=gpu -P ignore_previous_runs=t -P forecast_horizon=24 -P m_mase=24 -P analyze_with_shap=False --env-manager=local```
+```mlflow run --experiment-name example --entry-point exp_pipeline . -P series_csv=user_datasets/Italy.csv -P convert_to_local_tz=false -P day_first=false -P from_database=false -P multiple=false -P imputation_method=peppanen -P resolution=1h -P rmv_outliers=true -P country=IT -P year_range=2015-2022 -P cut_date_val=20200101 -P cut_date_test=20210101 -P test_end_date=20211231 -P scale=true -P darts_model=NBEATS -P hyperparams_entrypoint=NBEATS_example -P loss_function=mape -P opt_test=true -P grid_search=false -P n_trials=100 -P device=gpu -P ignore_previous_runs=t -P forecast_horizon=24 -P m_mase=24 -P analyze_with_shap=False --env-manager=local```
 
 Don't forget to change series_csv argument to match the file's location in the container 
 (if you followed the previous instructions it must be located in the parent directory).
