@@ -273,7 +273,9 @@ def csv_validator(fname: str, day_first: bool, multiple: bool, allow_empty_serie
         print("Unsupported file type provided. Please upload CSV file")
         raise HTTPException(status_code=415, detail="Unsupported file type provided. Please upload CSV file")
     try:
-        ts, resolution = read_and_validate_input(series_csv=fname, day_first=day_first, multiple=multiple, allow_empty_series=allow_empty_series, format=format)
+        ts, resolution = read_and_validate_input(series_csv=fname, day_first=day_first, 
+                                                 multiple=multiple, allow_empty_series=allow_empty_series, 
+                                                 format=format, log_to_mlflow=False)
     except WrongColumnNames:
         print("There was an error validating the file. Please reupload CSV with correct column names")
         raise HTTPException(status_code=415, detail="There was an error validating the file. Please reupload CSV with correct column names")

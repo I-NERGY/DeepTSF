@@ -45,7 +45,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                             from_database: bool = False,
                             covariates: str = "series",
                             allow_empty_series=False,
-                            format="long"):
+                            format="long",
+                            log_to_mlflow=True):
     """
     Validates the input after read_csv is called and throws apropriate exception if it detects an error.
     
@@ -182,7 +183,8 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             ts_list_ret, id_l_ret, ts_id_l_ret = allow_empty_series_fun(ts_l, id_l, ts_id_l, allow_empty_series=allow_empty_series)
             ts = multiple_dfs_to_ts_file(ts_list_ret, id_l_ret, ts_id_l_ret, "", save=False, format=format)
 
-    mlflow.set_tag(f'infered_resolution_{covariates}', resolution)
+    if log_to_mlflow:
+        mlflow.set_tag(f'infered_resolution_{covariates}', resolution)
             
     return ts, resolution
 
