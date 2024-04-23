@@ -48,7 +48,7 @@ def isweekend(x):
         return True
     return False
 
-def create_calendar(timeseries, timestep_minutes, holiday_list, local_timezone):
+def create_calendar(timeseries, holiday_list, local_timezone):
 
     calendar = pd.DataFrame(
         timeseries.index.tolist(),
@@ -349,8 +349,8 @@ def impute(ts: pd.DataFrame,
         The resolution of the dataset
     debug
         If true it will print helpfull intermediate results
-    l_interpolation
-        Whether to only use linear interpolation 
+    name
+        The name of the string that will influence the name of the files that are produced.
     cut_date_val
         All dates before cut_date_val that have nan values are imputed using historical data
         from dates which are also before cut_date_val. Datetimes after cut_date_val are not affected
@@ -358,6 +358,13 @@ def impute(ts: pd.DataFrame,
     min_non_nan_interval
         If after imputation there exist continuous intervals of non nan values that are smaller than min_non_nan_interval
         hours, these intervals are all replaced by nan values
+    impute_dir
+        The name of the directory where the output files will be stored
+    imputation_method
+        Which imputation method to use. Options supported: 'linear', 'time', 'pad', 'nearest', 'polynomial', 'spline', 
+        'peppanen', 'krogh', 'piecewise_polynomial', 'spline', 'pchip', 'akima', 'cubicspline', and 'none'.
+    order
+        Order of method. Applicable to polynomial and spline imputation methods only
 
     Returns
     -------
@@ -433,7 +440,7 @@ def impute(ts: pd.DataFrame,
 
     elif imputation_method == 'peppanen':
         #Returning calendar of the country ts belongs to
-        calendar = create_calendar(ts, _, holidays, timezone("UTC"))
+        calendar = create_calendar(ts, holidays, timezone("UTC"))
         calendar.index = calendar["datetime"]
         imputed_values = ts[ts["Value"].isnull()].copy()
 
@@ -459,7 +466,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)):
             d[i] = min(d[i], count)
             if i < len(null_dates) - 1:
-                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(seconds==to_seconds(resolution)):
+                if null_dates[i+1] == null_dates[i] + pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else: 
                     count = 1
@@ -469,7 +476,7 @@ def impute(ts: pd.DataFrame,
         for i in range(len(null_dates)-1, -1, -1):
             d[i] = min(d[i], count)
             if i > 0:
-                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(seconds==to_seconds(resolution)):
+                if null_dates[i-1] == null_dates[i] - pd.offsets.DateOffset(seconds=to_seconds(resolution)):
                     count += 1
                 else:
                     count = 1

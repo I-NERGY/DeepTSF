@@ -63,38 +63,50 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
           named arbitrarily
 
     For multiple timeseries:
-        - Columns 'Date', 'ID', and the time columns exist in any order
+        - Columns 'Date', 'ID', and time columns exist in any order
         - Only the permitted column names exist in the dataframe (see Multiple timeseries file format bellow)
         - All timeseries in the dataframe have the same number of components
 
-    In case of a multiple timeseries, its resolution is also infered, and stored in mlflow as a tag. If we
-    have a single timeseries, then mlflow stores the resolution given by the user
+    For all timeseries, their resolution is also infered, and stored in mlflow as a tag. Furthermore, we support 2
+    formats for multiple time series files; short and long. These formats are presented bellow:
 
     Multiple timeseries file format (along with example values):
 
-    Datetime            | ID | Timeseries ID | Value 
-    2015-04-09 00:00:00 | PT | PT            | 5248  
-    2015-04-09 00:00:00 | ES | ES            | 25497
+    Long format:
+
+    Index |Datetime            | ID | Timeseries ID | Value 
+    0     |2015-04-09 00:00:00 | PT | PT            | 5248  
+    1     |2015-04-09 00:00:00 | ES | ES            | 25497
     .
     .
 
+    Short format:
 
     Index | Date         | ID | Timeseries ID | 00:00:00 | 00:00:00 + resolution | ... | 24:00:00 - resolution
     0     | 2015-04-09   | PT | PT            | 5248     | 5109                  | ... | 5345
     1     | 2015-04-09   | ES | ES            | 25497    | 23492                 | ... | 25487
     .
     .
-    The columns that can be present in the csv have the following meaning:
+The columns that can be present in the short format csv have the following meaning:
         - Index: Simply a monotonic integer range
         - Date: The Date each row is referring to
         - ID: Each ID corresponds to a component of a timeseries in the file. 
               This ID must be unique for each timeseries component in the file.
         - Timeseries ID (Optional): Timeseries ID column is not compulsory, and shows the 
               timeseries to which each component belongs. If Timeseries ID is not present, it is 
+              assumed that each component represents one separate series (the column is set to ID).
+        - Time columns: Columns that store the Value of each component.
+
+    The columns that can be present in the long format csv have the following meaning:
+        - Index: Simply a monotonic integer range
+        - Datetime: The Datetime each value is referring to
+        - ID: Each ID corresponds to a component of a timeseries in the file. 
+              This ID must be unique for each timeseries component in the file.
+        - Timeseries ID (Optional): Timeseries ID column is not compulsory, and shows the 
+              timeseries to which each component belongs. If Timeseries ID is not present, it is 
               assumed that each component represents one seperate series (the column is set to ID).
-        - Time columns: Columns that store the Load of each compontent. They must be consequtive and 
-              separated by resolution minutes. They should start at 00:00:00, and end at 24:00:00 - 
-              resolution
+        - Value: The value of this component in a particular Datetime.
+
         
     Columns can be in any order and the file will be considered valid.
 
@@ -152,7 +164,6 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
 
         if format == "short":
             des_columns = list(map(str, ['Date', 'ID', 'Timeseries ID']))
-            # + [(pd.Timestamp("00:00:00") + i*pd.DateOffset(seconds=to_seconds(resolution)//(60*60*24))).time() for i in range(60*60*24//to_seconds(resolution))]))
             #Check that all columns 'Date', 'ID', 'Timeseries ID' and only time columns exist in any order.
             if not set(des_columns).issubset(set(list(ts.columns))) and any(not isinstance(e, pd.Timestamp) for e in (set(list(ts.columns))).difference(set(des_columns))):
                 raise WrongColumnNames(list(ts.columns), len(des_columns) + 1, des_columns + ['and the rest should all be time columns'], "short")
@@ -163,7 +174,7 @@ def read_and_validate_input(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                         raise DatetimesNotInOrder(id)
         else:
             des_columns = list(map(str, ['Datetime', 'ID', 'Timeseries ID', 'Value']))
-            #Check that only columns 'Datetime', 'ID', 'Timeseries ID' exist in any order.
+            #Check that only columns 'Datetime', 'ID', 'Timeseries ID', 'Value' exist in any order.
             if not set(des_columns) == set(list(ts.columns)):
                 raise WrongColumnNames(list(ts.columns), len(des_columns), des_columns, "long")
             #Check that all dates for each component are sorted
@@ -257,10 +268,8 @@ def load_data_to_csv(tmpdir, database_name):
     return
 
 @click.command(
-    help="Downloads the RDN series and saves it as an mlflow artifact "
-    "called 'load_x_y.csv'."
+    help="Downloads the time series and saves it as an mlflow artifact. Also runs some validation checks."
     )
-# TODO: Update that to accept url as input instead of local file
 @click.option("--series-csv",
     type=str,
     default="None",
@@ -318,7 +327,6 @@ def load_data_to_csv(tmpdir, database_name):
 )
 
 def load_raw_data(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_csv, future_covs_uri, day_first, multiple, resolution, from_database, database_name, format):
-    #TODO Add that to params list
     from_database = truth_checker(from_database)
     tmpdir = tempfile.mkdtemp()
 
