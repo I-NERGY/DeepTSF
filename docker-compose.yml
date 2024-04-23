@@ -140,7 +140,7 @@ services:
       - 8006:8006
     volumes:
       - dagster-logs:/app/dagster-deeptsf
-      - ./uc2/user_datasets:/app/uc2/user_datasets
+      - ./uc2/user_datasets:/app/dagster-deeptsf/user_datasets
       # - ./dagster-deeptsf/dagster_deeptsf:/app/dagster-deeptsf/dagster_deeptsf  #debugging only
     networks:
       - load-forecasting-net
