@@ -568,4 +568,3 @@ hyperparameters:
     random_state: 0
     nr_epochs_val_period: 2
     batch_size: 128
-

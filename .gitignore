@@ -70,7 +70,7 @@ nodeLanguageServer.*/**
 !uc2/user_datasets/*
 
 # uc7_specs csv
-!docs/example_files/**
+!docs/**
 
 # SSL keys
 privkey3.pem

@@ -1,5 +1,5 @@
 import os
-from utils import load_model, load_scaler, load_ts_id, parse_uri_prediction_input
+from utils import load_model, load_scaler, load_ts_id, parse_uri_prediction_input, to_seconds
 import pretty_errors
 
 from urllib3.exceptions import InsecureRequestWarning

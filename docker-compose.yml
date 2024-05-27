@@ -90,7 +90,7 @@ services:
   backend:
     hostname: deeptsf_backend
     container_name: deeptsf_backend
-    # image: inergy2020iccs/deeptsf_backend:1.0.1  # only for releases
+    # image: inergy2020iccs/deeptsf_backend:1.0.2  # only for releases
     build: .    
     restart: always
     ports:
@@ -140,7 +140,7 @@ services:
       - 8006:8006
     volumes:
       - dagster-logs:/app/dagster-deeptsf
-      - ./uc2/user_datasets:/app/uc2/user_datasets
+      - ./uc2/user_datasets:/app/dagster-deeptsf/user_datasets
       # - ./dagster-deeptsf/dagster_deeptsf:/app/dagster-deeptsf/dagster_deeptsf  #debugging only
     networks:
       - load-forecasting-net
@@ -148,7 +148,7 @@ services:
   frontend:
     container_name: deeptsf_dashboard
     hostname: deeptsf_dashboard
-    image: inergy2020iccs/deeptsf_dashboard:1.0.1
+    image: inergy2020iccs/deeptsf_dashboard:1.0.2
     # build: https://github.com/I-NERGY/deeptsf-dashboard.git
     restart: always
     expose:

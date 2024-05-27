@@ -1,5 +1,5 @@
 import pretty_errors
-from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict, get_pv_forecast #, log_curves
+from utils import none_checker, ConfigParser, download_online_file, load_local_csv_as_darts_timeseries, truth_checker, load_yaml_as_dict, get_pv_forecast, to_seconds #, log_curves
 from preprocessing import scale_covariates, split_dataset, split_nans
 
 # the following are used through eval(darts_model + 'Model')
@@ -180,13 +180,17 @@ my_stopper = EarlyStopping(
     type=str,
     help="Wether to subtract the pv production forecasts from the training series and add it again during testing or not."
     )
-
+@click.option("--format",
+    default="long",
+    type=str,
+    help="Which file format to use. Only for multiple time series"
+)
 def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
           past_covs_csv, past_covs_uri, darts_model,
           hyperparams_entrypoint, cut_date_val, cut_date_test,
           test_end_date, device, scale, scale_covs, multiple,
           training_dict, num_workers, day_first, resolution,
-          pv_ensemble):
+          pv_ensemble, format):
 
     num_workers = int(num_workers)
     torch.set_num_threads(num_workers)
@@ -280,7 +284,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 last_date=test_end_date,
                 multiple=multiple,
                 day_first=day_first,
-                resolution=resolution)
+                resolution=resolution,
+                format=format)
         if future_covariates is not None:
             future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
                 local_path=future_covs_csv,
@@ -289,7 +294,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 last_date=test_end_date,
                 multiple=True,
                 day_first=day_first,
-                resolution=resolution)
+                resolution=resolution,
+                format=format)
         else:
             future_covariates, id_l_future_covs, ts_id_l_future_covs = None, None, None
         if past_covariates is not None:
@@ -300,7 +306,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
                 last_date=test_end_date,
                 multiple=True,
                 day_first=day_first,
-                resolution=resolution)
+                resolution=resolution,
+                format=format)
         else:
             past_covariates, id_l_past_covs, ts_id_l_past_covs = None, None, None
 
@@ -331,7 +338,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             conf_file_name='split_info.yml',
             multiple=multiple,
             id_l=id_l,
-            ts_id_l=ts_id_l)
+            ts_id_l=ts_id_l,
+            format=format)
         ## future covariates
         future_covariates_split = split_dataset(
             future_covariates,
@@ -342,7 +350,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             name='future_covariates',
             multiple=True,
             id_l=id_l_future_covs,
-            ts_id_l=ts_id_l_future_covs)
+            ts_id_l=ts_id_l_future_covs,
+            format=format)
         ## past covariates
         past_covariates_split = split_dataset(
             past_covariates,
@@ -353,7 +362,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             name='past_covariates',
             multiple=True,
             id_l=id_l_past_covs,
-            ts_id_l=ts_id_l_past_covs)
+            ts_id_l=ts_id_l_past_covs,
+            format=format)
         
 
         if pv_ensemble:
@@ -388,7 +398,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             scale=scale,
             multiple=multiple,
             id_l=id_l,
-            ts_id_l=ts_id_l
+            ts_id_l=ts_id_l,
+            format=format,
             )
         if scale:
             pickle.dump(series_transformed["transformer"], open(f"{scalers_dir}/scaler_series.pkl", "wb"))
@@ -401,7 +412,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             scale=scale_covs,
             multiple=True,
             id_l=id_l_future_covs,
-            ts_id_l=ts_id_l_future_covs
+            ts_id_l=ts_id_l_future_covs,
+            format=format,
             )
         ## scale past covariates
         past_covariates_transformed = scale_covariates(
@@ -411,7 +423,8 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             scale=scale_covs,
             multiple=True,
             id_l=id_l_past_covs,
-            ts_id_l=ts_id_l_past_covs
+            ts_id_l=ts_id_l_past_covs,
+            format=format,
             )
 
         ######################

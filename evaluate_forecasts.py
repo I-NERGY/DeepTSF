@@ -1,5 +1,6 @@
 import pretty_errors
-from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series
+from exceptions import EvalSeriesNotFound
+from utils import none_checker, truth_checker, download_online_file, load_local_csv_as_darts_timeseries, load_model, load_scaler, multiple_dfs_to_ts_file, get_pv_forecast, plot_series, to_seconds
 from darts.utils.missing_values import extract_subseries
 from functools import reduce
 from darts.metrics import mape as mape_darts
@@ -86,7 +87,8 @@ def backtester(model,
                m_mase=1,
                num_samples=1,
                pv_ensemble=False,
-               resolution="60"):
+               resolution="60min",
+               id_l=None):
     """ Does the same job with advanced forecast but much more quickly using the darts
     bult-in historical_forecasts method. Use this for evaluation. The other only
     provides pure inference. Provide a unified timeseries test set point based
@@ -101,7 +103,6 @@ def backtester(model,
     # produce the fewest forecasts possible.
     if stride is None:
         stride = forecast_horizon
-    test_start_date = pd.Timestamp(test_start_date + " 00:00:00")
 
 
     #keep last non nan values
@@ -110,6 +111,7 @@ def backtester(model,
     series = extract_subseries(series, min_gap_size=1)[-1]
     series_transformed = extract_subseries(series_transformed, min_gap_size=1)[-1]
 
+    test_start_date = series_transformed.pd_dataframe()[series_transformed.pd_dataframe().index >= pd.Timestamp(test_start_date + " 00:00:00")].index[0]
     # plot_series(df_list=[series_transformed], 
     #                 ts_name_list=["series_transformed"], 
     #                 save_dir=os.path.join(path_to_save_backtest,
@@ -207,7 +209,7 @@ def backtester(model,
     # except:
     #     pass
     # Metrix
-    test_series = series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min"))
+    test_series = series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(resolution))
     metrics = {
         "mae": mae_darts(
             test_series,
@@ -270,7 +272,8 @@ def backtester(model,
         #     f' week2_forecast_start_date_{test_start_date.date()}_forecast_horizon_{forecast_horizon}.png'))
 
         plot_series(df_list=[series, backtest_series], 
-                    ts_name_list=["Actual", "Prediction"], 
+                    ts_name_list=["actual", "prediction"], 
+                    id_list=id_l,
                     save_dir=os.path.join(path_to_save_backtest,
                                         f'Actual_vs_Predicted.html'))
         try:
@@ -287,10 +290,10 @@ def backtester(model,
             backtest_series_transformed.quantile_df() \
             .to_csv(os.path.join(path_to_save_backtest, 'predictions_transformed.csv'))
 
-        series_transformed.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min")) \
+        series_transformed.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(resolution)) \
         .to_csv(os.path.join(path_to_save_backtest, 'test_transformed.csv'))
 
-        series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(int(resolution), "min")) \
+        series.drop_before(pd.Timestamp(test_start_date) - pd.Timedelta(resolution)) \
         .to_csv(os.path.join(path_to_save_backtest, 'original_series.csv'))
 
     return {"metrics": metrics, "eval_plot": plt, "backtest_series": backtest_series}
@@ -679,7 +682,7 @@ def call_shap(n_past_covs: int,
 @click.option("--resolution",
     default="None",
     type=str,
-    help="The resolution of the dataset in minutes."
+    help="The resolution of the dataset."
 )
 @click.option("--eval-method",
     type=click.Choice(
@@ -708,11 +711,14 @@ def call_shap(n_past_covs: int,
     type=str,
     help="Wether to subtract the pv production forecasts from the training series and add it again during testing or not.",
     )
-
-
+@click.option("--format",
+    default="long",
+    type=str,
+    help="Which file format to use. Only for multiple time series"
+)
 def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_date_test, test_end_date, model_uri, model_type, 
              forecast_horizon, stride, retrain, shap_input_length, shap_output_length, size, analyze_with_shap, multiple, eval_series, 
-             cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase, num_samples, pv_ensemble):
+             cut_date_val, day_first, resolution, eval_method, evaluate_all_ts, m_mase, num_samples, pv_ensemble, format):
     # TODO: Validate evaluation step for all models. It is mainly tailored for the RNNModel for now.
 
     evaltmpdir = tempfile.mkdtemp()
@@ -751,7 +757,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
         last_date=test_end_date,
         multiple=multiple,
         day_first=day_first,
-        resolution=resolution)
+        resolution=resolution,
+        format=format)
     
     series_transformed = series.copy()
     # plot_series(df_list=[series_transformed[0]], 
@@ -793,7 +800,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             last_date=test_end_date,
             multiple=True,
             day_first=day_first,
-            resolution=resolution)
+            resolution=resolution,
+            format=format)
     else:
         future_covariates = None
 
@@ -805,7 +813,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             last_date=test_end_date,
             multiple=True,
             day_first=day_first,
-            resolution=resolution)
+            resolution=resolution,
+            format=format)
     else:
         past_covariates = None
 
@@ -831,7 +840,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             test_end_date=test_end_date,
             multiple=multiple,
             id_l=id_l,
-            ts_id_l=ts_id_l)
+            ts_id_l=ts_id_l,
+            format=format)
 
     series_transformed_split = split_dataset(
             series_transformed,
@@ -840,7 +850,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
             test_end_date=test_end_date,
             multiple=multiple,
             id_l=id_l,
-            ts_id_l=ts_id_l)
+            ts_id_l=ts_id_l,
+            format=format)
 
 
     if multiple:
@@ -857,6 +868,9 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                         eval_i = i
     else:
         eval_i = 0
+
+    if eval_i == -1 and evaluate_all_ts==False:
+        raise EvalSeriesNotFound(eval_series)
     # Evaluate Model
     with mlflow.start_run(run_name='eval', nested=True) as mlrun:
         mlflow.set_tag("run_id", mlrun.info.run_id)
@@ -885,7 +899,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             m_mase=m_mase,
                                             num_samples=num_samples,
                                             pv_ensemble=pv_ensemble,
-                                            resolution=resolution)
+                                            resolution=resolution,
+                                            id_l=None if not multiple else id_l[eval_i])
                 eval_results[eval_i] = list(map(str, ts_id_l[eval_i][:1])) + [evaluation_results["metrics"]["smape"],
                                                                               evaluation_results["metrics"]["mase"],
                                                                               evaluation_results["metrics"]["mae"],
@@ -921,7 +936,8 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                                             m_mase=m_mase,
                                             num_samples=num_samples,
                                             pv_ensemble=pv_ensemble,
-                                            resolution=resolution)
+                                            resolution=resolution,
+                                            id_l=None if not multiple else id_l[eval_i])
             if analyze_with_shap:
                 data, background = build_shap_dataset(size=size,
                                                 train=series_split['train'],
@@ -943,11 +959,11 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
                     data=data,
                     scale=(scaler != None),
                     num_samples=num_samples)
-        if not multiple:
-            series_split['test'].to_csv(
-                    os.path.join(evaltmpdir, "test.csv"))
-        else:
-            multiple_dfs_to_ts_file(series_split['test'], id_l, ts_id_l, os.path.join(evaltmpdir, "test.csv"))
+        # if not multiple:
+        #     series_split['test'].to_csv(
+        #             os.path.join(evaltmpdir, "test.csv"))
+        # else:
+        #     multiple_dfs_to_ts_file(series_split['test'], id_l, ts_id_l, os.path.join(evaltmpdir, "test.csv"))
 
         print("\nUploading evaluation results to MLflow server...")
         logging.info("\nUploading evaluation results to MLflow server...")
