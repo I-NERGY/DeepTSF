@@ -35,6 +35,7 @@ from typing import List
 import darts
 import json
 import statistics
+from minio import Minio
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
@@ -45,6 +46,10 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=False)
 
 
 # DARTS
@@ -746,7 +751,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
 
     ## load series from MLflow
     series_path = download_online_file(
-        series_uri, "series.csv") if mode == 'remote' else series_uri
+        client, series_uri, "series.csv") if mode == 'remote' else series_uri
     series, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
         local_path=series_path,
         last_date=test_end_date,
@@ -789,7 +794,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
 
     if future_covariates_uri is not None:
         future_covs_path = download_online_file(
-            future_covariates_uri, "future_covariates.csv") if mode == 'remote' else future_covariates_uri
+            client, future_covariates_uri, "future_covariates.csv") if mode == 'remote' else future_covariates_uri
         future_covariates, id_l_future_covs, ts_id_l_future_covs = load_local_csv_as_darts_timeseries(
             local_path=future_covs_path,
             last_date=test_end_date,
@@ -802,7 +807,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
 
     if past_covariates_uri is not None:
         past_covs_path = download_online_file(
-            past_covariates_uri, "past_covariates.csv") if mode == 'remote' else past_covariates_uri
+            client, past_covariates_uri, "past_covariates.csv") if mode == 'remote' else past_covariates_uri
         past_covariates, id_l_past_covs, ts_id_l_past_covs = load_local_csv_as_darts_timeseries(
             local_path=past_covs_path,
             last_date=test_end_date,
@@ -815,7 +820,7 @@ def evaluate(mode, series_uri, future_covs_uri, past_covs_uri, scaler_uri, cut_d
 
     # TODO: Also implement for local files -> Done?
     ## load model from MLflow
-    model = load_model(model_uri, mode)
+    model = load_model(client, model_uri, mode)
     scaler = load_scaler(scaler_uri=none_checker(scaler_uri), mode=mode)
 
     if scaler is not None:

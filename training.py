@@ -5,7 +5,7 @@ from preprocessing import scale_covariates, split_dataset, split_nans
 # the following are used through eval(darts_model + 'Model')
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
 # from darts.models.forecasting.auto_arima import AutoARIMA
-from darts.models.forecasting.gradient_boosted_model import LightGBMModel
+from darts.models.forecasting.lgbm import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
 from darts.models.forecasting.arima import ARIMA
 from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
@@ -21,13 +21,18 @@ import tempfile
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 import shutil
 import pandas as pd
-
+from minio import Minio
 # Inference requirements to be stored with the darts flavor !!
 from sys import version_info
 import torch, cloudpickle, darts
 PYTHON_VERSION = "{major}.{minor}.{micro}".format(major=version_info.major,
                                                   minor=version_info.minor,
                                                   micro=version_info.micro)
+
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=False)
 mlflow_serve_conda_env = {
     'channels': ['defaults'],
     'dependencies': [
@@ -221,13 +226,13 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
 
     # redirect to local location of downloaded remote file
     if series_uri is not None:
-        download_file_path = download_online_file(series_uri, dst_filename="load.csv")
+        download_file_path = download_online_file(client, series_uri, dst_filename="load.csv")
         series_csv = download_file_path
     if  future_covs_uri is not None:
-        download_file_path = download_online_file(future_covs_uri, dst_filename="future.csv")
+        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future.csv")
         future_covs_csv = download_file_path
     if  past_covs_uri is not None:
-        download_file_path = download_online_file(past_covs_uri, dst_filename="past.csv")
+        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past.csv")
         past_covs_csv = download_file_path
 
     series_csv = series_csv.replace('/', os.path.sep).replace("'", "")

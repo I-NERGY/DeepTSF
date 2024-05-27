@@ -5,7 +5,7 @@ import logging
 import tempfile
 import pretty_errors
 import yaml
-
+from minio import  Minio
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
@@ -16,6 +16,10 @@ mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=False)
 
 
 @click.command()
@@ -77,7 +81,7 @@ def MLflowDartsModelPredict(pyfunc_model_folder, forecast_horizon, series_uri, f
 
         # Load model as a PyFuncModel.
         print("\nLoading pyfunc model...")
-        loaded_model = mlflow.pyfunc.load_model(pyfunc_model_folder)
+        loaded_model = mlflow.pyfunc.load_model(client, pyfunc_model_folder)
 
         # Predict on a Pandas DataFrame.
         print("\nPyfunc model prediction...")

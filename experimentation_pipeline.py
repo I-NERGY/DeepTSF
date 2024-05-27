@@ -24,6 +24,7 @@ from mlflow.tracking.fluent import _get_experiment_id
 from utils import truth_checker, load_yaml_as_dict, download_online_file, ConfigParser, save_dict_as_yaml, none_checker
 import optuna
 import logging
+from minio import Minio
 
 # get environment variables
 from dotenv import load_dotenv
@@ -32,6 +33,11 @@ load_dotenv()
 # os.environ["MLFLOW_TRACKING_URI"] = ConfigParser().mlflow_tracking_uri
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 S3_ENDPOINT_URL = os.environ.get('MLFLOW_S3_ENDPOINT_URL')
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=False)
+
 """MLFLOW_TRACKING_INSECURE_TLS = os.environ.get('MLFLOW_TRACKING_INSECURE_TLS')
 MLFLOW_TRACKING_USERNAME = os.environ.get('MLFLOW_TRACKING_USERNAME')
 MLFLOW_TRACKING_PASSWORD = os.environ.get('MLFLOW_TRACKING_PASSWORD')
@@ -594,7 +600,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
         # 4. Evaluation
         ## load setup file
         setup_file = download_online_file(
-            train_opt_setup_uri, "setup.yml")
+            client, train_opt_setup_uri, "setup.yml")
         setup = load_yaml_as_dict(setup_file)
         print(f"\nSplit info: {setup} \n")
 
@@ -632,7 +638,7 @@ def workflow(series_csv, series_uri, past_covs_csv, past_covs_uri, future_covs_c
         # Naive models require retrain=True
         if "naive" in [train_opt_run.data.params["darts_model"].lower()]:
             eval_params["retrain"] = True
-            print("\Warning: Switching retrain flag to True as Naive models require...\n")
+            print("Warning: Switching retrain flag to True as Naive models require...\n")
 
 
         eval_run = _get_or_run("eval", eval_params, git_commit)
