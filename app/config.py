@@ -1,5 +1,5 @@
 from typing import List
-from pydantic_settings import BaseSettings
+from pydantic import BaseSettings
 import os
 
 # get environment variables

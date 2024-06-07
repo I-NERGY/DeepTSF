@@ -130,26 +130,35 @@ The columns that can be present in the short format csv have the following meani
     (pandas.DataFrame, int)
         A tuple consisting of the resulting dataframe from series_csv as well as the resolution
     """
-
-    ts = pd.read_csv(series_csv,
+    if format == "long":
+        ts = pd.read_csv(series_csv,
                      sep=None,
                      header=0,
                      index_col=0,
-                     parse_dates=([1] if multiple else True),
+                     parse_dates=(["Datetime"] if multiple else True),
                      dayfirst=day_first,
                      engine='python')
-    
+        ts["Datetime"] = pd.to_datetime(ts["Datetime"])
+    else:
+        ts = pd.read_csv(series_csv,
+                     sep=None,
+                     header=0,
+                     index_col=0,
+                     parse_dates=(["Date"] if multiple else True),
+                     dayfirst=day_first,
+                     engine='python')
+        ts["Date"] = pd.to_datetime(ts["Date"])
+
     #Dataframe can not be empty
     if ts.empty:
         raise EmptyDataframe(from_database)
-    
-    if type(ts.index[0]) != pd.Timestamp:
-        raise WrongIndexFormat()
-    
+        
     if not multiple:
         #Check that dates are in order. If month is used before day and day_first is set to True, this is not the case.
         if not ts.index.sort_values().equals(ts.index):
             raise DatetimesNotInOrder()
+        if type(ts.index[0]) != pd.Timestamp:
+            raise WrongIndexFormat()
         #Check that column Datetime is used as index, and that Load is the only other column in the csv for the series csv
         elif covariates == "series" and not (len(ts.columns) == 1 and ts.columns[0] == "Value" and ts.index.name == 'Datetime'):
             raise WrongColumnNames([ts.index.name] + list(ts.columns), 2, ['Datetime', "Value"])
