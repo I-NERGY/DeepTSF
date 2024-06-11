@@ -40,7 +40,8 @@ MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI")
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
-client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=False)
+MINIO_SSL = truth_checker(os.environ.get("MINIO_SSL"))
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
 
 # DATE HANDLERS
 def isholiday(x, holiday_list):
@@ -1040,8 +1041,11 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                          header=0,
                          index_col=0,
                          parse_dates=True,
-                         dayfirst=day_first)]]
-        id_l, ts_id_l = [["Timeseries"]], [["Timeseries"]]
+                         dayfirst=day_first,
+                         infer_datetime_format=True)]]
+        
+        # ts_list[0][0].index = pd.to_datetime(ts_list[0][0].index)
+        id_l, ts_id_l = [["Timeseries"]], [["Timeseries"]] 
 
     # Year range handling
 
