@@ -254,11 +254,10 @@ def download_mlflow_file(client, url, dst_dir=None):
         run_id = url.split('/')[1]
         mlflow_path = '/'.join(url.split('/')[3:])
         local_path = mlflow_client.download_artifacts(run_id, mlflow_path, dst_dir)
-    elif url.startswith('http://'):
-        local_path = download_online_file(
-            client, url, dst_dir=dst_dir)
+    elif url.startswith('http://') or url.startswith('https://'):
+        local_path = download_online_file(client, url, dst_dir=dst_dir)
+    print("\nLocal path:", local_path)
     return local_path
-
 
 def load_pkl_model_from_server(client, model_uri):
     print("\nLoading remote PKL model...")
@@ -1341,9 +1340,16 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
                      sep=None,
                      header=0,
                      index_col=0,
-                     parse_dates=True,
+                     parse_dates=(["Date"] if format=='short' else ["Datetime"]),
                      dayfirst=day_first,
-                     engine='python')
+                     engine='python',
+                     date_format='mixed')
+    
+    if format == "long":
+        ts["Datetime"] = pd.to_datetime(ts["Datetime"])
+    else:
+        ts["Date"] = pd.to_datetime(ts["Date"])
+
     res = []
     id_l = []
     ts_id_l = []
