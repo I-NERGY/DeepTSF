@@ -137,8 +137,12 @@ The columns that can be present in the short format csv have the following meani
                      index_col=0,
                      parse_dates=(["Datetime"] if multiple else True),
                      dayfirst=day_first,
-                     engine='python')
-        ts["Datetime"] = pd.to_datetime(ts["Datetime"])
+                     engine='python', 
+                     date_format='mixed')
+        if multiple:
+            ts["Datetime"] = pd.to_datetime(ts["Datetime"])
+        else:
+            ts.index = pd.to_datetime(ts.index)
     else:
         ts = pd.read_csv(series_csv,
                      sep=None,
@@ -146,8 +150,12 @@ The columns that can be present in the short format csv have the following meani
                      index_col=0,
                      parse_dates=(["Date"] if multiple else True),
                      dayfirst=day_first,
-                     engine='python')
-        ts["Date"] = pd.to_datetime(ts["Date"])
+                     engine='python',
+                     date_format='mixed')
+        if multiple:
+            ts["Date"] = pd.to_datetime(ts["Date"])
+        else:
+            ts.index = pd.to_datetime(ts.index)
 
     #Dataframe can not be empty
     if ts.empty:
