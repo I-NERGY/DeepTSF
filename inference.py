@@ -6,6 +6,7 @@ import tempfile
 import pretty_errors
 import yaml
 from minio import  Minio
+from utils import truth_checker 
 # get environment variables
 from dotenv import load_dotenv
 load_dotenv()
@@ -19,7 +20,8 @@ disable_warnings(InsecureRequestWarning)
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
-client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=False)
+MINIO_SSL = truth_checker(os.environ.get("MINIO_SSL"))
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
 
 
 @click.command()
