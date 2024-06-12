@@ -269,7 +269,7 @@ def load_pkl_model_from_server(client, model_uri):
 
 def load_local_pl_model(model_root_dir):
 
-    from darts.models.forecasting.gradient_boosted_model import LightGBMModel
+    from darts.models.forecasting.lgbm import LightGBMModel
     from darts.models.forecasting.random_forest import RandomForest
     from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
     print("\nLoading local PL model...")
@@ -417,13 +417,22 @@ def load_artifacts(run_id, src_path, dst_path=None):
     import tempfile
     import os
     import mlflow
+    mlflow_client = mlflow.tracking.MlflowClient()
     if dst_path is None:
         dst_dir = tempfile.mkdtemp()
     else:
         dst_dir = os.path.sep.join(dst_path.split("/")[-1])
         os.makedirs(dst_dir, exist_ok=True)
     fname = src_path.split("/")[-1]
-    return mlflow.artifacts.download_artifacts(artifact_path=src_path, dst_path="/".join([dst_dir, fname]), run_id=run_id)
+    print(src_path, dst_dir)
+
+    return mlflow_client.download_artifacts(
+            run_id=run_id,
+            path=src_path,
+            dst_path=dst_dir
+        )
+
+    # return mlflow.artifacts.download_artifacts(artifact_path=src_path, dst_path="/".join([dst_dir, fname]), run_id=run_id)
 
 
 def load_local_model_as_torch(local_path):
@@ -1367,7 +1376,7 @@ def multiple_ts_file_to_dfs(series_csv: str = "../../RDN/Load_Data/2009-2019-glo
             curr_comp = curr_ts[curr_ts["ID"] == id]
             if format == 'short':
                 curr_comp = pd.melt(curr_comp, id_vars=['Date', 'ID', 'Timeseries ID'], var_name='Time', value_name=value_name)
-                curr_comp["Datetime"] = pd.to_datetime(curr_comp['Date'] + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
+                curr_comp["Datetime"] = pd.to_datetime(curr_comp['Date'].dt.strftime("%Y-%m-%d") + curr_comp['Time'], format='%Y-%m-%d%H:%M:%S')
             else:
                 curr_comp["Datetime"] = pd.to_datetime(curr_comp["Datetime"])
             curr_comp = curr_comp.set_index("Datetime")

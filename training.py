@@ -544,6 +544,9 @@ def train(series_csv, series_uri, future_covs_csv, future_covs_uri,
             print(f'\nTraining {darts_model}...')
             logging.info(f'\nTraining {darts_model}...')
 
+            # print("TEST TEST", series_transformed['train'])
+            # print("TEST TEST", series_transformed['train'][0].index[0], type(series_transformed['train'][0].index[0]))
+
             # for i, series in enumerate(series_transformed['train']):
             #     series.pd_dataframe().to_csv(f"{i}_series_partial_lgbm_ens")
 

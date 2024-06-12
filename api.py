@@ -602,10 +602,10 @@ async def run_experimentation_pipeline(parameters: dict, background_tasks: Backg
 @engineer_router.get('/results/get_list_of_experiments', tags=['MLflow Info', 'Model Evaluation'])
 async def get_list_of_mlflow_experiments():
     client = MlflowClient()
-    experiments = client.list_experiments()
-    experiment_names = [client.list_experiments()[i].name
+    experiments = client.search_experiments()
+    experiment_names = [client.search_experiments()[i].name
                         for i in range(len(experiments))]
-    experiment_ids = [client.list_experiments()[i].experiment_id
+    experiment_ids = [client.search_experiments()[i].experiment_id
                       for i in range(len(experiments))]
     experiments = dict(zip(experiment_names, experiment_ids))
     experiments_response = [
@@ -632,7 +632,7 @@ async def get_forecast_vs_actual(run_id: str, n: int):
         run_id=run_id, src_path="eval_results/predictions.csv")
     forecast_df = pd.read_csv(forecast, index_col=0).iloc[-n:]
     actual = load_artifacts(
-        run_id=run_id, src_path="eval_results/test.csv")
+        run_id=run_id, src_path="eval_results/original_series.csv")
     actual_df = pd.read_csv(actual, index_col=0)[-n:]
     forecast_response = forecast_df.to_dict('split')
     actual_response = actual_df.to_dict('split')
@@ -641,6 +641,8 @@ async def get_forecast_vs_actual(run_id: str, n: int):
     forecast_response["data"] = [i[0] for i in forecast_response["data"]]
     response = {"forecast": forecast_response,
                 "actual":  actual_response}
+
+    print(response)
     return response
 
 
@@ -684,7 +686,10 @@ async def get_memory_usage():
 
 @admin_router.get('/system_monitoring/get_gpu_usage', tags=['System Monitoring'])
 async def get_gpu_usage():
-    gpus_stats = nvsmi.get_gpus()
+    try:
+        gpus_stats = nvsmi.get_gpus()
+    except:
+        return {"No GPUS"}
     response = {}
     for gpu_stats in gpus_stats:
         response[gpu_stats.id] = {

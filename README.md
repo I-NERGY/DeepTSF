@@ -33,9 +33,9 @@ DeepTSF is up and running. Navigate to [http://localhost:3000](http://localhost:
 In a new terminal window, you can copy the timeseries file you desire to run into the container, 
 and then run the following to gain access to the container's file system:
 
-```docker cp <path_to_file> deeptsf-backend:/app```
+```docker cp <path_to_file> DeepTSF-backend:/app```
 
-```docker exec -it deeptsf_backend bash```
+```docker exec -it DeepTSF-backend bash```
 
 Now you are running bash in the main DeepTSF container! Choose the directory which best corresponds to your 
 problem, and switch to that: <br>

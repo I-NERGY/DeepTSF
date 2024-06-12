@@ -537,6 +537,9 @@ def impute(ts: pd.DataFrame,
 
             historical = historical.mean()
 
+            if np.isnan(historical):
+                historical = ts_interpolatied.loc[null_date]
+
             #imputed value is calculated as a wheighted average of the histrorical value and the value from intrepolation
             res.loc[null_date] = w * ts_interpolatied.loc[null_date] + (1 - w) * historical
 
@@ -1044,7 +1047,7 @@ def etl(series_csv, series_uri, year_range, resolution, time_covs, day_first,
                          dayfirst=day_first,
                          infer_datetime_format=True)]]
         
-        # ts_list[0][0].index = pd.to_datetime(ts_list[0][0].index)
+        ts_list[0][0].index = pd.to_datetime(ts_list[0][0].index)
         id_l, ts_id_l = [["Timeseries"]], [["Timeseries"]] 
 
     # Year range handling

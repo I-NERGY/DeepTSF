@@ -110,8 +110,8 @@ def backtester(model,
     #keep last non nan values
     #must be sufficient for historical_forecasts and mase calculation
     #TODO Add check for that in the beggining
-    series = extract_subseries(series, min_gap_size=1)[-1]
-    series_transformed = extract_subseries(series_transformed, min_gap_size=1)[-1]
+    # series = extract_subseries(series, min_gap_size=1, mode='any')[-1]
+    # series_transformed = extract_subseries(series_transformed, min_gap_size=1, mode='any')[-1]
 
     test_start_date = series_transformed.pd_dataframe()[series_transformed.pd_dataframe().index >= pd.Timestamp(test_start_date + " 00:00:00")].index[0]
     # plot_series(df_list=[series_transformed], 
