@@ -107,6 +107,13 @@ class TsUsedIdDoesNotExcist(Exception):
         self.message = f'This ts_used_id does not exist in the multiple time series file'
         super().__init__(self.message)
 
+class WrongIndexFormat(Exception):
+    """
+    Exception raised if the index of a dataframe is not pd.Timestamp.
+    """
+    def __init__(self):
+        self.message = f'The index of the dataframe is not pd.Timestamp. Check day_first argument'
+
 class DifferentFrequenciesMultipleTS(Exception):
     """
     Exception raised if multiple / multivariate series file has different inferred resolutions.

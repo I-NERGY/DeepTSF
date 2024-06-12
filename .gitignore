@@ -73,5 +73,5 @@ nodeLanguageServer.*/**
 !docs/**
 
 # SSL keys
-privkey3.pem
-cert3.pem
+privkey1.pem
+cert1.pem

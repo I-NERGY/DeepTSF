@@ -1,10 +1,17 @@
 import os
 from utils import load_model, load_scaler, load_ts_id, parse_uri_prediction_input, to_seconds
 import pretty_errors
-
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
+from minio import Minio
+from utils import truth_checker 
+
 disable_warnings(InsecureRequestWarning)
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
+MINIO_SSL = truth_checker(os.environ.get("MINIO_SSL"))
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
 
 
 class _MLflowPLDartsModelWrapper:
@@ -33,7 +40,7 @@ class _MLflowPLDartsModelWrapper:
             batched = False
 
         # Parse
-        model_input = parse_uri_prediction_input(model_input, self.model, self.ts_id_l)
+        model_input = parse_uri_prediction_input(client, model_input, self.model, self.ts_id_l)
 
         # Transform
         if self.transformer is not None:
@@ -75,7 +82,7 @@ def _load_pyfunc(model_folder):
     # TODO: Create a class for these functions instead of bringing them from utils.py
     print(model_folder)
     # Different behaviours for pl and pkl models are defined in load_model
-    model = load_model(model_root_dir=model_folder, mode="local")
+    model = load_model(client, model_root_dir=model_folder, mode="local")
     scaler = load_scaler(scaler_uri=f"{model_folder}/scaler_series.pkl", mode="local")
     ts_id_l = load_ts_id(load_ts_id_uri=f"{model_folder}/ts_id_l.pkl", mode="local")
     return _MLflowPLDartsModelWrapper(model, scaler, ts_id_l)

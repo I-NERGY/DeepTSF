@@ -24,7 +24,7 @@ services:
     env_file:
       - .env
     networks:
-       - inergy_network
+       - keycloak_net
 
   dagster:
     container_name: DeepTSF--dagster-orchestrator
@@ -47,7 +47,7 @@ services:
       - dagster-logs:/app/dagster-deeptsf
 #      - ./uc2:/app/uc2
     networks:
-       - inergy_network
+       - keycloak_net
 
   # frontend:
   #   container_name: load-forecasting-dashboard
@@ -73,5 +73,5 @@ volumes:
     dagster-logs: 
 
 networks:
-  inergy_network:
+  keycloak_net:
     external: true

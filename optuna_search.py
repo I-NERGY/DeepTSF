@@ -17,7 +17,7 @@ from darts.models import (
 from darts.models import RNNModel, BlockRNNModel, NBEATSModel, TFTModel, NaiveDrift, NaiveSeasonal, TCNModel, NHiTSModel, TransformerModel
 from darts.models.forecasting.arima import ARIMA
 # from darts.models.forecasting.auto_arima import AutoARIMA
-from darts.models.forecasting.gradient_boosted_model import LightGBMModel
+from darts.models.forecasting.lgbm import LightGBMModel
 from darts.models.forecasting.random_forest import RandomForest
 from darts.utils.likelihood_models import ContinuousBernoulliLikelihood, GaussianLikelihood, DirichletLikelihood, ExponentialLikelihood, GammaLikelihood, GeometricLikelihood
 
@@ -42,10 +42,15 @@ from sklearn.metrics import mean_absolute_percentage_error as mape
 from sklearn.metrics import mean_squared_error as mse
 import numpy as np
 import random
-
+from minio import Minio
 from urllib3.exceptions import InsecureRequestWarning
 from urllib3 import disable_warnings
 disable_warnings(InsecureRequestWarning)
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+MINIO_CLIENT_URL = os.environ.get("MINIO_CLIENT_URL")
+MINIO_SSL = truth_checker(os.environ.get("MINIO_SSL"))
+client = Minio(MINIO_CLIENT_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, secure=MINIO_SSL)
 
 PYTHON_VERSION = "{major}.{minor}.{micro}".format(major=version_info.major,
                                                   minor=version_info.minor,
@@ -383,19 +388,19 @@ def train(series_uri, future_covs_uri, past_covs_uri, darts_model,
 
     # redirect to local location of downloaded remote file
     if series_uri is not None:
-        download_file_path = download_online_file(series_uri, dst_filename="load.csv")
+        download_file_path = download_online_file(client, series_uri, dst_filename="load.csv")
         series_csv = download_file_path.replace('/', os.path.sep).replace("'", "")
     else:
         series_csv = None
 
     if  future_covs_uri is not None:
-        download_file_path = download_online_file(future_covs_uri, dst_filename="future.csv")
+        download_file_path = download_online_file(client, future_covs_uri, dst_filename="future.csv")
         future_covs_csv = download_file_path.replace('/', os.path.sep).replace("'", "")
     else:
         future_covs_csv = None
 
     if  past_covs_uri is not None:
-        download_file_path = download_online_file(past_covs_uri, dst_filename="past.csv")
+        download_file_path = download_online_file(client, past_covs_uri, dst_filename="past.csv")
         past_covs_csv = download_file_path.replace('/', os.path.sep).replace("'", "")
     else:
         past_covs_csv = None
@@ -758,8 +763,8 @@ def backtester(model,
     #keep last non nan values
     #must be sufficient for historical_forecasts and mase calculation
     #TODO Add check for that in the beggining
-    series = extract_subseries(series, min_gap_size=1)[-1]
-    series_transformed = extract_subseries(series_transformed, min_gap_size=1)[-1]
+    # series = extract_subseries(series, min_gap_size=1, mode='any')[-1]
+    # series_transformed = extract_subseries(series_transformed, min_gap_size=1, mode='any')[-1]
 
     test_start_date = series_transformed.pd_dataframe()[series_transformed.pd_dataframe().index >= pd.Timestamp(test_start_date + " 00:00:00")].index[0]
 
@@ -866,7 +871,7 @@ def validate(series_uri, future_covariates, past_covariates, scaler, cut_date_te
 
     ## load series from MLflow
     series_path = download_online_file(
-        series_uri, "series.csv") if mode == 'remote' else series_uri
+        client, series_uri, "series.csv") if mode == 'remote' else series_uri
     series, id_l, ts_id_l = load_local_csv_as_darts_timeseries(
         local_path=series_path,
         last_date=test_end_date,

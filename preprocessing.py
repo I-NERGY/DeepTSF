@@ -48,9 +48,14 @@ def split_nans(covariates, past_covs, future_covs):
     if type(covariates) != list:
         covariates = [covariates]
 
+    print("TEST TEST TEST", covariates, len(covariates))
+
     for i, covariate in enumerate(covariates):
+        print(covariate)
         if covariate.pd_dataframe().isnull().sum().sum() > 0:
-            covariate = extract_subseries(covariate, min_gap_size=1)#, mode='any') TODO update darts!!
+            covariate = extract_subseries(covariate, min_gap_size=1, mode='any')
+
+            print("TEST TEST TEST", covariate)
 
             print(f"Spliting train into {len(covariate)} consecutive series\n")
             logging.info(f"Spliting train into {len(covariate)} consecutive series\n")
