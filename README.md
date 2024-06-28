@@ -106,4 +106,4 @@ Please do not omit this step as this environment variable will not get inherited
 For the extensive DeepTSF documentation please navigate to our [Wiki](https://github.com/I-NERGY/DeepTSF/wiki/DeepTSF-documentation). 
 
 ## References
-[1]: Pelekis, S., Karakolis, E., Pountridis, T., Kormpakis, G., Lampropoulos, G., Mouzakits, S., & Askounis, D. (2023). DeepTSF: Codeless machine learning operations for time series forecasting. ArXiv https://arxiv.org/abs/2308.00709  <br>
+[1] S. Pelekis et al., “DeepTSF: Codeless machine learning operations for time series forecasting,” SoftwareX, vol. 27, p. 101758, Sep. 2024, doi: [10.1016/J.SOFTX.2024.101758](https://doi.org/10.1016/j.softx.2024.101758). <br>
